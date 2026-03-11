@@ -1,110 +1,76 @@
-# Plan de Implantación Detallado: Odoo ERP con pfSense y Docker (TFG ASIR)
+# Plan de Implantación Detallado: Odoo ERP con Docker 100% Contenerizado (TFG ASIR)
 
-Este documento contiene el desglose técnico y exhaustivo paso a paso para la implantación del escenario propuesto. Constituye tu hoja de ruta principal, con comandos exactos y código preparado para su uso.
+Este documento contiene el desglose técnico orientado a una arquitectura puramente basada en contenedores. Se prescinde de máquinas virtuales (VMs) y de hypervisores para apoyarse enteramente en **Docker y Docker Compose**. La segregación de red se logra mediante las redes virtuales (`bridge`) del propio motor de Docker.
 
 ---
 
-## Fase 1: Preparación del Entorno Base y Red (pfSense)
+## Fase 1: Arquitectura Lógica de Red en Docker
 
-### 1.1 Esquema de Direccionamiento IP
+En esta arquitectura no dependemos de un pfSense externo ni de VLANs a nivel de capa de enlace. Todo se gestiona a través de la capa de red de Docker.
+
+### 1.1 Esquema de Direccionamiento y Redes
 
 **1. Diagrama de Conexiones Lógicas**
 
 ```mermaid
 graph TD
-    WAN((Internet / WAN)) -->|DHCP Externo| PFSENSE[pfSense Firewall/Router]
-    PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ / Servidor Principal]
-    PFSENSE -->|Gateway: 192.168.10.1| LAN_CLI[VLAN 10 - LAN Clientes]
+    WAN[Usuarios Externos / Internet] -->|Petición HTTPS :443| HOST[Host Principal - Windows/Linux]
+    LAN[Usuarios Locales / LAN] -->|Petición HTTPS :443| HOST
     
-    DMZ --> DOCKER_HOST[Servidor Único Linux Mint\n192.168.30.10]
-    
-    subgraph DOCKER_HOST [Servidor Único Linux Mint (192.168.30.10)]
-        NGINX_PROXY[Proxy Inverso Nginx\n(Puerto 80/443)]
-        ODOO_DOCKER[Contenedor Odoo\n(Puerto Local 8069)]
-        PG_DOCKER[Contenedor PostgreSQL\n(Puerto Local 5432)]
-        NGINX_PROXY -.->|ProxyPass localhost:8069| ODOO_DOCKER
+    subgraph DOCKER_ENGINE [Motor Docker]
+        subgraph DMZ_NET [Red Frontend: dmz_net]
+            NGINX[Proxy Inverso Nginx\nContenedor]
+        end
+        
+        subgraph BACKEND_NET [Red Backend: backend_net - Aisada]
+            ODOO[ERP Odoo 17\nContenedor]
+            DB[PostgreSQL 16\nContenedor]
+        end
+        
+        NGINX -.->|Proxy Pass http://odoo:8069| ODOO
+        ODOO -.->|Lectura/Escritura| DB
     end
-
-    LAN_CLI --> PC_CLIENTE[Cliente Windows/Linux\n192.168.10.x]
-    PC_CLIENTE -.->|Petición Externa 443| DOCKER_HOST
 ```
 
-**2. Tabla de Direccionamiento IP y Puertos Abiertos**
+**2. Definición de Redes Virtuales (Docker Networks)**
 
-| Zona Configurada | Subred (CIDR) | Puerta de Enlace (pfSense) | IP del Sistema | Puertos en Uso (Destino) | Servicio Alojado |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **WAN (Exterior)** | Red Fija/DHCP | Router físico local | IP de la WAN | `80`, `443` (TCP) | Redirección NAT hacia la DMZ |
-| **DMZ (VLAN 30)** | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | `80`, `443` (Web), `22` (SSH) | **Servidor Único (Mint):** Nginx + Docker (Odoo/DB) |
-| **LAN Clientes (VLAN 10)**| `192.168.10.0/24` | `192.168.10.1` | `192.168.10.x` | *Ninguno hacia adentro* | Equipos de usuarios (Tráfico saliente) |
-| *(Servicio Interno db)* | Red Privada Docker | Switch Docker | `127.0.0.1` (Bind Local) | `5432` (TCP) | PostgreSQL 16 local |
-| *(Servicio Interno odoo)* | Red Privada Docker | Switch Docker | `127.0.0.1` (Bind Local) | `8069` (TCP) | Odoo 17 local |
-
-### 1.2 Hipervisor y Máquinas Virtuales (VirtualBox / VMware)
-1.  **pfSense (Firewall/Enrutador):**
-    *   3 Adaptadores de red. Adaptador 1: NAT/Bridged (WAN). Adaptador 2: Red Interna "LAN" (VLAN 10). Adaptador 3: Red Interna "DMZ" (VLAN 30).
-2.  **Servidor Linux Mint Unificado (Nginx + Docker/Odoo):**
-    *   1 Adaptador de red conectado a la Red Interna "DMZ" (VLAN 30).
-    *   IP Fija a configurar: `192.168.30.10`.
-    *   *Se centraliza todo el aplicativo y proxy en el mismo anfitrión.*
+*   **dmz_net:** Red tipo `bridge`. El contenedor Nginx expone sus puertos 80 y 443 al host directamente.
+*   **backend_net:** Red tipo `bridge` marcada como `internal: true`. Sus contenedores (PostgreSQL y Odoo) no tienen puertos mapeados hacia afuera ni acceso directo. Solo Nginx puede comunicarse con Odoo a nivel de red interna.
 
 ---
 
-## Fase 2: Configuración del Servidor Base (Linux Mint 22)
+## Fase 2: Preparación del Entorno (Directorio Host)
 
-### 2.1 Preparación Inicial
-Arrancar la VM del Servidor (VLAN 30) y abrir la terminal:
+### 2.1 Requisitos Previos
+1. Instalar **Docker Desktop** (si estás en Windows/macOS) o **Docker Engine + Docker Compose** nativo (en Linux).
+2. Asegurar que los puertos `80` y `443` del ordenador host estén libres (sin otro Apache/IIS usando esos puertos).
+
+### 2.2 Estructura del Proyecto
+Abre tu terminal (PowerShell, CMD o Bash) en la raíz de tu proyecto y asegúrate de tener las siguientes carpetas:
 
 ```bash
-# Otorgar IP estática (editar la conexión de red a través del GUI de Mint o por comandos)
-# Comprobar conectividad exterior a través de pfSense
-ping -c 4 8.8.8.8
-
-# Actualizar repositorios e instalar paquetes base del sistema
-sudo apt update && sudo apt upgrade -y
-sudo apt install curl nano git bash-completion htop -y
-```
-
-### 2.2 Instalación de Docker y Orquestación
-```bash
-# Instalar Docker y Docker Compose
-sudo apt install docker.io docker-compose -y
-
-# Habilitar el servicio para arranque automático
-sudo systemctl enable --now docker
-
-# Añadir tu usuario al grupo docker para evitar usar "sudo" en cada comando
-sudo usermod -aG docker sandra
-
-# Cerrar sesión o aplicar el cambio al shell actual
-newgrp docker
-
-# Comprobar la instalación
-docker ps
+mkdir -p ./data/{postgres,odoo_addons,odoo_etc,odoo_web}
+mkdir -p ./scripts
+mkdir -p ./sql
+mkdir -p ./config_nginx
+mkdir -p ./certs
 ```
 
 ---
 
-## Fase 3: Orquestación de Odoo 17 y PostgreSQL 16 (Docker)
+## Fase 3: Orquestación Global (Docker Compose)
 
-### 3.1 Estructura de Directorios
-En el servidor Linux Mint, prepara el esquema de carpetas para el proyecto ERP:
-
-```bash
-mkdir -p /opt/erp-odoo/data/{postgres,odoo_addons,odoo_etc,odoo_web}
-mkdir -p /opt/erp-odoo/scripts
-cd /opt/erp-odoo
-```
-
-### 3.2 Creación del Fichero `docker-compose.yml`
-Crear el archivo base `nano docker-compose.yml` y pegar la siguiente configuración:
+### 3.1 Creación del Fichero `docker-compose.yml`
+En la raíz de la carpeta `docker`, crea el archivo `docker-compose.yml` e introduce todo el entorno orquestado de un solo golpe:
 
 ```yaml
 version: '3.8'
 
 services:
+  # Base de Datos PostgreSQL
   db:
     image: postgres:16
-    container_name: odoo-db
+    container_name: asir-postgres
     restart: always
     environment:
       - POSTGRES_DB=odoo_erp
@@ -112,13 +78,14 @@ services:
       - POSTGRES_USER=odoo
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data/pgdata
-    ports:
-      - "127.0.0.1:5432:5432" # Solo accesible desde el localhost/Host
+      - ../data/postgres:/var/lib/postgresql/data/pgdata
+    networks:
+      - backend_net
 
+  # Aplicativo ERP Odoo
   odoo:
     image: odoo:17
-    container_name: odoo-web
+    container_name: asir-odoo
     restart: always
     depends_on:
       - db
@@ -127,96 +94,116 @@ services:
       - USER=odoo
       - PASSWORD=SuperSecretAdminPassword123
     volumes:
-      - ./data/odoo_addons:/mnt/extra-addons
-      - ./data/odoo_etc:/etc/odoo
-      - ./data/odoo_web:/var/lib/odoo
-    ports:
-      - "127.0.0.1:8069:8069" # Oculto del exterior, Nginx accederá vía localhost
-      - "127.0.0.1:8071:8071" # Puerto para procesos workers/gevent (opcional)
-```
+      - ../data/odoo_addons:/mnt/extra-addons
+      - ../data/odoo_etc:/etc/odoo
+      - ../data/odoo_web:/var/lib/odoo
+    networks:
+      - backend_net
+      - dmz_net
 
-**Ejecución Inicial:**
-```bash
-cd /opt/erp-odoo
-docker-compose up -d
-docker-compose logs -f   # Comprobar que no hay errores de sintaxis o conexión
+  # Proxy Inverso en DMZ
+  nginx:
+    image: nginx:alpine
+    container_name: asir-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../config_nginx:/etc/nginx/conf.d
+      - ../certs:/etc/ssl/certs
+    depends_on:
+      - odoo
+    networks:
+      - dmz_net
+
+# Definición de las VLANs de Docker
+networks:
+  dmz_net:
+    driver: bridge
+  backend_net:
+    driver: bridge
+    internal: true # Bloquea el acceso entrante desde el exterior a la BBDD
 ```
 
 ---
 
-## Fase 4: Automatización y Mantenimiento (Scripts Bash)
+## Fase 4: Configuración de Seguridad Perimetral (Nginx)
 
-Deberás ubicar estos ficheros dentro de `/opt/erp-odoo/scripts/` y darles permisos de ejecución (`chmod +x *.sh`).
+El proxy ahora corre en un contenedor de Alpine Linux.
 
-### 4.1 Script de Copia de Seguridad (`backup.sh`)
+### 4.1 Generar Certificados Locales (Host)
+Genera o pega unos certificados `.key` y `.crt` autofirmados dentro de la carpeta `certs/`.
+Si usas Git Bash o Linux WSL en tu Windows:
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout certs/odoo-selfsigned.key -out certs/odoo-selfsigned.crt
+# Host común: localhost o erp.empresa.local
+```
+
+### 4.2 Configuración del `odoo_proxy.conf`
+Crea el fichero de Nginx en tu carpeta host `config_nginx/odoo_proxy.conf`:
+
+```nginx
+server {
+    listen 80;
+    server_name localhost;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name localhost;
+
+    ssl_certificate /etc/ssl/certs/odoo-selfsigned.crt;
+    ssl_certificate_key /etc/ssl/certs/odoo-selfsigned.key;
+    
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    location / {
+        # Al estar en red Docker, se usa el nombre del contenedor "odoo"
+        proxy_pass http://odoo:8069;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+---
+
+## Fase 5: Automatización y Mantenimiento (Scripts Bash)
+
+Deberás ubicar estos ficheros dentro de `/scripts/`. Al ser todo bajo demanda contenedorizado, lanzaremos los scripts pasando las peticiones al socket Docker.
+
+### 5.1 Script de Copia de Seguridad (`backup.sh`)
 ```bash
 #!/bin/bash
-# Realiza un dump en crudo de la BBDD PostgreSQL del contenedor Odoo
-
-BACKUP_DIR="/opt/erp-odoo/backups"
+BACKUP_DIR="../backups"
 FECHA=$(date +"%Y%m%d_%H%M%S")
-DB_CONT="odoo-db"
-DB_USER="odoo"
-DB_NAME="odoo_erp"
+DB_CONT="asir-postgres"
 
 mkdir -p $BACKUP_DIR
-
-echo "Iniciando volcado de la BBDD de Odoo..."
-docker exec -t $DB_CONT pg_dump -U $DB_USER -d $DB_NAME -F c -f /tmp/backup_$FECHA.dump
-
-# Extraer el archivo desde el contenedor al host
+echo "Iniciando volcado..."
+docker exec -t $DB_CONT pg_dump -U odoo -d odoo_erp -F c -f /tmp/backup_$FECHA.dump
 docker cp $DB_CONT:/tmp/backup_$FECHA.dump $BACKUP_DIR/backup_$FECHA.dump
 docker exec -t $DB_CONT rm /tmp/backup_$FECHA.dump
-
-echo "Backup completado y guardado en $BACKUP_DIR/backup_$FECHA.dump"
+echo "Backup completado: backup_$FECHA.dump"
 ```
 
-### 4.2 Script de Restauración (`restore.sh`)
-```bash
-#!/bin/bash
-# Restaura el último backup. Uso: ./restore.sh archivo.dump
-
-if [ -z "$1" ]; then
-    echo "Debe especificar el archivo de backup a restaurar."
-    exit 1
-fi
-
-BKP_FILE=$1
-DB_CONT="odoo-db"
-DB_USER="odoo"
-DB_NAME="odoo_erp"
-
-echo "Copiando $BKP_FILE al contenedor..."
-docker cp $BKP_FILE $DB_CONT:/tmp/restore.dump
-
-echo "Restaurando base de datos. Se desconectarán usuarios activos..."
-docker exec -t $DB_CONT dropdb -U $DB_USER $DB_NAME --if-exists
-docker exec -t $DB_CONT createdb -U $DB_USER $DB_NAME
-docker exec -t $DB_CONT pg_restore -U $DB_USER -d $DB_NAME -1 /tmp/restore.dump
-
-docker exec -t $DB_CONT rm /tmp/restore.dump
-echo "Restauración completada. Reiniciando contenedor Odoo..."
-docker restart odoo-web
-```
-
-### 4.3 Tarea Cron Diaria
-Para automatizar que el `backup.sh` se ejecute a las 02:00 AM todos los días:
-```bash
-crontab -e
-# Y añadir al final del fichero:
-0 2 * * * /opt/erp-odoo/scripts/backup.sh >> /var/log/odoo_backup.log 2>&1
-```
+### 5.2 Tarea Cron / Tareas Programadas Windows
+Si estás en Windows, asociar el script `.sh` al "Programador de Tareas" inyectándolo en WSL (`wsl.exe -e ./scripts/backup.sh`). Si ejecutas Docker desde un anfitrión Linux, se usa `crontab -e`.
 
 ---
 
-## Fase 5: Auditoría en PostgreSQL (PL/pgSQL Trigger)
+## Fase 6: Auditoría en PostgreSQL (PL/pgSQL Trigger)
 
-Para registrar las acciones de base de datos a un nivel más profundo. *(Estos comandos se ejecutan dentro del contenedor de base de datos o en un gestor como pgAdmin).*
+(Ocurre igual que en la planificación anterior; ejecutaremos la query directamente dentro del contenedor asir-postgres).
 
 ```sql
--- Conectarse primero al contenedor: docker exec -it odoo-db psql -U odoo -d odoo_erp
-
--- 1. Crear tabla de auditoría para monitorizar acciones de inserción en res_users (usuarios Odoo)
+-- 1. Acceder: docker exec -it asir-postgres psql -U odoo -d odoo_erp
 CREATE TABLE IF NOT EXISTS asir_audit_log (
     audit_id SERIAL PRIMARY KEY,
     action_type VARCHAR(50),
@@ -225,9 +212,7 @@ CREATE TABLE IF NOT EXISTS asir_audit_log (
     action_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Crear función PL/pgSQL
-CREATE OR REPLACE FUNCTION audit_users_action()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION audit_users_action() RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'INSERT') THEN
         INSERT INTO asir_audit_log (action_type, table_name, record_id)
@@ -238,107 +223,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 3. Crear el Disparador (Trigger) asociado a la tabla
-CREATE TRIGGER tgr_audit_res_users
-AFTER INSERT ON res_users
-FOR EACH ROW
-EXECUTE FUNCTION audit_users_action();
+CREATE TRIGGER tgr_audit_res_users AFTER INSERT ON res_users FOR EACH ROW EXECUTE FUNCTION audit_users_action();
 ```
 
 ---
 
-## Fase 6: Seguridad de Capa 2 Local (UFW)
+## Fase 7: Despliegue y Pruebas
+Una vez tengas los tres ficheros (`docker-compose.yml`, `odoo_proxy.conf` y los certificados), el arranque de toda tu plataforma TFG es un solo comando:
 
-Protegemos el único servidor en la DMZ (`192.168.30.10`). Ahora el tráfico Odoo (8069) está bloqueado por Docker (escucha en `127.0.0.1`), así que UFW solo debe permitir el tráfico al proxy HTTPS desde clientes e Internet.
-
-```bash
-# Permitir SSH (Idealmente restringir IP de admin: ej. ufw allow from 192.168.10.x to any port 22)
-sudo ufw allow 22/tcp
-
-# Permitir HTTP y HTTPS hacia el Proxy Nginx residente en la misma máquina
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-
-# Activar firewall
-sudo ufw enable
-```
-
----
-
-## Fase 7: Publicación y Seguridad Perimetral (Nginx Local)
-
-En la **misma máquina Linux Mint** (`192.168.30.10`), instalamos y configuramos Nginx:
-
-```bash
-sudo apt update && sudo apt install nginx openssl -y
-```
-
-### 7.1 Generación de Certificado SSL Autofirmado (Para Simulación)
-```bash
-sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/odoo-selfsigned.key -out /etc/ssl/certs/odoo-selfsigned.crt
-# (Rellenar los datos indicados al vuelo, especialmente el Common Name: erp.techsolutions.local)
-```
-
-### 7.2 Configuración del Proxy Inverso
-Crear el Server Block en `/etc/nginx/sites-available/odoo`:
-
-```nginx
-server {
-    listen 80;
-    server_name erp.techsolutions.local;
-    # Redirigir de HTTP a HTTPS forzoso
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name erp.techsolutions.local;
-
-    # Certificados
-    ssl_certificate /etc/ssl/certs/odoo-selfsigned.crt;
-    ssl_certificate_key /etc/ssl/private/odoo-selfsigned.key;
-    
-    # Afinamiento de Seguridad SSL
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers on;
-
-    # Logs de Nginx
-    access_log /var/log/nginx/odoo.access.log;
-    error_log /var/log/nginx/odoo.error.log;
-
-    # Bloque de Proxy Pass a Odoo local (Mismo servidor)
-    location / {
-        proxy_pass http://127.0.0.1:8069;
-        proxy_http_version 1.1;
-        
-        # Cabeceras para que Odoo sepa la IP original del usuario que lo visita
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-**Habilitar la web y recargar Nginx:**
-```bash
-sudo ln -s /etc/nginx/sites-available/odoo /etc/nginx/sites-enabled/
-sudo rm /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
-### 7.3 Conexión con pfSense (Capa de Mario)
-En el portal web de pfSense:
-1. Ir a **Firewall > NAT > Port Forward**.
-2. Crear una regla en la interfaz **WAN**, para el destino WAN Address hacia los puertos alias `80,443`.
-3. Target IP (Redirect target): **La IP del Nginx de DMZ** (`192.168.30.10`).
-4. Aplicar los cambios.
-
----
-
-## Resumen de la Ejecución Final
-1. Enciende las VMs en orden: pfSense y luego el Linux Mint unificado.
-2. El cliente entra a `https://erp.techsolutions.local` desde WAN o la LAN local (VLAN 10).
-3. El DNS de pfSense resuelve que esa URL apunta a la DMZ (`192.168.30.10`).
-4. El Nginx del Linux Mint captura la petición en el puerto 443, la descifra, y la manda internamente al puerto `8069` del contenedor Odoo.
+1. Abrir terminal en `TFG-ASIRB/docker`
+2. Lanzar: `docker-compose up -d`
+3. Entrar en `https://localhost` desde tu navegador.
+4. El contenedor Nginx recibirá la petición de seguridad TLS y derivará los paquetes por la red `dmz_net` al contenedor `asir-odoo`, el cual comunicará sin salida a exterior con el `asir-postgres`. 
+5. ¡Sistema 100% Contenerizado!
