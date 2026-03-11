@@ -1,8 +1,8 @@
 # Implantación Segura y Automatizada de Odoo con pfSense y Docker
 
-**Autor:** Sandra Fradejas Avedillo (y equipo)
+**Autor:** MArio Garcia , Javier Cordoba , Sandra Fradejas Avedillo 
 **Grado:** ASIR - Administración de Sistemas Informáticos en Red
-**Fecha:** Febrero/Marzo 2026
+**Fecha:** Curso 2026
 
 ---
 
@@ -90,3 +90,4 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 *   `/sql/`: Sentencias y *Triggers* de PL/pgSQL para auditoría de base de datos.
 *   `/config_nginx/`: Archivos de configuración de los *Server Blocks* del proxy inverso.
 *   `/docs/`: Documentación adicional, capturas de pantalla y diagramas de red.
+*   `/ISOs/`: Directorio destinado a almacenar las imágenes de disco (Linux Mint, pfSense, etc.) necesarias para replicar el entorno.
