@@ -13,8 +13,8 @@ Este repositorio documenta el diseño e implantación de un entorno productivo c
 **Características principales:**
 *   **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/LAN/DMZ).
 *   **Orquestación de Contenedores:** Despliegue de servicios (Odoo 17 y PostgreSQL 16) usando Docker y Docker Compose sobre GNU/Linux Mint.
-*   **Segmentación de Red:** Soporte de VLANs (10, 20, 30) para aislar el tráfico de clientes, servidores y servicios públicos.
-*   **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante Nginx en la DMZ, con terminación SSL, limitando el acceso a los puertos 80/443.
+*   **Segmentación de Red:** Soporte de VLANs (10, 30) para aislar el tráfico de clientes internos y servicios públicos.
+*   **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante Nginx ubicado en el mismo host que los contenedores, con terminación SSL, limitando el acceso a los puertos 80/443.
 *   **Automatización y Auditoría:** Scripts en Bash para *backups* y despliegue, junto con *Triggers* (PL/pgSQL) para la monitorización de acciones en la base de datos.
 
 ---
@@ -24,27 +24,24 @@ Este repositorio documenta el diseño e implantación de un entorno productivo c
 La topología divide la red en tres zonas de confianza principales:
 
 *   **WAN (Internet):** Acceso externo simulado.
-*   **DMZ (VLAN 30 - 192.168.30.0/24):** Zona desmilitarizada alojando el Proxy Nginx.
-*   **LAN:**
-    *   **Clientes (VLAN 10 - 192.168.10.0/24):** Equipos internos de la empresa.
-    *   **Servidores (VLAN 20 - 192.168.20.0/24):** Aplicativo Odoo y PostgreSQL.
+*   **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor unificado Linux Mint que expone externamente el Proxy Nginx e internamente agrupa los contenedores.
+*   **LAN Clientes (VLAN 10 - 192.168.10.0/24):** Equipos internos de la empresa.
 
 ```mermaid
 graph TD
     A[Internet WAN] --> B(pfSense Firewall/Router)
-    B -->|DMZ - VLAN 30| C(Nginx Reverse Proxy)
+    B -->|DMZ - VLAN 30| C[Servidor Linux Mint:<br>Nginx Proxy + Odoo / PostgreSQL]
     B -->|LAN Clientes - VLAN 10| D[Equipos Internos]
-    B -->|LAN Servidores - VLAN 20| E[(Servidor Linux Mint:<br>Docker Odoo + PostgreSQL)]
     
-    C -- "Proxy Pass (Puerto 8069)" --> E
+    C -.-"Proxy Pass (127.0.0.1:8069)".-> Odoo[Contenedor Odoo Local]
 ```
 
 ### Reglas Principales de Firewall (pfSense/UFW)
 
-*   **WAN a DMZ:** Permitir tráfico entrante a los puertos 80 (HTTP) y 443 (HTTPS) hacia el Proxy Nginx.
-*   **DMZ a LAN (Servidores):** Permitir tráfico única y exclusivamente hacia el puerto 8069 (Odoo).
-*   **LAN (Clientes) a LAN (Servidores):** Permitido el acceso directo o redirigido al puerto 8069.
-*   **Bloqueos Explícitos:** Desde la DMZ hacia el puerto de administración de pfSense y hacia la LAN de clientes.
+*   **WAN a DMZ:** Permitir tráfico entrante a los puertos 80 (HTTP) y 443 (HTTPS) hacia el Servidor Mint.
+*   **UFW Local Mint:** Abiertos puertos 80, 443 y 22 (SSH). Tráfico Odoo puramente local (`127.0.0.1:8069`).
+*   **LAN (Clientes) a DMZ:** Permitir peticiones HTTPS (443) hacia el proxy.
+*   **Bloqueos Explícitos:** Desde la DMZ hacia la gestión del cortafuegos y hacia la LAN de clientes.
 
 ---
 
@@ -55,7 +52,7 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 ### 1. Preparación de la Infraestructura
 *   Configuración del hipervisor (VMware/VirtualBox).
 *   Despliegue de pfSense con sus respectivas interfaces virtuales (Trunk/VLANs).
-*   Instalación del S.O. anfitrión (Linux Mint 22) con direccionamiento IP estático.
+*   Instalación del S.O. anfitrión único (Linux Mint 22) en la DMZ con direccionamiento IP estático.
 
 ### 2. Contenerización (Docker / Odoo)
 *   Instalación de `docker`, `docker-compose` y securización del daemon.
@@ -68,10 +65,10 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
     *   `restore.sh`: Recuperación ante desastres (pg_restore).
 *   Programación de funciones PL/pgSQL y disparadores (`Triggers`) para auditar los accesos e inserciones en las tablas críticas del ERP.
 
-### 4. Capa de Presentación Segura (Nginx en DMZ)
-*   Instalación de Nginx como proxy inverso.
-*   Configuración de cabeceras de proxy (`X-Forwarded-For`, `Host`).
-*   Implementación de certificados SSL para forzar conexiones HTTPS desde el exterior.
+### 4. Capa de Presentación Segura (Nginx)
+*   Instalación de Nginx como proxy inverso en formato nativo sobre la propia DMZ.
+*   Configuración de proxy dinámico enviando tráfico HTTP/HTTPS validado hacia el servicio local backend (`127.0.0.1:8069`).
+*   Implementación de certificados SSL para forzar conexiones HTTPS desde cualquier red externa/interna.
 
 ---
 

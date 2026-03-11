@@ -13,16 +13,20 @@ Este documento contiene el desglose técnico y exhaustivo paso a paso para la im
 ```mermaid
 graph TD
     WAN((Internet / WAN)) -->|DHCP Externo| PFSENSE[pfSense Firewall/Router]
-    PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ]
+    PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ / Servidor Principal]
     PFSENSE -->|Gateway: 192.168.10.1| LAN_CLI[VLAN 10 - LAN Clientes]
-    PFSENSE -->|Gateway: 192.168.20.1| LAN_SRV[VLAN 20 - LAN Servidores]
     
-    DMZ --> NGINX_PROXY[Proxy Inverso Nginx\n192.168.30.10]
+    DMZ --> DOCKER_HOST[Servidor Único Linux Mint\n192.168.30.10]
+    
+    subgraph DOCKER_HOST [Servidor Único Linux Mint (192.168.30.10)]
+        NGINX_PROXY[Proxy Inverso Nginx\n(Puerto 80/443)]
+        ODOO_DOCKER[Contenedor Odoo\n(Puerto Local 8069)]
+        PG_DOCKER[Contenedor PostgreSQL\n(Puerto Local 5432)]
+        NGINX_PROXY -.->|ProxyPass localhost:8069| ODOO_DOCKER
+    end
+
     LAN_CLI --> PC_CLIENTE[Cliente Windows/Linux\n192.168.10.x]
-    LAN_SRV --> DOCKER_HOST[Servidor Docker Mint\n192.168.20.10]
-    
-    NGINX_PROXY -.->|ProxyPass 8069| DOCKER_HOST
-    PC_CLIENTE -.->|Petición Interna 8069| DOCKER_HOST
+    PC_CLIENTE -.->|Petición Externa 443| DOCKER_HOST
 ```
 
 **2. Tabla de Direccionamiento IP y Puertos Abiertos**
@@ -30,28 +34,25 @@ graph TD
 | Zona Configurada | Subred (CIDR) | Puerta de Enlace (pfSense) | IP del Sistema | Puertos en Uso (Destino) | Servicio Alojado |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **WAN (Exterior)** | Red Fija/DHCP | Router físico local | IP de la WAN | `80`, `443` (TCP) | Redirección NAT hacia la DMZ |
-| **DMZ (VLAN 30)** | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | `80` (HTTP), `443` (HTTPS) | Proxy Nginx |
+| **DMZ (VLAN 30)** | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | `80`, `443` (Web), `22` (SSH) | **Servidor Único (Mint):** Nginx + Docker (Odoo/DB) |
 | **LAN Clientes (VLAN 10)**| `192.168.10.0/24` | `192.168.10.1` | `192.168.10.x` | *Ninguno hacia adentro* | Equipos de usuarios (Tráfico saliente) |
-| **LAN Servidores (VLAN 20)**| `192.168.20.0/24` | `192.168.20.1` | **`192.168.20.10`** | `8069` (TCP), `22` (SSH) | Servidor Anfitrión (Linux Mint) y Odoo |
-| *(Servicio Interno odoo-db)* | Red Privada Docker | Switch Docker | `127.0.0.1` (Bind Local) | `5432` (TCP) | PostgreSQL 16 |
+| *(Servicio Interno db)* | Red Privada Docker | Switch Docker | `127.0.0.1` (Bind Local) | `5432` (TCP) | PostgreSQL 16 local |
+| *(Servicio Interno odoo)* | Red Privada Docker | Switch Docker | `127.0.0.1` (Bind Local) | `8069` (TCP) | Odoo 17 local |
 
 ### 1.2 Hipervisor y Máquinas Virtuales (VirtualBox / VMware)
 1.  **pfSense (Firewall/Enrutador):**
-    *   3 Adaptadores de red. Adaptador 1: NAT/Bridged (WAN). Adaptador 2: Red Interna "LAN". Adaptador 3: Red Interna "DMZ".
-2.  **Servidor Linux Mint (Docker/Odoo):**
-    *   1 Adaptador de red conectado a la Red Interna "LAN" y etiquetado para VLAN 20 (o asignado directamente si no usan Trunking 802.1Q en la simulación).
-    *   IP Fija a configurar: `192.168.20.10`.
-3.  **Proxy Nginx (DMZ):**
-    *   1 Adaptador de red conectado a la Red Interna "DMZ".
+    *   3 Adaptadores de red. Adaptador 1: NAT/Bridged (WAN). Adaptador 2: Red Interna "LAN" (VLAN 10). Adaptador 3: Red Interna "DMZ" (VLAN 30).
+2.  **Servidor Linux Mint Unificado (Nginx + Docker/Odoo):**
+    *   1 Adaptador de red conectado a la Red Interna "DMZ" (VLAN 30).
     *   IP Fija a configurar: `192.168.30.10`.
-    *   *(Nota: Puedes usar otro Linux Mint en versión mínima o Debian para esto).*
+    *   *Se centraliza todo el aplicativo y proxy en el mismo anfitrión.*
 
 ---
 
 ## Fase 2: Configuración del Servidor Base (Linux Mint 22)
 
 ### 2.1 Preparación Inicial
-Arrancar la VM del Servidor (VLAN 20) y abrir la terminal:
+Arrancar la VM del Servidor (VLAN 30) y abrir la terminal:
 
 ```bash
 # Otorgar IP estática (editar la conexión de red a través del GUI de Mint o por comandos)
@@ -130,8 +131,8 @@ services:
       - ./data/odoo_etc:/etc/odoo
       - ./data/odoo_web:/var/lib/odoo
     ports:
-      - "8069:8069" # Puerto principal de Odoo
-      - "8071:8071" # Puerto para procesos workers/gevent (opcional)
+      - "127.0.0.1:8069:8069" # Oculto del exterior, Nginx accederá vía localhost
+      - "127.0.0.1:8071:8071" # Puerto para procesos workers/gevent (opcional)
 ```
 
 **Ejecución Inicial:**
@@ -248,15 +249,15 @@ EXECUTE FUNCTION audit_users_action();
 
 ## Fase 6: Seguridad de Capa 2 Local (UFW)
 
-Protegemos el propio servidor de Docker (`192.168.20.10`). Solo deben alcanzarlo por el puerto 8069 ciertas máquinas (el Proxy DMZ y los Administradores).
+Protegemos el único servidor en la DMZ (`192.168.30.10`). Ahora el tráfico Odoo (8069) está bloqueado por Docker (escucha en `127.0.0.1`), así que UFW solo debe permitir el tráfico al proxy HTTPS desde clientes e Internet.
 
 ```bash
-# Permitir SSH pero SOLO desde la red de servidores / red de administración
-sudo ufw allow from 192.168.20.0/24 to any port 22 proto tcp
+# Permitir SSH (Idealmente restringir IP de admin: ej. ufw allow from 192.168.10.x to any port 22)
+sudo ufw allow 22/tcp
 
-# Permitir Odoo SOLO desde la DMZ (Nginx Proxy) y desde la red local de clientes (VLAN 10)
-sudo ufw allow from 192.168.30.10 to any port 8069 proto tcp
-sudo ufw allow from 192.168.10.0/24 to any port 8069 proto tcp
+# Permitir HTTP y HTTPS hacia el Proxy Nginx residente en la misma máquina
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 
 # Activar firewall
 sudo ufw enable
@@ -264,9 +265,9 @@ sudo ufw enable
 
 ---
 
-## Fase 7: Publicación y Seguridad Perimetral (Nginx en DMZ)
+## Fase 7: Publicación y Seguridad Perimetral (Nginx Local)
 
-Acceder a la VM del Proxy Inverso (`192.168.30.10`) y ejecutar:
+En la **misma máquina Linux Mint** (`192.168.30.10`), instalamos y configuramos Nginx:
 
 ```bash
 sudo apt update && sudo apt install nginx openssl -y
@@ -305,9 +306,9 @@ server {
     access_log /var/log/nginx/odoo.access.log;
     error_log /var/log/nginx/odoo.error.log;
 
-    # Bloque de Proxy Pass a la LAN Servidores (IP de Linux Mint + Docker)
+    # Bloque de Proxy Pass a Odoo local (Mismo servidor)
     location / {
-        proxy_pass http://192.168.20.10:8069;
+        proxy_pass http://127.0.0.1:8069;
         proxy_http_version 1.1;
         
         # Cabeceras para que Odoo sepa la IP original del usuario que lo visita
@@ -337,7 +338,7 @@ En el portal web de pfSense:
 ---
 
 ## Resumen de la Ejecución Final
-1. Enciende todas las VMs en orden: pfSense, Nginx(DMZ), LinuxMint(Servidor).
-2. El usuario entra a `https://erp.techsolutions.local` desde WAN o clientes.
-3. El DNS se resuelve (o se añade al fichero `hosts` local del cliente).
-4. El tráfico atraviesa la WAN -> DMZ -> Servidor Docker.
+1. Enciende las VMs en orden: pfSense y luego el Linux Mint unificado.
+2. El cliente entra a `https://erp.techsolutions.local` desde WAN o la LAN local (VLAN 10).
+3. El DNS de pfSense resuelve que esa URL apunta a la DMZ (`192.168.30.10`).
+4. El Nginx del Linux Mint captura la petición en el puerto 443, la descifra, y la manda internamente al puerto `8069` del contenedor Odoo.
