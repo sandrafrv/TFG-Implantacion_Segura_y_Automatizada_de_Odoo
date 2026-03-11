@@ -88,6 +88,15 @@ newgrp docker
 docker ps
 ```
 
+### 2.3 Integración Continua (GitHub Actions)
+Configuraremos un validador sintáctico estático para proteger la rama principal de errores en la configuración de Docker, Markdown y Bash.
+```bash
+# Crear estructura de GitHub Actions en el repositorio local
+mkdir -p .github/workflows
+touch .github/workflows/ci.yml
+```
+*(El contenido exacto del archivo `ci.yml` se detallará en la configuración del repositorio para ejecutar `yamllint`, `shellcheck` y validadores de markdown).*
+
 ---
 
 ## Fase 3: Orquestación de Odoo 17 y PostgreSQL 16 (Docker)

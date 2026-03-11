@@ -43,6 +43,7 @@ Preparar el Servidor Linux único sobre el cual correrá el entorno Docker, opti
 - [ ] Instalar Docker Engine y Docker Compose CLI.
 - [ ] Añadir usuario administrador al grupo `docker`.
 - [ ] Habilitar Docker en el arranque del sistema (`sudo systemctl enable --now docker`).
+- [ ] Implementar CI/CD subiendo el flujo de trabajo (`ci.yml`) a la carpeta `.github/workflows` de este respositorio.
 
 
 ---

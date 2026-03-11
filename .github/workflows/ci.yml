@@ -1,0 +1,46 @@
+name: CI Validator
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  validate:
+    name: Syntax & Code Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      # 1. Validación de Docker Compose (YAML Sintaxis)
+      - name: Validar Sintaxis YAML de Docker
+        uses: action-rs/yamllint@master
+        with:
+          yamllint-file_or_dir: "docker/docker-compose.yml"
+          yamllint-strict: false
+        # Si no hay yamllint configurado, podemos usar un linter general como docker-compose config
+        continue-on-error: true
+      
+      # Opción nativa para validar docker-compose
+      - name: Validar Docker Compose estructuralmente
+        run: |
+          docker-compose -f docker/docker-compose.yml config -q
+
+      # 2. Validación de Scripts Bash (ShellCheck)
+      - name: Instalar ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Validar Scripts con ShellCheck
+        run: |
+          echo "Analizando scripts en la carpeta scripts/..."
+          shellcheck scripts/*.sh
+
+      # 3. Validación de Documentación Markdown
+      - name: Validar Markdown (Limpieza de sintaxis)
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: "**/*.md"
+        continue-on-error: true # No queremos que el proyecto se rompa por un fallo menor en un .md
