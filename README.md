@@ -1,6 +1,6 @@
-# Implantación Segura y Automatizada de Odoo con pfSense y Docker
+# Implantación Segura y Automatizada de Odoo (Arquitectura 100% Docker)
 
-**Autor:** MArio Garcia , Javier Cordoba , Sandra Fradejas Avedillo 
+**Autor:** Mario Garcia, Javier Cordoba, Sandra Fradejas Avedillo 
 **Grado:** ASIR - Administración de Sistemas Informáticos en Red
 **Fecha:** Curso 2026
 
@@ -8,86 +8,83 @@
 
 ## 📋 Resumen Ejecutivo
 
-Este repositorio documenta el diseño e implantación de un entorno productivo completo para el ERP/CRM **Odoo**, simulando las necesidades de una empresa ("TechSolutions S.L."). La arquitectura se caracteriza por su enfoque en la seguridad, la contenerización y las buenas prácticas de administración de sistemas.
+Este repositorio documenta el diseño e implantación de un entorno productivo para el ERP/CRM **Odoo**. A diferencia de arquitecturas tradicionales, este proyecto prescinde totalmente de Máquinas Virtuales y plataformas hipervisoras, apostando por un despliegue **100% basado en contenedores Docker y redes lógicas**.
 
 **Características principales:**
-*   **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/LAN/DMZ).
-*   **Orquestación de Contenedores:** Despliegue de servicios (Odoo 17 y PostgreSQL 16) usando Docker y Docker Compose sobre GNU/Linux Mint.
-*   **Segmentación de Red:** Soporte de VLANs (10, 30) para aislar el tráfico de clientes internos y servicios públicos.
-*   **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante Nginx ubicado en el mismo host que los contenedores, con terminación SSL, limitando el acceso a los puertos 80/443.
-*   **Automatización y Auditoría:** Scripts en Bash para *backups* y despliegue, junto con *Triggers* (PL/pgSQL) para la monitorización de acciones en la base de datos.
+*   **Segmentación Lógica (Docker Networks):** Creación de redes tipo `bridge` internas (`dmz_net` y `backend_net`) para separar estrictamente la capa de presentación de la capa de datos.
+*   **Orquestación de Contenedores:** Despliegue simultáneo de Nginx, Odoo 17 y PostgreSQL 16 mediante un único `docker-compose.yml`.
+*   **Acceso Seguro (Proxy Inverso):** Recepción de peticiones externas mediante Nginx Alpine, terminación SSL y enrutamiento interno al aplicativo.
+*   **Automatización y Auditoría:** Utilidades de scripting en Bash ejecutadas sobre los contenedores, y disparadores nativos (Triggers PL/pgSQL) de PostgreSQL.
 
 ---
 
-## 🏗️ Arquitectura de Red
+## 🏗️ Arquitectura de Red (Docker Bridge)
 
-La topología divide la red en tres zonas de confianza principales:
+El entorno se subdivide en dos recintos de red virtuales dentro del propio motor de Docker:
 
-*   **WAN (Internet):** Acceso externo simulado.
-*   **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor unificado Linux Mint que expone externamente el Proxy Nginx e internamente agrupa los contenedores.
-*   **LAN Clientes (VLAN 10 - 192.168.10.0/24):** Equipos internos de la empresa.
+*   **WAN / Localhost:** El acceso desde el exterior (Navegador del usuario anfitrión).
+*   **dmz_net (Red Externa):** Red bridge donde conviven Nginx y Odoo para interaccionar.
+*   **backend_net (Red Interna Cerrada):** Red bridge aislada. PostgreSQL no mapea puertos al exterior y solo acepta peticiones de Odoo.
 
 ```mermaid
 graph TD
-    WAN[Internet WAN] --> P[pfSense Firewall Router]
-    P --> |DMZ VLAN 30| N[Servidor Linux Mint Proxy Nginx]
-    N --> |ProxyPass 127.0.0.1:8069| Docker[Contenedor Odoo Local]
-    P --> |LAN Clientes VLAN 10| CLI[Equipos Internos]
+    WAN[Usuarios Externos / Localhost] --> |HTTPS :443| N[Contenedor Nginx Alpine]
+    
+    subgraph DOCKER_ENGINE [Entorno Docker Compose]
+        N -.->|Red dmz_net / Proxy Pass 8069| O[Contenedor Odoo 17]
+        O -.->|Red backend_net / Puerto 5432| DB[Contenedor PostgreSQL 16]
+    end
+    
+    classDef isolate fill:#f9d0c4,stroke:#333,stroke-width:2px;
+    class DB isolate;
 ```
 
-### Reglas Principales de Firewall (pfSense/UFW)
-
-*   **WAN a DMZ:** Permitir tráfico entrante a los puertos 80 (HTTP) y 443 (HTTPS) hacia el Servidor Mint.
-*   **UFW Local Mint:** Abiertos puertos 80, 443 y 22 (SSH). Tráfico Odoo puramente local (`127.0.0.1:8069`).
-*   **LAN (Clientes) a DMZ:** Permitir peticiones HTTPS (443) hacia el proxy.
-*   **Bloqueos Explícitos:** Desde la DMZ hacia la gestión del cortafuegos y hacia la LAN de clientes.
+### Reglas y Políticas de Aislamiento
+*   **Host a Nginx:** Están mapeados los puertos `80` y `443` del contenedor Nginx al host local.
+*   **Odoo:** No expone puertos al exterior `(ports: [])`. Nginx lo alcanza resolviendo su nombre DNS interno (`http://odoo:8069`) sobre la red `dmz_net`.
+*   **PostgreSQL:** Completamente aislado por la red `backend_net` marcada como `internal: true`.
 
 ---
 
-## 🚀 Fases de Implantación
+## 🚀 Despliegue en 4 Fases
 
-A continuación, se detalla la hoja de ruta seguida para la ejecución del proyecto:
+La hoja de ruta para inicializar el proyecto desde cero:
 
-### 1. Preparación de la Infraestructura
-*   Configuración del hipervisor (VMware/VirtualBox).
-*   Despliegue de pfSense con sus respectivas interfaces virtuales (Trunk/VLANs).
-*   Instalación del S.O. anfitrión único (Linux Mint 22) en la DMZ con direccionamiento IP estático.
+### 1. Estructura y Dependencias
+*   Instalación de Docker y Docker Compose en el Host.
+*   Creación de jerarquía de ficheros y volúmenes (`/data`, `/config_nginx`, `/certs`, `/scripts`).
 
-### 2. Contenerización (Docker / Odoo)
-*   Instalación de `docker`, `docker-compose` y securización del daemon.
-*   Creación del fichero `docker-compose.yml` declarativo para instanciar Odoo 17 y PostgreSQL 16.
-*   Configuración de volúmenes persistentes localizados en `./data`.
+### 2. Capa SSL y Proxy
+*   Generación de pares `.key` y `.crt` locales mediante OpenSSL.
+*   Definición de bloques Server de Nginx (`odoo_proxy.conf`) para enrutamiento interno a contenedores.
 
-### 3. Automatización y Bases de Datos
-*   Desarrollo de *scripts* Bash:
-    *   `backup.sh`: Copias de seguridad automáticas (pg_dump).
-    *   `restore.sh`: Recuperación ante desastres (pg_restore).
-*   Programación de funciones PL/pgSQL y disparadores (`Triggers`) para auditar los accesos e inserciones en las tablas críticas del ERP.
+### 3. Orquestación y Bases de Datos
+*   Ejecución centralizada mediante `docker-compose up -d`.
+*   Montaje de volúmenes persistentes para salvaguardar la Base de Datos y los Addons/Filestore de Odoo.
+*   Inyección del fichero `sql/audit_triggers.sql` en el volumen de arranque SQL para configurar el registro de accesos.
 
-### 4. Capa de Presentación Segura (Nginx)
-*   Instalación de Nginx como proxy inverso en formato nativo sobre la propia DMZ.
-*   Configuración de proxy dinámico enviando tráfico HTTP/HTTPS validado hacia el servicio local backend (`127.0.0.1:8069`).
-*   Implementación de certificados SSL para forzar conexiones HTTPS desde cualquier red externa/interna.
+### 4. Automatización y Testing
+*   Desarrollo y asociación de scripts `backup.sh` y `restore.sh`.
 
 ---
 
 ## 🧰 Stack Tecnológico
 
-*   **Redes/Seguridad:** pfSense (FreeBSD), UFW.
-*   **Virtualización/Orquestación:** Docker, Docker Compose.
-*   **Sistema Operativo Base:** GNU/Linux Mint 22, Windows 10 (Clientes).
-*   **Servicios Web/DB:** Nginx, Odoo 17 CE, PostgreSQL 16.
-*   **Scripting:** Bash, ANSI SQL & PL/pgSQL.
+*   **Virtualización de Aplicación:** Docker Engine, Docker Compose V3.
+*   **Proxy y Web Server:** Nginx (Imagen Alpine).
+*   **Middleware ERP:** Odoo 17 CE.
+*   **Base de Datos Relacional:** PostgreSQL 16.
+*   **Seguridad / Cifrado:** OpenSSL, HTTPS Header Hardening.
+*   **Automatización:** Bash Scripting, GNU/Linux utils (`cron`), PL/pgSQL.
 
 ---
 
 ## 📚 Estructura de este Repositorio
 
-*(Esta sección se completará a medida que se suban los archivos)*
-
-*   `/docker/`: Ficheros `docker-compose.yml` y configuraciones específicas de los contenedores (`odoo.conf`).
+*   `/docker/`: Fichero unificado `docker-compose.yml` que orquesta los 3 nodos.
 *   `/scripts/`: Utilidades en Bash para respaldos (`backup.sh`, `restore.sh`), despliegue, etc.
 *   `/sql/`: Sentencias y *Triggers* de PL/pgSQL para auditoría de base de datos.
 *   `/config_nginx/`: Archivos de configuración de los *Server Blocks* del proxy inverso.
-*   `/docs/`: Documentación adicional, capturas de pantalla y diagramas de red.
-*   `/ISOs/`: Directorio destinado a almacenar las imágenes de disco (Linux Mint, pfSense, etc.) necesarias para replicar el entorno.
+*   `/docs/`: Documentación de soporte, memorias del proyecto y planes de implantación (`implementation_plan.md`).
+*   `/ISOs/`: (Obsoleto en arquitectura 100% Docker) Mantenida compatibilidad de repo.
+*   `/certs/`: Directorio destinado a alojar la clave privada y certificado TLS para el proxy.
