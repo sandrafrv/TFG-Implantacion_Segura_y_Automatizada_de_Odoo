@@ -16,9 +16,9 @@ graph TD
     PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ / Servidor Principal]
     PFSENSE -->|Gateway: 192.168.10.1| LAN_CLI[VLAN 10 - LAN Clientes]
     
-    DMZ --> DOCKER_HOST[Servidor Único Linux Mint\n192.168.30.10]
+    DMZ --> DOCKER_HOST[Servidor Único Debian 12\n192.168.30.10]
     
-    subgraph DOCKER_HOST [Servidor Único Linux Mint (192.168.30.10)]
+    subgraph DOCKER_HOST [Servidor Único Debian 12 (192.168.30.10)]
         NGINX_PROXY[Contenedor Nginx\n(Puertos 80/443 al Host)]
         ODOO_DOCKER[Contenedor Odoo\n(Aislado en Red Docker)]
         PG_DOCKER[Contenedor PostgreSQL\n(Aislado en Red Docker)]
@@ -34,7 +34,7 @@ graph TD
 | Zona Configurada | Subred (CIDR) | Puerta de Enlace (pfSense) | IP del Sistema | Puertos en Uso (Destino) | Servicio Alojado |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **WAN (Exterior)** | Red Fija/DHCP | Router físico local | IP de la WAN | `80`, `443` (TCP) | Redirección NAT hacia la DMZ |
-| **DMZ (VLAN 30)** | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | `80`, `443` (Web), `22` (SSH) | **Servidor Único (Mint):** Host Docker |
+| **DMZ (VLAN 30)** | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | `80`, `443` (Web), `22` (SSH), `9090` (Cockpit) | **Servidor Único (Debian):** Host Docker y GUI |
 | **LAN Clientes (VLAN 10)**| `192.168.10.0/24` | `192.168.10.1` | `192.168.10.x` | *Ninguno hacia adentro* | Equipos de usuarios (Tráfico saliente) |
 | *(Contenedor Nginx)* | Red Privada Docker | Switch Docker | Dinámica | `80`, `443` compartidos host| Proxy Inverso Alpine |
 | *(Contenedor db)* | Red Privada Docker | Switch Docker | Dinámica | `5432` (TCP) | PostgreSQL 16 cerrado |
@@ -43,26 +43,31 @@ graph TD
 ### 1.2 Hipervisor y Máquinas Virtuales (VirtualBox / VMware)
 1.  **pfSense (Firewall/Enrutador):**
     *   3 Adaptadores de red. Adaptador 1: NAT/Bridged (WAN). Adaptador 2: Red Interna "LAN" (VLAN 10). Adaptador 3: Red Interna "DMZ" (VLAN 30).
-2.  **Servidor Linux Mint Unificado (Nginx + Docker/Odoo):**
+2.  **Servidor Debian 12 Unificado (Nginx + Docker/Odoo):**
     *   1 Adaptador de red conectado a la Red Interna "DMZ" (VLAN 30).
     *   IP Fija a configurar: `192.168.30.10`.
-    *   *Se centraliza todo el aplicativo y proxy en el mismo anfitrión.*
+    *   *Se centraliza todo el aplicativo y proxy en el mismo anfitrión ligero.*
 
 ---
 
-## Fase 2: Configuración del Servidor Base (Linux Mint 22)
+## Fase 2: Configuración del Servidor Base (Debian 12 Server)
 
-### 2.1 Preparación Inicial
-Arrancar la VM del Servidor (VLAN 30) y abrir la terminal:
+### 2.1 Preparación Inicial e Interfaz Cockpit
+Arrancar la VM del Servidor (VLAN 30) instalada en modo solo texto (Minimal) y abrir la terminal:
 
 ```bash
-# Otorgar IP estática (editar la conexión de red a través del GUI de Mint o por comandos)
+# Otorgar IP estática (editar /etc/network/interfaces o similar en Debian)
 # Comprobar conectividad exterior a través de pfSense
 ping -c 4 8.8.8.8
 
 # Actualizar repositorios e instalar paquetes base del sistema
 sudo apt update && sudo apt upgrade -y
 sudo apt install curl nano git bash-completion htop -y
+
+# Instalar y habilitar Cockpit (Gestión por Interfaz Gráfica Web)
+sudo apt install cockpit -y
+sudo systemctl enable --now cockpit.socket
+# Ya puedes gestionar visualmente el servidor desde el cliente ingresando a https://192.168.30.10:9090
 ```
 
 ### 2.2 Instalación de Docker y Orquestación
@@ -88,7 +93,7 @@ docker ps
 ## Fase 3: Orquestación de Odoo 17 y PostgreSQL 16 (Docker)
 
 ### 3.1 Estructura de Directorios
-En el servidor Linux Mint, prepara el esquema de carpetas para el proyecto ERP:
+En el servidor Debian, prepara el esquema de carpetas para el proyecto ERP vía Cockpit terminal o SSH:
 
 ```bash
 mkdir -p /opt/erp-odoo/data/{postgres,odoo_addons,odoo_etc,odoo_web}
@@ -155,14 +160,16 @@ docker-compose logs -f   # Comprobar que no hay errores de sintaxis o conexión
 
 ---
 
-## Fase 4: Automatización y Mantenimiento (Scripts Bash)
+## Fase 4: Automatización y Escaneo (Scripts DevOps)
 
 Deberás ubicar estos ficheros dentro de `/opt/erp-odoo/scripts/` y darles permisos de ejecución (`chmod +x *.sh`).
+Esta batería de utilidades cubre el ciclo de vida completo del ERP.
 
-### 4.1 Script de Copia de Seguridad (`backup.sh`)
+### 4.1 Script de Backup Comprimido (`backup.sh`)
+Usa `pg_dump` con formato `custom` que nativamente comprime los datos de PostgreSQL.
 ```bash
 #!/bin/bash
-# Realiza un dump en crudo de la BBDD PostgreSQL del contenedor Odoo
+# Realiza un dump comprimido de la BBDD PostgreSQL del contenedor Odoo
 
 BACKUP_DIR="/opt/erp-odoo/backups"
 FECHA=$(date +"%Y%m%d_%H%M%S")
@@ -171,11 +178,11 @@ DB_USER="odoo"
 DB_NAME="odoo_erp"
 
 mkdir -p $BACKUP_DIR
+echo "Iniciando volcado comprimido de la BBDD de Odoo..."
 
-echo "Iniciando volcado de la BBDD de Odoo..."
 docker exec -t $DB_CONT pg_dump -U $DB_USER -d $DB_NAME -F c -f /tmp/backup_$FECHA.dump
 
-# Extraer el archivo desde el contenedor al host
+# Extraer el archivo al host
 docker cp $DB_CONT:/tmp/backup_$FECHA.dump $BACKUP_DIR/backup_$FECHA.dump
 docker exec -t $DB_CONT rm /tmp/backup_$FECHA.dump
 
@@ -183,9 +190,10 @@ echo "Backup completado y guardado en $BACKUP_DIR/backup_$FECHA.dump"
 ```
 
 ### 4.2 Script de Restauración (`restore.sh`)
+Restaura el archivo `pg_dump` comprimido sobre una base de datos limpia.
 ```bash
 #!/bin/bash
-# Restaura el último backup. Uso: ./restore.sh archivo.dump
+# Uso: ./restore.sh /ruta/al/archivo/backup.dump
 
 if [ -z "$1" ]; then
     echo "Debe especificar el archivo de backup a restaurar."
@@ -200,22 +208,88 @@ DB_NAME="odoo_erp"
 echo "Copiando $BKP_FILE al contenedor..."
 docker cp $BKP_FILE $DB_CONT:/tmp/restore.dump
 
-echo "Restaurando base de datos. Se desconectarán usuarios activos..."
+echo "Recreando base de datos limpia..."
 docker exec -t $DB_CONT dropdb -U $DB_USER $DB_NAME --if-exists
 docker exec -t $DB_CONT createdb -U $DB_USER $DB_NAME
 docker exec -t $DB_CONT pg_restore -U $DB_USER -d $DB_NAME -1 /tmp/restore.dump
 
 docker exec -t $DB_CONT rm /tmp/restore.dump
-echo "Restauración completada. Reiniciando contenedor Odoo..."
+echo "Restauración completada. Reiniciando Odoo..."
 docker restart odoo-web
 ```
 
-### 4.3 Tarea Cron Diaria
-Para automatizar que el `backup.sh` se ejecute a las 02:00 AM todos los días:
+### 4.3 Script de Despliegue (`deploy.sh`)
+Automatiza el levantamiento inicial del entorno.
+```bash
+#!/bin/bash
+# Despliega la infraestructura de contenedores en segundo plano
+COMPOSE_DIR="/opt/erp-odoo"
+
+echo "Desplegando infraestructura Docker Compose..."
+cd $COMPOSE_DIR
+docker-compose up -d
+
+echo "Estado actual:"
+docker-compose ps
+```
+
+### 4.4 Script de Actualización Segura (`update.sh`)
+Descarga nuevas versiones y recrea los contenedores si las imágenes han cambiado (sin perder volúmenes de datos).
+```bash
+#!/bin/bash
+# Actualiza las imágenes y recrea contenedores
+COMPOSE_DIR="/opt/erp-odoo"
+
+echo "Buscando nuevas actualizaciones de imágenes..."
+cd $COMPOSE_DIR
+docker-compose pull
+
+echo "Aplicando cambios y recreando contenedores afectados..."
+docker-compose up -d
+
+echo "Limpiando imágenes huérfanas o antiguas..."
+docker image prune -f
+
+echo "Actualización completada y entorno limpio."
+```
+
+### 4.5 Script de Monitorización y Salud (`monitor.sh`)
+Revisa que los 3 contenedores sigan corriendo, diseñado para ejecutarse remotamente o como tarea cron para alertas proactivas.
+```bash
+#!/bin/bash
+# Monitor de estado de contenedores críticos
+
+CONTENEDORES=("odoo-web" "odoo-db" "nginx-proxy")
+ALERTA=0
+
+echo "=== Monitor de Salud ERP ($(date)) ==="
+for cont en "${CONTENEDORES[@]}"; do
+    ESTADO=$(docker inspect -f '{{.State.Running}}' $cont 2>/dev/null)
+    
+    if [ "$ESTADO" == "true" ]; then
+        echo "[OK] $cont está EN LÍNEA"
+    else
+        echo "[ERROR] $cont está CAÍDO"
+        ALERTA=1
+    fi
+done
+
+if [ $ALERTA -eq 1 ]; then
+    echo "⚠️ ALERTA: Fallo crítico detectado en la infraestructura."
+    exit 1
+else
+    echo "✅ Entorno estable."
+    exit 0
+fi
+```
+
+### 4.6 Tarea Cron Diaria (Copias Automáticas)
+Para programar tanto el backup (a las 02:00 AM) como el chequeo de monitorización (cada hora):
 ```bash
 crontab -e
-# Y añadir al final del fichero:
-0 2 * * * /opt/erp-odoo/scripts/backup.sh >> /var/log/odoo_backup.log 2>&1
+# Añadir:
+0 2 * * * /opt/erp-odoo/scripts/backup.sh > /var/log/odoo_backup.log 2>&1
+0 * * * * /opt/erp-odoo/scripts/monitor.sh > /var/log/odoo_monitor.log 2>&1
 ```
 
 ---
@@ -260,11 +334,15 @@ EXECUTE FUNCTION audit_users_action();
 
 ## Fase 6: Seguridad de Capa 2 Local (UFW)
 
-Protegemos el único servidor en la DMZ (`192.168.30.10`). Ahora el tráfico Odoo (8069) está bloqueado por defecto porque el contenedor no exporta puertos. UFW solo debe permitir el tráfico a los puertos exportados del contenedor Nginx.
+Protegemos el único servidor en la DMZ (`192.168.30.10`). Ahora el tráfico Odoo (8069) está bloqueado por defecto porque el contenedor no exporta puertos. UFW solo debe permitir el tráfico a los puertos exportados del contenedor Nginx y a la administración Cockpit.
 
 ```bash
-# Permitir SSH (Idealmente restringir IP de admin: ej. ufw allow from 192.168.10.x to any port 22)
+# Instalar UFW si no lo trae Debian
+sudo apt install ufw -y
+
+# Permitir SSH y Cockpit (Idealmente restringir IP de admin: ej. ufw allow from 192.168.10.x to any port 22)
 sudo ufw allow 22/tcp
+sudo ufw allow 9090/tcp
 
 # Permitir HTTP y HTTPS hacia el contenedor Nginx
 sudo ufw allow 80/tcp
@@ -337,7 +415,8 @@ En el portal web de pfSense:
 ---
 
 ## Resumen de la Ejecución Final
-1. Enciende las VMs en orden: pfSense y luego el Linux Mint unificado.
-2. El cliente entra a `https://erp.techsolutions.local` desde WAN o la LAN local (VLAN 10).
-3. El DNS de pfSense resuelve que esa URL apunta a la DMZ (`192.168.30.10`).
-4. El Nginx del Linux Mint captura la petición en el puerto 443, la descifra, y la manda internamente al puerto `8069` del contenedor Odoo.
+1. Enciende las VMs en orden: pfSense y luego el servidor Debian unificado.
+2. El administrador puede entrar a `https://192.168.30.10:9090` para revisar visualmente el host con Cockpit.
+3. El cliente entra a `https://erp.techsolutions.local` desde WAN o la LAN local (VLAN 10).
+4. El DNS de pfSense resuelve que esa URL apunta a la DMZ (`192.168.30.10`).
+5. El Nginx Dockerizado captura la petición en el puerto 443, la descifra, y la manda internamente al puerto `8069` del contenedor Odoo.

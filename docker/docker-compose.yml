@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    container_name: odoo-db
+    restart: always
+    environment:
+      - POSTGRES_DB=odoo_erp
+      - POSTGRES_PASSWORD=SuperSecretAdminPassword123
+      - POSTGRES_USER=odoo
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data/pgdata
+
+  odoo:
+    image: odoo:17
+    container_name: odoo-web
+    restart: always
+    depends_on:
+      - db
+    environment:
+      - HOST=db
+      - USER=odoo
+      - PASSWORD=SuperSecretAdminPassword123
+    volumes:
+      - ./data/odoo_addons:/mnt/extra-addons
+      - ./data/odoo_etc:/etc/odoo
+      - ./data/odoo_web:/var/lib/odoo
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    restart: always
+    depends_on:
+      - odoo
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config_nginx:/etc/nginx/conf.d
+      - ./certs:/etc/ssl/certs_local

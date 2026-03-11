@@ -38,9 +38,9 @@ graph TD
 
 ### Reglas Principales de Firewall (pfSense/UFW)
 
-*   **WAN a DMZ:** Permitir tráfico entrante a los puertos 80 (HTTP) y 443 (HTTPS) hacia el Servidor Mint.
-*   **UFW Local Mint:** Abiertos puertos 80, 443 y 22 (SSH). Tráfico Odoo puramente local (`127.0.0.1:8069`).
-*   **LAN (Clientes) a DMZ:** Permitir peticiones HTTPS (443) hacia el proxy.
+*   **WAN a DMZ:** Permitir tráfico entrante a los puertos 80 (HTTP) y 443 (HTTPS) hacia el Servidor Debian.
+*   **UFW Local Debian:** Abiertos puertos 80, 443, 22 (SSH) y 9090 (Gestión Cockpit). Tráfico Odoo puramente interno en la red Docker.
+*   **LAN (Clientes) a DMZ:** Permitir peticiones HTTPS (443) hacia el proxy y al puerto 9090 para administrar Cockpit.
 *   **Bloqueos Explícitos:** Desde la DMZ hacia la gestión del cortafuegos y hacia la LAN de clientes.
 
 ---
@@ -52,18 +52,21 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 ### 1. Preparación de la Infraestructura
 *   Configuración del hipervisor (VMware/VirtualBox).
 *   Despliegue de pfSense con sus respectivas interfaces virtuales (Trunk/VLANs).
-*   Instalación del S.O. anfitrión único (Linux Mint 22) en la DMZ con direccionamiento IP estático.
+*   Instalación del S.O. anfitrión único (Debian 12 Server) en la DMZ con direccionamiento IP estático e instalación de Cockpit.
 
 ### 2. Contenerización Completa (Docker / Nginx / Odoo)
 *   Instalación de `docker`, `docker-compose` y securización del daemon.
 *   Creación del fichero `docker-compose.yml` declarativo para instanciar Nginx, Odoo 17 y PostgreSQL 16 interactuando en su propia red de contenedores.
 *   Configuración de volúmenes persistentes localizados en `./data` y montajes vinculados para la configuración perimetral de `./config_nginx`.
 
-### 3. Automatización y Bases de Datos
-*   Desarrollo de *scripts* Bash:
-    *   `backup.sh`: Copias de seguridad automáticas (pg_dump).
-    *   `restore.sh`: Recuperación ante desastres (pg_restore).
-*   Programación de funciones PL/pgSQL y disparadores (`Triggers`) para auditar los accesos e inserciones en las tablas críticas del ERP.
+### 3. Automatización y Monitorización (DevOps)
+*   Desarrollo de *scripts* Bash para el ciclo de vida del ERP:
+    *   `deploy.sh`: Levantamiento automático de la infraestructura.
+    *   `backup.sh`: Volcados comprimidos seguros de PostgreSQL (`pg_dump -F c`).
+    *   `restore.sh`: Recuperación rápida ante desastres simulados.
+    *   `update.sh`: Carga de nuevas imágenes Docker y limpieza (`prune`) automatizada.
+    *   `monitor.sh`: Chequeo de salud de contenedores y detección de caídas.
+*   Programación de funciones PL/pgSQL y disparadores (`Triggers`) para auditar los accesos y registros clave.
 
 ### 4. Capa de Presentación Segura (Nginx en Docker)
 *   Despliegue de Nginx como un contenedor dentro del stack en lugar de una instalación nativa en la DMZ.
@@ -76,8 +79,8 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 
 *   **Redes/Seguridad:** pfSense (FreeBSD), UFW.
 *   **Virtualización/Orquestación:** Docker, Docker Compose.
-*   **Sistema Operativo Base:** GNU/Linux Mint 22, Windows 10 (Clientes).
-*   **Servicios Web/DB:** Nginx, Odoo 17 CE, PostgreSQL 16.
+*   **Sistema Operativo Base:** Debian 12 (Bookworm) con GUI Web Cockpit, Windows 11 (Clientes).
+*   **Servicios Web/DB:** Nginx (Alpine), Odoo 17 CE, PostgreSQL 16.
 *   **Scripting:** Bash, ANSI SQL & PL/pgSQL.
 
 ---
@@ -87,8 +90,8 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 *(Esta sección se completará a medida que se suban los archivos)*
 
 *   `/docker/`: Ficheros `docker-compose.yml` y configuraciones específicas de los contenedores (`odoo.conf`).
-*   `/scripts/`: Utilidades en Bash para respaldos (`backup.sh`, `restore.sh`), despliegue, etc.
+*   `/scripts/`: Batería DevOps en Bash (`backup.sh`, `restore.sh`, `deploy.sh`, `update.sh`, `monitor.sh`).
 *   `/sql/`: Sentencias y *Triggers* de PL/pgSQL para auditoría de base de datos.
 *   `/config_nginx/`: Archivos de configuración de los *Server Blocks* del proxy inverso.
 *   `/docs/`: Documentación adicional, capturas de pantalla y diagramas de red.
-*   `/ISOs/`: Directorio destinado a almacenar las imágenes de disco (Linux Mint, pfSense, etc.) necesarias para replicar el entorno.
+*   `/ISOs/`: Directorio destinado a almacenar las imágenes de disco (Debian 12, pfSense, etc.) necesarias para replicar el entorno.
