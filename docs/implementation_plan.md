@@ -19,10 +19,10 @@ graph TD
     DMZ --> DOCKER_HOST[Servidor Único Linux Mint\n192.168.30.10]
     
     subgraph DOCKER_HOST [Servidor Único Linux Mint (192.168.30.10)]
-        NGINX_PROXY[Proxy Inverso Nginx\n(Puerto 80/443)]
-        ODOO_DOCKER[Contenedor Odoo\n(Puerto Local 8069)]
-        PG_DOCKER[Contenedor PostgreSQL\n(Puerto Local 5432)]
-        NGINX_PROXY -.->|ProxyPass localhost:8069| ODOO_DOCKER
+        NGINX_PROXY[Contenedor Nginx\n(Puertos 80/443 al Host)]
+        ODOO_DOCKER[Contenedor Odoo\n(Aislado en Red Docker)]
+        PG_DOCKER[Contenedor PostgreSQL\n(Aislado en Red Docker)]
+        NGINX_PROXY -.->|ProxyPass nombre_odoo| ODOO_DOCKER
     end
 
     LAN_CLI --> PC_CLIENTE[Cliente Windows/Linux\n192.168.10.x]
@@ -34,10 +34,11 @@ graph TD
 | Zona Configurada | Subred (CIDR) | Puerta de Enlace (pfSense) | IP del Sistema | Puertos en Uso (Destino) | Servicio Alojado |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **WAN (Exterior)** | Red Fija/DHCP | Router físico local | IP de la WAN | `80`, `443` (TCP) | Redirección NAT hacia la DMZ |
-| **DMZ (VLAN 30)** | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | `80`, `443` (Web), `22` (SSH) | **Servidor Único (Mint):** Nginx + Docker (Odoo/DB) |
+| **DMZ (VLAN 30)** | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | `80`, `443` (Web), `22` (SSH) | **Servidor Único (Mint):** Host Docker |
 | **LAN Clientes (VLAN 10)**| `192.168.10.0/24` | `192.168.10.1` | `192.168.10.x` | *Ninguno hacia adentro* | Equipos de usuarios (Tráfico saliente) |
-| *(Servicio Interno db)* | Red Privada Docker | Switch Docker | `127.0.0.1` (Bind Local) | `5432` (TCP) | PostgreSQL 16 local |
-| *(Servicio Interno odoo)* | Red Privada Docker | Switch Docker | `127.0.0.1` (Bind Local) | `8069` (TCP) | Odoo 17 local |
+| *(Contenedor Nginx)* | Red Privada Docker | Switch Docker | Dinámica | `80`, `443` compartidos host| Proxy Inverso Alpine |
+| *(Contenedor db)* | Red Privada Docker | Switch Docker | Dinámica | `5432` (TCP) | PostgreSQL 16 cerrado |
+| *(Contenedor odoo)* | Red Privada Docker | Switch Docker | Dinámica | `8069` (TCP) | Odoo 17 cerrado |
 
 ### 1.2 Hipervisor y Máquinas Virtuales (VirtualBox / VMware)
 1.  **pfSense (Firewall/Enrutador):**
@@ -91,7 +92,7 @@ En el servidor Linux Mint, prepara el esquema de carpetas para el proyecto ERP:
 
 ```bash
 mkdir -p /opt/erp-odoo/data/{postgres,odoo_addons,odoo_etc,odoo_web}
-mkdir -p /opt/erp-odoo/scripts
+mkdir -p /opt/erp-odoo/{scripts,config_nginx,certs}
 cd /opt/erp-odoo
 ```
 
@@ -113,8 +114,7 @@ services:
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
       - ./data/postgres:/var/lib/postgresql/data/pgdata
-    ports:
-      - "127.0.0.1:5432:5432" # Solo accesible desde el localhost/Host
+    # No se exponen puertos, aislado en la red interna de Docker
 
   odoo:
     image: odoo:17
@@ -130,9 +130,20 @@ services:
       - ./data/odoo_addons:/mnt/extra-addons
       - ./data/odoo_etc:/etc/odoo
       - ./data/odoo_web:/var/lib/odoo
+    # No se exponen puertos al host, Nginx accede vía red Docker interna
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    restart: always
+    depends_on:
+      - odoo
     ports:
-      - "127.0.0.1:8069:8069" # Oculto del exterior, Nginx accederá vía localhost
-      - "127.0.0.1:8071:8071" # Puerto para procesos workers/gevent (opcional)
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config_nginx:/etc/nginx/conf.d
+      - ./certs:/etc/ssl/certs_local
 ```
 
 **Ejecución Inicial:**
@@ -249,13 +260,13 @@ EXECUTE FUNCTION audit_users_action();
 
 ## Fase 6: Seguridad de Capa 2 Local (UFW)
 
-Protegemos el único servidor en la DMZ (`192.168.30.10`). Ahora el tráfico Odoo (8069) está bloqueado por Docker (escucha en `127.0.0.1`), así que UFW solo debe permitir el tráfico al proxy HTTPS desde clientes e Internet.
+Protegemos el único servidor en la DMZ (`192.168.30.10`). Ahora el tráfico Odoo (8069) está bloqueado por defecto porque el contenedor no exporta puertos. UFW solo debe permitir el tráfico a los puertos exportados del contenedor Nginx.
 
 ```bash
 # Permitir SSH (Idealmente restringir IP de admin: ej. ufw allow from 192.168.10.x to any port 22)
 sudo ufw allow 22/tcp
 
-# Permitir HTTP y HTTPS hacia el Proxy Nginx residente en la misma máquina
+# Permitir HTTP y HTTPS hacia el contenedor Nginx
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 
@@ -265,22 +276,19 @@ sudo ufw enable
 
 ---
 
-## Fase 7: Publicación y Seguridad Perimetral (Nginx Local)
+## Fase 7: Publicación y Seguridad Perimetral (Nginx en Docker)
 
-En la **misma máquina Linux Mint** (`192.168.30.10`), instalamos y configuramos Nginx:
-
-```bash
-sudo apt update && sudo apt install nginx openssl -y
-```
+En lugar de instalar Nginx nativamente, configuraremos los archivos que leerá el contenedor.
 
 ### 7.1 Generación de Certificado SSL Autofirmado (Para Simulación)
+Generamos las claves y las dejamos en la carpeta que leerá el volumen de Docker:
 ```bash
-sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/odoo-selfsigned.key -out /etc/ssl/certs/odoo-selfsigned.crt
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /opt/erp-odoo/certs/odoo-selfsigned.key -out /opt/erp-odoo/certs/odoo-selfsigned.crt
 # (Rellenar los datos indicados al vuelo, especialmente el Common Name: erp.techsolutions.local)
 ```
 
 ### 7.2 Configuración del Proxy Inverso
-Crear el Server Block en `/etc/nginx/sites-available/odoo`:
+Crear el Server Block en `/opt/erp-odoo/config_nginx/odoo_proxy.conf`:
 
 ```nginx
 server {
@@ -294,21 +302,17 @@ server {
     listen 443 ssl;
     server_name erp.techsolutions.local;
 
-    # Certificados
-    ssl_certificate /etc/ssl/certs/odoo-selfsigned.crt;
-    ssl_certificate_key /etc/ssl/private/odoo-selfsigned.key;
+    # Rutas dentro del contenedor leyendo del volumen de /certs
+    ssl_certificate /etc/ssl/certs_local/odoo-selfsigned.crt;
+    ssl_certificate_key /etc/ssl/certs_local/odoo-selfsigned.key;
     
     # Afinamiento de Seguridad SSL
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
 
-    # Logs de Nginx
-    access_log /var/log/nginx/odoo.access.log;
-    error_log /var/log/nginx/odoo.error.log;
-
-    # Bloque de Proxy Pass a Odoo local (Mismo servidor)
+    # Bloque de Proxy Pass a Odoo (A través de la red interna Docker)
     location / {
-        proxy_pass http://127.0.0.1:8069;
+        proxy_pass http://odoo-web:8069;
         proxy_http_version 1.1;
         
         # Cabeceras para que Odoo sepa la IP original del usuario que lo visita
@@ -320,13 +324,8 @@ server {
 }
 ```
 
-**Habilitar la web y recargar Nginx:**
-```bash
-sudo ln -s /etc/nginx/sites-available/odoo /etc/nginx/sites-enabled/
-sudo rm /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl restart nginx
-```
+**Aplicar la configuración:**
+Como está todo en Docker, un simple `docker-compose restart nginx` en `/opt/erp-odoo` aplicará cualquier cambio.
 
 ### 7.3 Conexión con pfSense (Capa de Mario)
 En el portal web de pfSense:
