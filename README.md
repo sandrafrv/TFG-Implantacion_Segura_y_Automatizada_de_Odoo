@@ -29,9 +29,9 @@ La topología divide la red en tres zonas de confianza principales:
 
 ```mermaid
 graph TD
-    A[Internet WAN] --> B (pfSense Firewall/Router)
-    B -->|DMZ - VLAN 30| C [Servidor Linux Mint:<br>Nginx Proxy + Odoo / PostgreSQL]
-    B -->|LAN Clientes - VLAN 10| D [Equipos Internos]
+    A[Internet WAN] --> B(pfSense Firewall/Router)
+    B -->|DMZ - VLAN 30| C["Servidor Linux Mint:<br>Nginx Proxy + Odoo / PostgreSQL"]
+    B -->|LAN Clientes - VLAN 10| D[Equipos Internos]
     
     C -.-"Proxy Pass ('127.0.0.1:8069')".-> Odoo[Contenedor Odoo Local]
 ```
