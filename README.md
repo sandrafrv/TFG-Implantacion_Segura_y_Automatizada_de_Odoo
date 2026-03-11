@@ -1,6 +1,4 @@
 # Implantación Segura y Automatizada de Odoo con pfSense y Docker
-
-**Autor:** MArio Garcia , Javier Cordoba , Sandra Fradejas Avedillo 
 **Grado:** ASIR - Administración de Sistemas Informáticos en Red
 **Fecha:** Curso 2026
 
