@@ -29,12 +29,11 @@ jobs:
       - name: Descargar el código
         uses: actions/checkout@v4  # Acción oficial de GitHub para clonar el repo
 
-      # PASO 2: Validar la sintaxis YAML del docker-compose con una Action de la comunidad
+      # PASO 2: Validar la sintaxis YAML del docker-compose instalando yamllint
       - name: Validar Sintaxis YAML de Docker
-        uses: action-rs/yamllint@master  # Acción que ejecuta yamllint sobre el archivo indicado
-        with:
-          yamllint-file_or_dir: "docker/docker-compose.yml"  # Ruta al archivo a validar
-          yamllint-strict: false  # No ser ultra-estricto (permite indentación flexible)
+        run: |
+          sudo apt-get install -y yamllint
+          yamllint -d "{extends: relaxed, rules: {line-length: disable}}" docker/docker-compose.yml
         continue-on-error: true  # Si falla, no detiene el pipeline completo (avisará pero seguirá)
 
       # PASO 3: Validación estructural del Docker Compose (más fiable que el linter YAML)
