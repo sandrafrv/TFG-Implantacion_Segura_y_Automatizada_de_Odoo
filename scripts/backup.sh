@@ -14,7 +14,6 @@
 BACKUP_DIR="${1:-/opt/erp-odoo/backups}"
 
 # Genera una marca de tiempo con formato AÑO-MES-DÍA_HORA-MIN-SEG
-# Ejemplo de resultado: 20260312_143500
 # Esto hace que cada backup tenga un nombre de archivo único
 FECHA=$(date +"%Y%m%d_%H%M%S")
 
@@ -39,17 +38,17 @@ echo "Usando directorio de backup: $BACKUP_DIR"
 echo "Iniciando volcado comprimido de la BBDD de Odoo..."
 
 # Ejecuta pg_dump DENTRO del contenedor Docker de PostgreSQL:
-#   -U $DB_USER   → Usuario de PostgreSQL
-#   -d $DB_NAME   → Base de datos a volcar
-#   -F c          → Formato "custom" de postgres (comprimido y portable para pg_restore)
-#   -f /tmp/...   → Ruta dentro del contenedor donde se guarda el archivo temporal
-docker exec -t $DB_CONT pg_dump -U $DB_USER -d $DB_NAME -F c -f /tmp/backup_$FECHA.dump
+#   -U → Usuario de PostgreSQL
+#   -d → Base de datos a volcar
+#   -F c → Formato "custom" (comprimido y portable para pg_restore)
+#   -f → Ruta dentro del contenedor donde se guarda el archivo temporal
+docker exec -t "$DB_CONT" pg_dump -U "$DB_USER" -d "$DB_NAME" -F c -f "/tmp/backup_${FECHA}.dump"
 
-# Copia el archivo generado desde DENTRO del contenedor al sistema de archivos del HOST (Debian)
-docker cp $DB_CONT:/tmp/backup_$FECHA.dump $BACKUP_DIR/backup_$FECHA.dump
+# Copia el archivo generado desde DENTRO del contenedor al HOST (Debian)
+docker cp "$DB_CONT:/tmp/backup_${FECHA}.dump" "$BACKUP_DIR/backup_${FECHA}.dump"
 
 # Borra el temporal del contenedor para no desperdiciar espacio dentro de él
-docker exec -t $DB_CONT rm /tmp/backup_$FECHA.dump
+docker exec -t "$DB_CONT" rm "/tmp/backup_${FECHA}.dump"
 
 # Confirma que el backup se ha completado con éxito e indica la ruta exacta del fichero
-echo "Backup completado y guardado en $BACKUP_DIR/backup_$FECHA.dump"
+echo "Backup completado y guardado en $BACKUP_DIR/backup_${FECHA}.dump"
