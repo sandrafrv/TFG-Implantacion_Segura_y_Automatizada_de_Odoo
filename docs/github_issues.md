@@ -1,8 +1,9 @@
 # Plantillas para GitHub Issues (TFG ASIR)
 
-Este documento contiene las tareas del proyecto divididas por fases (Épicas o Issues principales), formateadas exactamente con la sintaxis de GitHub. 
-Puedes copiar todo el contenido que está debajo de cada título y pegarlo directamente en el cuadro de texto al crear un nuevo **Issue** en tu repositorio de GitHub. 
-¡Las casillas de verificación interactivas se generarán automáticamente!
+Este documento contiene las tareas del proyecto divididas
+por fases, formateadas con la sintaxis de GitHub.
+Puedes copiar cada bloque y pegarlo en un nuevo **Issue** de GitHub.
+
 
 ---
 
@@ -11,9 +12,12 @@ Puedes copiar todo el contenido que está debajo de cada título y pegarlo direc
 **Descripción (Copiar lo siguiente):**
 
 ### 🎯 Objetivo
-Desplegar la infraestructura de base que soportará las distintas redes virtuales y la configuración vital del firewall perimetral.
+
+Desplegar la infraestructura de base que soportará las distintas redes virtuales
+y la configuración vital del firewall perimetral.
 
 ### ✅ Tareas a realizar
+
 - [ ] Descargar ISO de pfSense y crear Máquina Virtual.
 - [ ] Configurar 3 adaptadores de red en la VM pfSense (WAN, LAN Clientes, DMZ).
 - [ ] Ejecutar la instalación básica de pfSense.
@@ -30,10 +34,13 @@ Desplegar la infraestructura de base que soportará las distintas redes virtuale
 **Descripción (Copiar lo siguiente):**
 
 ### 🎯 Objetivo
-Preparar el Servidor Linux único sobre el cual correrá el entorno Docker, optimizándolo para bajo consumo (sin interfaz gráfica loca) pero con gestión web centralizada.
+
+Preparar el Servidor Linux sobre el cual correrá el entorno Docker,
+optimizándolo para bajo consumo con gestión web centralizada (Cockpit).
 
 ### ✅ Tareas a realizar
-- [ ] Descargar ISO de Debian 12 Server ("netinst") y crear Máquina Virtual en la red de la DMZ.
+
+- [ ] Descargar ISO de Debian 12 Server ("netinst") y crear Máquina Virtual en la DMZ.
 - [ ] Instalar Debian (seleccionar solo sistema base, sin entorno de escritorio).
 - [ ] Configurar IP estática (`192.168.30.10`) editando `/etc/network/interfaces` u otra vía.
 - [ ] Actualizar repositorios y sistema (`apt update && apt upgrade`).
