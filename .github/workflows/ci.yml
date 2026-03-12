@@ -4,16 +4,20 @@ name: CI Validator  # Nombre del Workflow que aparece en la pestaña "Actions" d
 # GITHUB ACTION: CI Validator
 # DESCRIPCIÓN: Valida la sintaxis de los archivos clave del
 #              proyecto automáticamente en cada push o Pull Request.
-#              Si hay un error de sintaxis, GitHub lo notifica
-#              y bloquea la integración del código defectuoso.
 # ============================================================
 
 # --- DISPARADORES (Cuándo se activa este Workflow) ---
 on:
   push:
-    branches: [ "main" ]  # Se ejecuta cuando se hace 'git push' a la rama principal
+    branches: [ "main" ]   # Se ejecuta cuando se hace 'git push' a la rama principal
   pull_request:
-    branches: [ "main" ]  # También se ejecuta al abrir un Pull Request hacia main
+    branches: [ "main" ]   # También se ejecuta al abrir un Pull Request hacia main
+
+# --- VARIABLES DE ENTORNO GLOBALES ---
+env:
+  # Forzar Node.js 24 para evitar el aviso de deprecación de Node.js 20
+  # Esto soluciona el warning de "actions/checkout@v4 running on Node.js 20"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 # --- JOBS (Las tareas que ejecutará GitHub en la nube) ---
 jobs:
@@ -30,19 +34,21 @@ jobs:
         uses: actions/checkout@v4  # Acción oficial de GitHub para clonar el repo
 
       # PASO 2: Validar la sintaxis YAML del docker-compose instalando yamllint
+      # (usamos apt-get en vez de una Action externa para evitar dependencias de terceros caídas)
       - name: Validar Sintaxis YAML de Docker
         run: |
           sudo apt-get install -y yamllint
+          # La opción "relaxed" evita fallos por longitud de línea (poco estricto)
           yamllint -d "{extends: relaxed, rules: {line-length: disable}}" docker/docker-compose.yml
         continue-on-error: true  # Si falla, no detiene el pipeline completo (avisará pero seguirá)
 
-      # PASO 3: Validación estructural del Docker Compose (más fiable que el linter YAML)
+      # PASO 3: Validación estructural del Docker Compose con el CLI nativo de Docker V2
+      # NOTA: En Ubuntu moderno se usa "docker compose" (espacio, V2) en vez de "docker-compose" (guion, V1)
       - name: Validar Docker Compose estructuralmente
         run: |
-          # docker-compose config -q valida que el yml es sintácticamente correcto
-          # y que todos los servicios, volúmenes y redes están bien definidos.
-          # Si hay un error de indentación o una clave desconocida, este comando falla.
-          docker-compose -f docker/docker-compose.yml config -q
+          # "docker compose config -q" valida que el yml esté bien escrito y todos los servicios
+          # estén correctamente definidos. Si hay un error de YAML, este comando falla con error.
+          docker compose -f docker/docker-compose.yml config -q
 
       # PASO 4 y 5: Análisis estático de los Scripts Bash con ShellCheck
       - name: Instalar ShellCheck
@@ -54,8 +60,7 @@ jobs:
         run: |
           echo "Analizando todos los scripts de la carpeta scripts/..."
           # shellcheck analiza cada archivo .sh y reporta los avisos y errores encontrados.
-          # Si detecta un error real (no solo advertencia), el comando fallará
-          # y GitHub marcará el commit como ROJO (fallido).
+          # Si detecta un error real, el comando fallará y GitHub marcará el commit como fallido.
           shellcheck scripts/*.sh
 
       # PASO 6: Validación del Markdown de la documentación
