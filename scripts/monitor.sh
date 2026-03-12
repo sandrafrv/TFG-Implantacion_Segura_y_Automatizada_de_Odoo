@@ -1,25 +1,64 @@
 #!/bin/bash
-# Monitor de estado de contenedores críticos
+# ============================================================
+# SCRIPT: monitor.sh
+# DESCRIPCIÓN: Comprueba que los 3 contenedores críticos del
+#              ERP estén en funcionamiento. Si alguno está 
+#              caído, termina con código de error (exit 1).
+# USO: ./monitor.sh
+#      También se ejecuta automáticamente cada hora desde cron.
+# ============================================================
 
+# --- CONFIGURACIÓN ---
+
+# Array de Bash con los nombres exactos de los contenedores a vigilar.
+# Deben coincidir con el campo "container_name" del docker-compose.yml
 CONTENEDORES=("odoo-web" "odoo-db" "nginx-proxy")
+
+# Variable bandera: empieza en 0 (sin alertas). 
+# Si se detecta un contenedor caído se pondrá en 1.
 ALERTA=0
 
+# --- MONITORIZACIÓN ---
+
+# Imprime una cabecera con la hora de ejecución del chequeo.
+# $(date) ejecuta el comando date y embebe su resultado en el string.
 echo "=== Monitor de Salud ERP ($(date)) ==="
-for cont en "${CONTENEDORES[@]}"; do
+
+# Itera sobre cada nombre de contenedor del array
+for cont in "${CONTENEDORES[@]}"; do
+
+    # 'docker inspect' lee los metadatos internos de un contenedor
+    # -f '{{.State.Running}}' extrae SOLO el campo booleano "Running" (true/false)
+    # 2>/dev/null redirige cualquier error (ej: si el contenedor no existe) a la "nada",
+    # evitando mensajes de error confusos en el log de cron
     ESTADO=$(docker inspect -f '{{.State.Running}}' $cont 2>/dev/null)
-    
+
+    # Compara el estado: si es "true", el contenedor está arriba
     if [ "$ESTADO" == "true" ]; then
-        echo "[OK] $cont está EN LÍNEA"
+        echo "[OK]    $cont está EN LÍNEA"
     else
-        echo "[ERROR] $cont está CAÍDO"
+        # Si no es "true" (puede ser "false" o vacío si no existe), está caído
+        echo "[ERROR] $cont está CAÍDO o no existe"
+        # Activamos la bandera de alerta
         ALERTA=1
     fi
-done
 
+done  # Fin del bucle for
+
+# --- RESULTADO FINAL ---
+
+# Evalúa el resultado global tras revisar todos los contenedores
 if [ $ALERTA -eq 1 ]; then
-    echo "⚠️ ALERTA: Fallo crítico detectado en la infraestructura."
+    # Si ALERTA vale 1, al menos un contenedor falló
+    echo ""
+    echo "⚠️  ALERTA CRÍTICA: Uno o más servicios del ERP están caídos."
+    # exit 1: indica al sistema operativo que el script terminó con ERROR
+    # Esto activa alertas en sistemas de monitorización externos si los hay
     exit 1
 else
-    echo "✅ Entorno estable."
+    # Todo bien: todos los contenedores están UP
+    echo ""
+    echo "✅  Entorno completamente estable. Todos los servicios operativos."
+    # exit 0: indica que el script terminó con ÉXITO
     exit 0
 fi

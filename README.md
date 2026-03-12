@@ -10,7 +10,7 @@ Este repositorio documenta el diseño e implantación de un entorno productivo c
 
 **Características principales:**
 *   **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/LAN/DMZ).
-*   **Orquestación de Contenedores:** Despliegue de servicios (Nginx, Odoo 17 y PostgreSQL 16) usando Docker y Docker Compose sobre GNU/Linux Mint.
+*   **Orquestación de Contenedores:** Despliegue de servicios (Nginx, Odoo 17 y PostgreSQL 16) usando Docker y Docker Compose sobre **Debian 12 Server (Bookworm)**.
 *   **Segmentación de Red:** Soporte de VLANs (10, 30) para aislar el tráfico de clientes internos y servicios públicos.
 *   **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante un contenedor Nginx, con terminación SSL, limitando el acceso a los puertos 80/443 del host.
 *   **Automatización y Auditoría:** Scripts en Bash para *backups* y despliegue, junto con *Triggers* (PL/pgSQL) para la monitorización de acciones en la base de datos.
@@ -22,13 +22,13 @@ Este repositorio documenta el diseño e implantación de un entorno productivo c
 La topología divide la red en tres zonas de confianza principales:
 
 *   **WAN (Internet):** Acceso externo simulado.
-*   **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor unificado Linux Mint que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL).
+*   **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor **Debian 12 Server** que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL). Gestionado visualmente desde **Cockpit** (`https://192.168.30.10:9090`).
 *   **LAN Clientes (VLAN 10 - 192.168.10.0/24):** Equipos internos de la empresa.
 
 ```mermaid
 graph TD
     WAN[Internet WAN] --> P[pfSense Firewall Router]
-    P --> |DMZ VLAN 30| N[Servidor Linux Mint Docker Host]
+    P --> |DMZ VLAN 30| N[Servidor Debian 12 Docker Host]
     N --> |Puerto 80/443| Nginx[Contenedor Nginx Proxy]
     Nginx --> |Red Interna Docker| Docker[Contenedor Odoo Local]
     P --> |LAN Clientes VLAN 10| CLI[Equipos Internos]
@@ -85,7 +85,6 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 
 ## 📚 Estructura de este Repositorio
 
-*(Esta sección se completará a medida que se suban los archivos)*
 
 *   `/docker/`: Ficheros `docker-compose.yml` y configuraciones específicas de los contenedores (`odoo.conf`).
 *   `/scripts/`: Batería DevOps en Bash (`backup.sh`, `restore.sh`, `deploy.sh`, `update.sh`, `monitor.sh`).

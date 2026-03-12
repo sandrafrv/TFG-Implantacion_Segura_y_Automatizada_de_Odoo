@@ -1,42 +1,112 @@
 version: '3.8'
+# Docker Compose versión 3.8 - Define cómo orquestar múltiples contenedores juntos.
+
+# ====================================================================
+# STACK DOCKER: ERP Odoo TFG ASIR
+# DESCRIPCIÓN: Este archivo define los 3 servicios (contenedores) que
+#              forman el sistema ERP: Base de Datos, Aplicación Web y
+#              Proxy Inverso (puerta de entrada desde Internet).
+# USO: Ejecutar desde /opt/erp-odoo con:
+#      docker-compose -f docker/docker-compose.yml up -d
+# ====================================================================
 
 services:
+
+  # ------------------------------------------------------------------
+  # SERVICIO 1: Base de Datos PostgreSQL
+  # Contenedor que aloja el motor de base de datos relacional.
+  # Odoo intentará conectarse a él en el arranque.
+  # ------------------------------------------------------------------
   db:
-    image: postgres:16
-    container_name: odoo-db
-    restart: always
+    image: postgres:16       # Imagen oficial de PostgreSQL versión 16 desde Docker Hub
+    container_name: odoo-db  # Nombre de referencia del contenedor (usado en los scripts y en monitor.sh)
+    restart: always          # Si el contenedor se cae por error, Docker lo reinicia automáticamente
+
     environment:
-      - POSTGRES_DB=odoo_erp
-      - POSTGRES_PASSWORD=SuperSecretAdminPassword123
-      - POSTGRES_USER=odoo
-      - PGDATA=/var/lib/postgresql/data/pgdata
+      # Las variables se leen de forma segura desde el archivo .env oculto.
+      # El operador ${VARIABLE} busca el valor en el fichero .env de la misma carpeta.
+      - POSTGRES_DB=${POSTGRES_DB}           # Nombre de la base de datos que creará Postgres al arrancar
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD} # Contraseña del usuario de base de datos
+      - POSTGRES_USER=${POSTGRES_USER}       # Usuario administrador de la base de datos
+      - PGDATA=/var/lib/postgresql/data/pgdata # Ruta interna del contenedor donde almacena los datos
+
     volumes:
+      # Mapeo: carpeta del HOST (Debian) → carpeta dentro del contenedor
+      # Esto hace que los datos de PostgreSQL sobrevivan aunque el contenedor se borre o se recree.
       - ./data/postgres:/var/lib/postgresql/data/pgdata
 
-  odoo:
-    image: odoo:17
-    container_name: odoo-web
-    restart: always
-    depends_on:
-      - db
-    environment:
-      - HOST=db
-      - USER=odoo
-      - PASSWORD=SuperSecretAdminPassword123
-    volumes:
-      - ./data/odoo_addons:/mnt/extra-addons
-      - ./data/odoo_etc:/etc/odoo
-      - ./data/odoo_web:/var/lib/odoo
+    networks:
+      - odoo_net  # Este contenedor estará en la red privada "odoo_net" (ver más abajo)
 
-  nginx:
-    image: nginx:alpine
-    container_name: nginx-proxy
-    restart: always
+  # ------------------------------------------------------------------
+  # SERVICIO 2: Aplicación Web Odoo
+  # El ERP propiamente dicho. Se conecta al contenedor "db" para leer
+  # y guardar datos, pero nunca está expuesto directamente a Internet.
+  # ------------------------------------------------------------------
+  odoo:
+    image: odoo:17            # Imagen oficial de Odoo versión 17 Community Edition
+    container_name: odoo-web  # Nombre del contenedor (referenciado en backup.sh, restore.sh y monitor.sh)
+    restart: always           # Reinicio automático ante fallos
+
     depends_on:
-      - odoo
-    ports:
-      - "80:80"
-      - "443:443"
+      - db  # Docker espera que el contenedor "db" esté iniciado antes de arrancar este
+
+    environment:
+      # Odoo necesita saber cómo conectarse a PostgreSQL.
+      # HOST=db usa el nombre del contenedor como hostname DNS dentro de la red docker.
+      - HOST=db
+      - USER=${POSTGRES_USER}       # El mismo usuario definido en el contenedor "db"
+      - PASSWORD=${POSTGRES_PASSWORD} # La misma contraseña
+
     volumes:
+      # Módulos extra de Odoo (si instalamos aplicaciones específicas de la empresa)
+      - ./data/odoo_addons:/mnt/extra-addons
+      # Datos persistentes de Odoo (archivos subidos, sesiones, caché)
+      - ./data/odoo_web:/var/lib/odoo
+      # Archivo de configuración propio (activa proxy_mode y ajustes de rendimiento)
+      # El path "./docker/odoo.conf" es relativo a la raíz /opt/erp-odoo del proyecto
+      - ./docker/odoo.conf:/etc/odoo/odoo.conf
+
+    networks:
+      - odoo_net  # Misma red privada que "db" → pueden comunicarse entre sí
+
+  # ------------------------------------------------------------------
+  # SERVICIO 3: Proxy Inverso Nginx
+  # Es la única puerta de entrada desde el exterior. Recibe las
+  # peticiones HTTPS del usuario, las descifra y las reenvía a Odoo.
+  # Es el ÚNICO contenedor que abre puertos al Host (Debian).
+  # ------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine       # Imagen de Nginx sobre Alpine Linux (muy ligera, ~5MB)
+    container_name: nginx-proxy # Nombre referenciado en monitor.sh
+    restart: always
+
+    depends_on:
+      - odoo  # El proxy espera a que Odoo esté iniciado antes de arrancar
+
+    ports:
+      # Mapeo de puertos: puerto del HOST (Debian) → puerto del contenedor
+      # Así, las peticiones que llegan al Host en el puerto 80/443 las recoge Nginx
+      - "80:80"    # HTTP (solo para redirigir a HTTPS)
+      - "443:443"  # HTTPS (el tráfico real y seguro de Odoo)
+
+    volumes:
+      # La configuración del Proxy se lee desde la carpeta config_nginx del proyecto
+      # (relativa a la raíz /opt/erp-odoo)
       - ./config_nginx:/etc/nginx/conf.d
+      # Los certificados SSL generados con OpenSSL se leen desde la carpeta certs/
       - ./certs:/etc/ssl/certs_local
+
+    networks:
+      - odoo_net  # Misma red que los otros → puede resolver "odoo-web" como hostname
+
+# ====================================================================
+# REDES DOCKER
+# Se define una red privada bridged interna llamada "odoo_net".
+# Los 3 contenedores la comparten.
+# Ventaja: se comunican por nombre (ej: http://odoo-web:8069) y están
+# completamente aislados del resto de contenedores del servidor.
+# ====================================================================
+networks:
+  odoo_net:
+    driver: bridge  # Tipo "bridge" = red virtual privada interna del host Docker

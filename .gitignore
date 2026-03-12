@@ -1,0 +1,26 @@
+# ==========================================
+# .gitignore - TFG ASIR
+# Archivos a EXCLUIR del repositorio GitHub
+# ==========================================
+
+# El archivo de secretos NUNCA debe subirse
+docker/.env
+.env
+
+# Archivos de datos generados (demasiado grandes para GitHub)
+docker/data/
+data/
+
+# Copias de seguridad locales
+backups/
+
+# Certificados SSL generados (privados)
+certs/*.key
+certs/*.crt
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# ISOs no deben subirse a GitHub (son demasiado grandes)
+ISOs/

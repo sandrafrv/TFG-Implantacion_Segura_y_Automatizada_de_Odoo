@@ -1,46 +1,67 @@
-name: CI Validator
+name: CI Validator  # Nombre del Workflow que aparece en la pestaña "Actions" de GitHub
 
+# ============================================================
+# GITHUB ACTION: CI Validator
+# DESCRIPCIÓN: Valida la sintaxis de los archivos clave del
+#              proyecto automáticamente en cada push o Pull Request.
+#              Si hay un error de sintaxis, GitHub lo notifica
+#              y bloquea la integración del código defectuoso.
+# ============================================================
+
+# --- DISPARADORES (Cuándo se activa este Workflow) ---
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ]  # Se ejecuta cuando se hace 'git push' a la rama principal
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main" ]  # También se ejecuta al abrir un Pull Request hacia main
 
+# --- JOBS (Las tareas que ejecutará GitHub en la nube) ---
 jobs:
+
   validate:
-    name: Syntax & Code Validation
-    runs-on: ubuntu-latest
+    name: Syntax & Code Validation  # Nombre descriptivo que aparece en la UI de GitHub
+    runs-on: ubuntu-latest          # GitHub levanta una VM Ubuntu limpia para ejecutar los pasos
 
+    # --- STEPS (Pasos secuenciales dentro del job) ---
     steps:
-      - name: Descargar el código
-        uses: actions/checkout@v4
 
-      # 1. Validación de Docker Compose (YAML Sintaxis)
+      # PASO 1: Descargar el código del repositorio en la VM de GitHub
+      - name: Descargar el código
+        uses: actions/checkout@v4  # Acción oficial de GitHub para clonar el repo
+
+      # PASO 2: Validar la sintaxis YAML del docker-compose con una Action de la comunidad
       - name: Validar Sintaxis YAML de Docker
-        uses: action-rs/yamllint@master
+        uses: action-rs/yamllint@master  # Acción que ejecuta yamllint sobre el archivo indicado
         with:
-          yamllint-file_or_dir: "docker/docker-compose.yml"
-          yamllint-strict: false
-        # Si no hay yamllint configurado, podemos usar un linter general como docker-compose config
-        continue-on-error: true
-      
-      # Opción nativa para validar docker-compose
+          yamllint-file_or_dir: "docker/docker-compose.yml"  # Ruta al archivo a validar
+          yamllint-strict: false  # No ser ultra-estricto (permite indentación flexible)
+        continue-on-error: true  # Si falla, no detiene el pipeline completo (avisará pero seguirá)
+
+      # PASO 3: Validación estructural del Docker Compose (más fiable que el linter YAML)
       - name: Validar Docker Compose estructuralmente
         run: |
+          # docker-compose config -q valida que el yml es sintácticamente correcto
+          # y que todos los servicios, volúmenes y redes están bien definidos.
+          # Si hay un error de indentación o una clave desconocida, este comando falla.
           docker-compose -f docker/docker-compose.yml config -q
 
-      # 2. Validación de Scripts Bash (ShellCheck)
+      # PASO 4 y 5: Análisis estático de los Scripts Bash con ShellCheck
       - name: Instalar ShellCheck
+        # ShellCheck es el analizador de código Bash más usado en el mundo profesional.
+        # Detecta variables no entrecomilladas, bucles mal escritos, subcomandos ineficientes, etc.
         run: sudo apt-get install -y shellcheck
 
       - name: Validar Scripts con ShellCheck
         run: |
-          echo "Analizando scripts en la carpeta scripts/..."
+          echo "Analizando todos los scripts de la carpeta scripts/..."
+          # shellcheck analiza cada archivo .sh y reporta los avisos y errores encontrados.
+          # Si detecta un error real (no solo advertencia), el comando fallará
+          # y GitHub marcará el commit como ROJO (fallido).
           shellcheck scripts/*.sh
 
-      # 3. Validación de Documentación Markdown
+      # PASO 6: Validación del Markdown de la documentación
       - name: Validar Markdown (Limpieza de sintaxis)
-        uses: DavidAnson/markdownlint-cli2-action@v16
+        uses: DavidAnson/markdownlint-cli2-action@v16  # Acción que ejecuta markdownlint
         with:
-          globs: "**/*.md"
-        continue-on-error: true # No queremos que el proyecto se rompa por un fallo menor en un .md
+          globs: "**/*.md"     # Valida TODOS los archivos markdown del repositorio
+        continue-on-error: true  # Fallos de estilo en docs no rompen el pipeline principal
