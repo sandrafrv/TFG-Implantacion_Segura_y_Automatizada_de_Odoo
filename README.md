@@ -1,5 +1,7 @@
 # Implantación Segura y Automatizada de Odoo con pfSense y Docker
+
 **Grado:** ASIR - Administración de Sistemas Informáticos en Red
+
 **Fecha:** Curso 2026
 
 ---
