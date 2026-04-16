@@ -1,8 +1,16 @@
 # Implantación Segura y Automatizada de Odoo con pfSense y Docker
 
+**Autores:**
+
+- Javier Córdoba Del Valle
+- Mario García García
+- Sandra Fradejas Avedillo
+
 **Grado:** ASIR - Administración de Sistemas Informáticos en Red
 
-**Fecha:** Curso 2026
+**Centro:** IES Cañaveral — Departamento de Informática y Comunicaciones
+
+**Fecha:** Curso 2025/2026
 
 ---
 
@@ -11,17 +19,19 @@
 Este repositorio documenta el diseño e implantación de un entorno productivo completo para el ERP/CRM **Odoo**, simulando las necesidades de una empresa ("TechSolutions S.L."). La arquitectura se caracteriza por su enfoque en la seguridad, la contenerización y las buenas prácticas de administración de sistemas.
 
 **Características principales:**
-*   **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/LAN/DMZ).
+
+*   **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/LAN/DMZ) con reglas explícitas de bloqueo anti-pivoting.
 *   **Orquestación de Contenedores:** Despliegue de servicios (Nginx, Odoo 17 y PostgreSQL 16) usando Docker y Docker Compose sobre **Debian 12 Server (Bookworm)**.
 *   **Segmentación de Red:** Soporte de VLANs (10, 30) para aislar el tráfico de clientes internos y servicios públicos.
-*   **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante un contenedor Nginx, con terminación SSL, limitando el acceso a los puertos 80/443 del host.
-*   **Automatización y Auditoría:** Scripts en Bash para *backups* y despliegue, junto con *Triggers* (PL/pgSQL) para la monitorización de acciones en la base de datos.
+*   **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante un contenedor Nginx Alpine, con terminación SSL/TLS, limitando el acceso a los puertos 80/443 del host.
+*   **Automatización y Auditoría:** Scripts en Bash para *backups*, restauración, monitorización y despliegue, junto con *Triggers* (PL/pgSQL) para la auditoría de acciones en la base de datos.
+*   **Gestión Visual:** Administración del servidor mediante **Cockpit** (interfaz web en puerto 9090).
 
 ---
 
 ## 🏗️ Arquitectura de Red
 
-La topología divide la red en tres zonas de confianza principales:
+La topología divide la red en tres zonas de confianza principales, gestionadas por un firewall pfSense:
 
 *   **WAN (Internet):** Acceso externo simulado.
 *   **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor **Debian 12 Server** que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL). Gestionado visualmente desde **Cockpit** (`https://192.168.30.10:9090`).
@@ -33,15 +43,27 @@ graph TD
     P --> |DMZ VLAN 30| N[Servidor Debian 12 Docker Host]
     N --> |Puerto 80/443| Nginx[Contenedor Nginx Proxy]
     Nginx --> |Red Interna Docker| Docker[Contenedor Odoo Local]
+    Docker --> |Red Interna Docker| DB[Contenedor PostgreSQL]
     P --> |LAN Clientes VLAN 10| CLI[Equipos Internos]
 ```
 
+### Tabla de Direccionamiento IP
+
+| Zona | Subred (CIDR) | Gateway (pfSense) | IP del Sistema | Puertos Abiertos | Servicio |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| WAN (Exterior) | Red Fija/DHCP | Router físico | IP WAN | 80, 443 (NAT) | Redirección NAT hacia DMZ |
+| DMZ (VLAN 30) | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | 80, 443, 22, 9090 | Servidor único Debian + Docker + Cockpit |
+| LAN Clientes (VLAN 10) | `192.168.10.0/24` | `192.168.10.1` | `192.168.10.x` | — | Equipos de usuarios |
+
 ### Reglas Principales de Firewall (pfSense/UFW)
 
-*   **WAN a DMZ:** Permitir tráfico entrante a los puertos 80 (HTTP) y 443 (HTTPS) hacia el Servidor Debian.
-*   **UFW Local Debian:** Abiertos puertos 80, 443, 22 (SSH) y 9090 (Gestión Cockpit). Tráfico Odoo puramente interno en la red Docker.
-*   **LAN (Clientes) a DMZ:** Permitir peticiones HTTPS (443) hacia el proxy y al puerto 9090 para administrar Cockpit.
-*   **Bloqueos Explícitos:** Desde la DMZ hacia la gestión del cortafuegos y hacia la LAN de clientes.
+| Origen | Destino | Puertos | Acción | Propósito |
+| :--- | :--- | :--- | :--- | :--- |
+| WAN | DMZ (192.168.30.10) | 80, 443 | ✅ Permitir | Acceso web al ERP vía NAT |
+| LAN (VLAN 10) | DMZ (192.168.30.10) | 443, 80 | ✅ Permitir | Clientes internos a Odoo |
+| Admin LAN | DMZ (192.168.30.10) | 22, 9090 | ✅ Permitir | SSH y Cockpit (solo admin) |
+| DMZ | LAN (VLAN 10) | * | ❌ Bloquear | Anti-pivoting |
+| DMZ | pfSense (gestión) | 443, 80, 22 | ❌ Bloquear | Proteger panel del firewall |
 
 ---
 
@@ -52,12 +74,13 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 ### 1. Preparación de la Infraestructura
 *   Configuración del hipervisor (VMware/VirtualBox).
 *   Despliegue de pfSense con sus respectivas interfaces virtuales (Trunk/VLANs).
-*   Instalación del S.O. anfitrión único (Debian 12 Server) en la DMZ con direccionamiento IP estático e instalación de Cockpit.
+*   Instalación del S.O. anfitrión único (**Debian 12 Server**) en la DMZ con direccionamiento IP estático e instalación de **Cockpit**.
 
 ### 2. Contenerización Completa (Docker / Nginx / Odoo)
 *   Instalación de `docker`, `docker-compose` y securización del daemon.
-*   Creación del fichero `docker-compose.yml` declarativo para instanciar Nginx, Odoo 17 y PostgreSQL 16 interactuando en su propia red de contenedores.
+*   Creación del fichero `docker-compose.yml` declarativo para instanciar Nginx, Odoo 17 y PostgreSQL 16 interactuando en su propia red de contenedores (`odoo_net`).
 *   Configuración de volúmenes persistentes localizados en `./data` y montajes vinculados para la configuración perimetral de `./config_nginx`.
+*   Inyección segura de credenciales mediante archivo `.env`.
 
 ### 3. Automatización y Monitorización (DevOps)
 *   Desarrollo de *scripts* Bash para el ciclo de vida del ERP:
@@ -66,31 +89,49 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
     *   `restore.sh`: Recuperación rápida ante desastres simulados.
     *   `update.sh`: Carga de nuevas imágenes Docker y limpieza (`prune`) automatizada.
     *   `monitor.sh`: Chequeo de salud de contenedores y detección de caídas.
-*   Programación de funciones PL/pgSQL y disparadores (`Triggers`) para auditar los accesos y registros clave.
+*   Programación de funciones PL/pgSQL y disparadores (`Triggers`) para auditar la creación de usuarios en la tabla `res_users` de Odoo, registrando eventos en `asir_audit_log`.
 
 ### 4. Capa de Presentación Segura (Nginx en Docker)
-*   Despliegue de Nginx como un contenedor dentro del stack en lugar de una instalación nativa en la DMZ.
-*   Configuración de proxy dinámico enviando tráfico HTTP/HTTPS cerrado hacia el contenedor backend de Odoo.
-*   Implementación de certificados SSL aportados por volúmenes hacia el contenedor Nginx.
+*   Despliegue de Nginx como un contenedor Alpine dentro del stack en lugar de una instalación nativa en la DMZ.
+*   Configuración de proxy dinámico enviando tráfico HTTP/HTTPS hacia el contenedor backend de Odoo.
+*   Implementación de certificados SSL (autofirmados con OpenSSL) montados mediante volúmenes.
+*   Cabeceras de seguridad: WebSocket *upgrade*, `X-Forwarded-Proto`, `X-Real-IP`, `X-Forwarded-For`.
 
 ---
 
 ## 🧰 Stack Tecnológico
 
-*   **Redes/Seguridad:** pfSense (FreeBSD), UFW.
-*   **Virtualización/Orquestación:** Docker, Docker Compose.
-*   **Sistema Operativo Base:** Debian 12 (Bookworm) con GUI Web Cockpit, Windows 11 (Clientes).
-*   **Servicios Web/DB:** Nginx (Alpine), Odoo 17 CE, PostgreSQL 16.
-*   **Scripting:** Bash, ANSI SQL & PL/pgSQL.
+| Capa | Tecnología |
+| :--- | :--- |
+| Redes/Seguridad | pfSense (FreeBSD), UFW |
+| Virtualización/Orquestación | Docker Engine, Docker Compose |
+| Sistema Operativo Base | **Debian 12 Server (Bookworm)** con Cockpit |
+| Clientes | Windows 10/11 |
+| Proxy Inverso | Nginx (Alpine Linux) — contenedor Docker |
+| ERP/CRM | Odoo 17 CE — contenedor Docker |
+| Base de Datos | PostgreSQL 16 — contenedor Docker |
+| Certificados | OpenSSL (autofirmados TLS) |
+| Scripting | GNU Bash, ANSI SQL & PL/pgSQL |
+| Control de Versiones | Git + GitHub |
+| Integración Continua | GitHub Actions |
 
 ---
 
 ## 📚 Estructura de este Repositorio
 
-
-*   `/docker/`: Ficheros `docker-compose.yml` y configuraciones específicas de los contenedores (`odoo.conf`).
+*   `/docker/`: Ficheros `docker-compose.yml`, configuración de Odoo (`odoo.conf`) y archivo de variables de entorno (`.env`, excluido de Git).
 *   `/scripts/`: Batería DevOps en Bash (`backup.sh`, `restore.sh`, `deploy.sh`, `update.sh`, `monitor.sh`).
-*   `/sql/`: Sentencias y *Triggers* de PL/pgSQL para auditoría de base de datos.
-*   `/config_nginx/`: Archivos de configuración de los *Server Blocks* del proxy inverso.
-*   `/docs/`: Documentación adicional, capturas de pantalla y diagramas de red.
+*   `/sql/`: Sentencias y *Triggers* de PL/pgSQL para auditoría de base de datos (`audit_triggers.sql`).
+*   `/config_nginx/`: Archivos de configuración del *Server Block* del proxy inverso (`odoo_proxy.conf`).
+*   `/docs/`: Documentación adicional, plan de implantación detallado, reglas de pfSense y plantillas de GitHub Issues.
 *   `/ISOs/`: Directorio destinado a almacenar las imágenes de disco (Debian 12, pfSense, etc.) necesarias para replicar el entorno.
+
+---
+
+## 👥 Reparto de Roles
+
+| Integrante | Especialización |
+| :--- | :--- |
+| **Sandra Fradejas Avedillo** | Sistemas y Orquestación (Debian, Docker, Proxy Nginx, Cockpit) |
+| **Mario García García** | Redes y Seguridad Perimetral (pfSense, Enrutamiento, VLANs, Hardening) |
+| **Javier Córdoba Del Valle** | Bases de Datos y Automatización (PostgreSQL, PL/pgSQL, Bash Scripting) |

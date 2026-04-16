@@ -1,6 +1,6 @@
 # Plan de Implantación Detallado: Odoo ERP con pfSense y Docker (TFG ASIR)
 
-Este documento contiene el desglose técnico y exhaustivo paso a paso para la implantación del escenario propuesto. Constituye tu hoja de ruta principal, con comandos exactos y código preparado para su uso.
+Este documento contiene el desglose técnico y exhaustivo paso a paso para la implantación del escenario propuesto. Constituye nuestra hoja de ruta principal, con comandos exactos y código preparado para su uso.
 
 ---
 
@@ -46,7 +46,7 @@ graph TD
 2.  **Servidor Debian 12 Unificado (Nginx + Docker/Odoo):**
     *   1 Adaptador de red conectado a la Red Interna "DMZ" (VLAN 30).
     *   IP Fija a configurar: `192.168.30.10`.
-    *   *Se centraliza todo el aplicativo y proxy en el mismo anfitrión ligero.*
+    *   *Se centraliza todo el aplicativo y proxy en el mismo anfitrión.*
 
 ---
 
@@ -78,7 +78,7 @@ sudo apt install docker.io docker-compose -y
 # Habilitar el servicio para arranque automático
 sudo systemctl enable --now docker
 
-# Añadir tu usuario al grupo docker para evitar usar "sudo" en cada comando
+# Añadir los usuarios al grupo docker para evitar usar "sudo" en cada comando
 sudo usermod -aG docker sandra
 
 # Cerrar sesión o aplicar el cambio al shell actual
@@ -95,7 +95,7 @@ Configuraremos un validador sintáctico estático para proteger la rama principa
 mkdir -p .github/workflows
 touch .github/workflows/ci.yml
 ```
-*(El contenido exacto del archivo `ci.yml` se detallará en la configuración del repositorio para ejecutar `yamllint`, `shellcheck` y validadores de markdown).*
+*(El contenido exacto del archivo `ci.yml` se detallará en la configuración del repositorio para ejecutar validadores sintácticos estáticos).*
 
 ---
 
@@ -111,54 +111,7 @@ cd /opt/erp-odoo
 ```
 
 ### 3.2 Creación del Fichero `docker-compose.yml`
-Crear el archivo base `nano docker-compose.yml` y pegar la siguiente configuración:
-
-```yaml
-version: '3.8'
-
-services:
-  db:
-    image: postgres:16
-    container_name: odoo-db
-    restart: always
-    environment:
-      - POSTGRES_DB=odoo_erp
-      - POSTGRES_PASSWORD=SuperSecretAdminPassword123
-      - POSTGRES_USER=odoo
-      - PGDATA=/var/lib/postgresql/data/pgdata
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data/pgdata
-    # No se exponen puertos, aislado en la red interna de Docker
-
-  odoo:
-    image: odoo:17
-    container_name: odoo-web
-    restart: always
-    depends_on:
-      - db
-    environment:
-      - HOST=db
-      - USER=odoo
-      - PASSWORD=SuperSecretAdminPassword123
-    volumes:
-      - ./data/odoo_addons:/mnt/extra-addons
-      - ./data/odoo_etc:/etc/odoo
-      - ./data/odoo_web:/var/lib/odoo
-    # No se exponen puertos al host, Nginx accede vía red Docker interna
-
-  nginx:
-    image: nginx:alpine
-    container_name: nginx-proxy
-    restart: always
-    depends_on:
-      - odoo
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./config_nginx:/etc/nginx/conf.d
-      - ./certs:/etc/ssl/certs_local
-```
+Crear el archivo base (el contenido exacto lo proveemos en la carpeta `/docker` del repositorio, el cual incluye los servicios `db`, `odoo`, y `nginx`, utilizando archivo `.env` por seguridad).
 
 **Ejecución Inicial:**
 ```bash
@@ -171,128 +124,16 @@ docker-compose logs -f   # Comprobar que no hay errores de sintaxis o conexión
 
 ## Fase 4: Automatización y Escaneo (Scripts DevOps)
 
-Deberás ubicar estos ficheros dentro de `/opt/erp-odoo/scripts/` y darles permisos de ejecución (`chmod +x *.sh`).
-Esta batería de utilidades cubre el ciclo de vida completo del ERP.
+Deberás ubicar los ficheros de Bash detallados en nuestra carpeta de GitHub `/scripts` y darles permisos de ejecución (`chmod +x *.sh`). 
 
-### 4.1 Script de Backup Comprimido (`backup.sh`)
-Usa `pg_dump` con formato `custom` que nativamente comprime los datos de PostgreSQL.
-```bash
-#!/bin/bash
-# Realiza un dump comprimido de la BBDD PostgreSQL del contenedor Odoo
+### Batería de Scripts Programados:
+- **`backup.sh`**: Usa `pg_dump` con formato `custom` que nativamente comprime los datos de PostgreSQL.
+- **`restore.sh`**: Restaura la base de datos de Odoo desde un archivo de backup (borrando la actual antes).
+- **`deploy.sh`**: Levantamiento automático de la infraestructura de docker compose.
+- **`update.sh`**: Actualización segura del entorno Docker descargando versiones actualizadas y limpiando *prune*.
+- **`monitor.sh`**: Vigila los contenedores, puede ser llamado por cron para verificar que nada está caído.
 
-BACKUP_DIR="/opt/erp-odoo/backups"
-FECHA=$(date +"%Y%m%d_%H%M%S")
-DB_CONT="odoo-db"
-DB_USER="odoo"
-DB_NAME="odoo_erp"
-
-mkdir -p $BACKUP_DIR
-echo "Iniciando volcado comprimido de la BBDD de Odoo..."
-
-docker exec -t $DB_CONT pg_dump -U $DB_USER -d $DB_NAME -F c -f /tmp/backup_$FECHA.dump
-
-# Extraer el archivo al host
-docker cp $DB_CONT:/tmp/backup_$FECHA.dump $BACKUP_DIR/backup_$FECHA.dump
-docker exec -t $DB_CONT rm /tmp/backup_$FECHA.dump
-
-echo "Backup completado y guardado en $BACKUP_DIR/backup_$FECHA.dump"
-```
-
-### 4.2 Script de Restauración (`restore.sh`)
-Restaura el archivo `pg_dump` comprimido sobre una base de datos limpia.
-```bash
-#!/bin/bash
-# Uso: ./restore.sh /ruta/al/archivo/backup.dump
-
-if [ -z "$1" ]; then
-    echo "Debe especificar el archivo de backup a restaurar."
-    exit 1
-fi
-
-BKP_FILE=$1
-DB_CONT="odoo-db"
-DB_USER="odoo"
-DB_NAME="odoo_erp"
-
-echo "Copiando $BKP_FILE al contenedor..."
-docker cp $BKP_FILE $DB_CONT:/tmp/restore.dump
-
-echo "Recreando base de datos limpia..."
-docker exec -t $DB_CONT dropdb -U $DB_USER $DB_NAME --if-exists
-docker exec -t $DB_CONT createdb -U $DB_USER $DB_NAME
-docker exec -t $DB_CONT pg_restore -U $DB_USER -d $DB_NAME -1 /tmp/restore.dump
-
-docker exec -t $DB_CONT rm /tmp/restore.dump
-echo "Restauración completada. Reiniciando Odoo..."
-docker restart odoo-web
-```
-
-### 4.3 Script de Despliegue (`deploy.sh`)
-Automatiza el levantamiento inicial del entorno.
-```bash
-#!/bin/bash
-# Despliega la infraestructura de contenedores en segundo plano
-COMPOSE_DIR="/opt/erp-odoo"
-
-echo "Desplegando infraestructura Docker Compose..."
-cd $COMPOSE_DIR
-docker-compose up -d
-
-echo "Estado actual:"
-docker-compose ps
-```
-
-### 4.4 Script de Actualización Segura (`update.sh`)
-Descarga nuevas versiones y recrea los contenedores si las imágenes han cambiado (sin perder volúmenes de datos).
-```bash
-#!/bin/bash
-# Actualiza las imágenes y recrea contenedores
-COMPOSE_DIR="/opt/erp-odoo"
-
-echo "Buscando nuevas actualizaciones de imágenes..."
-cd $COMPOSE_DIR
-docker-compose pull
-
-echo "Aplicando cambios y recreando contenedores afectados..."
-docker-compose up -d
-
-echo "Limpiando imágenes huérfanas o antiguas..."
-docker image prune -f
-
-echo "Actualización completada y entorno limpio."
-```
-
-### 4.5 Script de Monitorización y Salud (`monitor.sh`)
-Revisa que los 3 contenedores sigan corriendo, diseñado para ejecutarse remotamente o como tarea cron para alertas proactivas.
-```bash
-#!/bin/bash
-# Monitor de estado de contenedores críticos
-
-CONTENEDORES=("odoo-web" "odoo-db" "nginx-proxy")
-ALERTA=0
-
-echo "=== Monitor de Salud ERP ($(date)) ==="
-for cont en "${CONTENEDORES[@]}"; do
-    ESTADO=$(docker inspect -f '{{.State.Running}}' $cont 2>/dev/null)
-    
-    if [ "$ESTADO" == "true" ]; then
-        echo "[OK] $cont está EN LÍNEA"
-    else
-        echo "[ERROR] $cont está CAÍDO"
-        ALERTA=1
-    fi
-done
-
-if [ $ALERTA -eq 1 ]; then
-    echo "⚠️ ALERTA: Fallo crítico detectado en la infraestructura."
-    exit 1
-else
-    echo "✅ Entorno estable."
-    exit 0
-fi
-```
-
-### 4.6 Tarea Cron Diaria (Copias Automáticas)
+### Tarea Cron Diaria (Copias Automáticas)
 Para programar tanto el backup (a las 02:00 AM) como el chequeo de monitorización (cada hora):
 ```bash
 crontab -e
@@ -305,7 +146,7 @@ crontab -e
 
 ## Fase 5: Auditoría en PostgreSQL (PL/pgSQL Trigger)
 
-Para registrar las acciones de base de datos a un nivel más profundo. *(Estos comandos se ejecutan dentro del contenedor de base de datos o en un gestor como pgAdmin).*
+Para registrar las acciones de base de datos a un nivel más profundo. *(Ejecutado por el rol de Base de Datos).*
 
 ```sql
 -- Conectarse primero al contenedor: docker exec -it odoo-db psql -U odoo -d odoo_erp
@@ -343,13 +184,13 @@ EXECUTE FUNCTION audit_users_action();
 
 ## Fase 6: Seguridad de Capa 2 Local (UFW)
 
-Protegemos el único servidor en la DMZ (`192.168.30.10`). Ahora el tráfico Odoo (8069) está bloqueado por defecto porque el contenedor no exporta puertos. UFW solo debe permitir el tráfico a los puertos exportados del contenedor Nginx y a la administración Cockpit.
+Protegemos el único servidor en la DMZ (`192.168.30.10`). Se restringen las peticiones a solo lo necesario (Nginx HTTP/HTTPS) y la administración (Cockpit y SSH).
 
 ```bash
 # Instalar UFW si no lo trae Debian
 sudo apt install ufw -y
 
-# Permitir SSH y Cockpit (Idealmente restringir IP de admin: ej. ufw allow from 192.168.10.x to any port 22)
+# Permitir SSH y Cockpit 
 sudo ufw allow 22/tcp
 sudo ufw allow 9090/tcp
 
@@ -363,58 +204,20 @@ sudo ufw enable
 
 ---
 
-## Fase 7: Publicación y Seguridad Perimetral (Nginx en Docker)
+## Fase 7: Publicación y Seguridad Perimetral (Nginx en Docker y pfSense)
 
 En lugar de instalar Nginx nativamente, configuraremos los archivos que leerá el contenedor.
 
 ### 7.1 Generación de Certificado SSL Autofirmado (Para Simulación)
-Generamos las claves y las dejamos en la carpeta que leerá el volumen de Docker:
 ```bash
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /opt/erp-odoo/certs/odoo-selfsigned.key -out /opt/erp-odoo/certs/odoo-selfsigned.crt
-# (Rellenar los datos indicados al vuelo, especialmente el Common Name: erp.techsolutions.local)
+# (Common Name: erp.techsolutions.local)
 ```
 
 ### 7.2 Configuración del Proxy Inverso
-Crear el Server Block en `/opt/erp-odoo/config_nginx/odoo_proxy.conf`:
+(Configurar el Server Block en `/opt/erp-odoo/config_nginx/odoo_proxy.conf` suministrado en el repositorio Git y aplicar un `docker-compose restart nginx`).
 
-```nginx
-server {
-    listen 80;
-    server_name erp.techsolutions.local;
-    # Redirigir de HTTP a HTTPS forzoso
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name erp.techsolutions.local;
-
-    # Rutas dentro del contenedor leyendo del volumen de /certs
-    ssl_certificate /etc/ssl/certs_local/odoo-selfsigned.crt;
-    ssl_certificate_key /etc/ssl/certs_local/odoo-selfsigned.key;
-    
-    # Afinamiento de Seguridad SSL
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers on;
-
-    # Bloque de Proxy Pass a Odoo (A través de la red interna Docker)
-    location / {
-        proxy_pass http://odoo-web:8069;
-        proxy_http_version 1.1;
-        
-        # Cabeceras para que Odoo sepa la IP original del usuario que lo visita
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-**Aplicar la configuración:**
-Como está todo en Docker, un simple `docker-compose restart nginx` en `/opt/erp-odoo` aplicará cualquier cambio.
-
-### 7.3 Conexión con pfSense (Capa de Mario)
+### 7.3 Conexión con pfSense (Capa de Redes)
 En el portal web de pfSense:
 1. Ir a **Firewall > NAT > Port Forward**.
 2. Crear una regla en la interfaz **WAN**, para el destino WAN Address hacia los puertos alias `80,443`.
