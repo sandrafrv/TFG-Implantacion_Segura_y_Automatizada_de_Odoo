@@ -18,7 +18,7 @@ graph TD
     
     DMZ --> DOCKER_HOST[Servidor Único Debian 12\n192.168.30.10]
     
-    subgraph DOCKER_HOST [Servidor Único Debian 12 (192.168.30.10)]
+    subgraph DOCKER_HOST ["Servidor Único Debian 12 (192.168.30.10)"]
         NGINX_PROXY[Contenedor Nginx\n(Puertos 80/443 al Host)]
         ODOO_DOCKER[Contenedor Odoo\n(Aislado en Red Docker)]
         PG_DOCKER[Contenedor PostgreSQL\n(Aislado en Red Docker)]
