@@ -52,3 +52,13 @@ docker exec -t "$DB_CONT" rm "/tmp/backup_${FECHA}.dump"
 
 # Confirma que el backup se ha completado con éxito e indica la ruta exacta del fichero
 echo "Backup completado y guardado en $BACKUP_DIR/backup_${FECHA}.dump"
+
+# --- POLÍTICA DE RETENCIÓN DE BACKUPS ---
+# Elimina automáticamente los archivos .dump con más de 7 días de antigüedad.
+# Justificación: práctica estándar documentada en el informe de referencia del proyecto
+# (Semana 10, estrategia de backups y recuperación). Evita que el disco se llene
+# con copias de seguridad ilimitadas en entornos de producción.
+# El flag -mtime +7 significa "modificado hace más de 7 días"
+# El flag -delete elimina los archivos encontrados
+find "$BACKUP_DIR" -name "backup_*.dump" -mtime +7 -delete
+echo "Limpieza de backups antiguos completada (política de retención: 7 días)."

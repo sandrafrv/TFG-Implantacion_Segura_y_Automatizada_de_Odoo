@@ -135,3 +135,68 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 | **Sandra Fradejas Avedillo** | Sistemas y Orquestación  |
 | **Mario García García** | Redes y Seguridad Perimetral  |
 | **Javier Córdoba Del Valle** | Bases de Datos y Automatización  |
+
+---
+
+## ❓ ¿Por qué Odoo y no otra alternativa?
+
+Antes de definir la arquitectura, se evaluó comparativamente con otras soluciones ERP de código abierto:
+
+| Criterio | **Odoo 17** | Dolibarr | ERPNext |
+| :--- | :--- | :--- | :--- |
+| **Facilidad de uso** | ✅ Alta — interfaz moderna e intuitiva | Media — sencillo pero básico | Media — muy completo pero abrumador |
+| **Flexibilidad de API** | ✅ Muy alta — XML-RPC y JSON-RPC | Limitada | Alta (API REST) pero compleja |
+| **Consumo de recursos** | Moderado (requiere VM decente) | ✅ Muy ligero | Pesado |
+| **Cobertura funcional** | ✅ CRM, Ventas, RRHH, Inventario, Proyectos | Básico | Muy completo |
+| **Comunidad y soporte** | ✅ Muy activa, documentación extensa | Activa (menor escala) | Activa |
+| **Idoneidad para el TFG** | ✅ **Elegido** | Descartado | Descartado |
+
+**Conclusión**: Odoo es la opción que mejor equilibra facilidad de despliegue, cobertura funcional y capacidad de integración para el escenario de la empresa simulada "TechSolutions S.L."
+
+---
+
+## 🎓 Módulos Académicos Cubiertos (ASIR)
+
+| Módulo | Contenido aplicado en este TFG |
+| :--- | :--- |
+| **SAD** — Seguridad y Alta Disponibilidad | Topología DMZ con pfSense, UFW en host, reglas de firewall, política default-deny, backups automatizados con retención |
+| **IAW** — Implantación de Aplicaciones Web | Proxy inverso Nginx con terminación SSL/TLS, cabeceras de seguridad HTTP (HSTS, X-Frame-Options), WebSocket para LiveChat |
+| **GBD** — Gestión de Bases de Datos | Triggers PL/pgSQL con auditoría en formato JSONB, función `func_audit_users()`, tabla `asir_audit_log`, vista `v_audit_resumen` |
+| **SOR** — Servicios de Red | Configuración de VLANs (10/30), DHCP en pfSense, NAT/Port Forwarding, DNS interno |
+| **DevOps** | Scripts Bash para despliegue, backup, restauración, monitorización y CI/CD con GitHub Actions |
+
+---
+
+## 📖 Investigación y Bases Técnicas
+
+El diseño de este proyecto se apoya en los siguientes recursos técnicos de referencia:
+
+**Redes y Perímetro (pfSense)**
+- Documentación Oficial de Netgate — Configuración VLAN: https://docs.netgate.com/pfsense/en/latest/vlan/configuration.html
+- Docker Macvlan Network en Entornos DMZ: https://vegard.blog.engen.priv.no/?p=364
+
+**Infraestructura y Hardening del Servidor**
+- Lista de Verificación de Endurecimiento Linux en Producción (2026): https://hostperl.com/blog/linux-server-hardening-checklist-essential-security-controls-production-2026
+- CIS Benchmark Validation (Linux Mint 22, base aplicable a Debian): https://www.scribd.com/document/946643717/CIS-Linux-Mint-22-Benchmark-v1-0-0
+
+**Despliegue de Odoo y Nginx**
+- Documentación Odoo 17 — Despliegue en Producción y Multiprocesamiento: https://www.odoo.com/documentation/19.0/administration/on_premise/deploy.html
+- Proxy Inverso y Configuración SSL para Odoo: https://oec.sh/guides/odoo-nginx-config
+
+**Bases de Datos y Auditoría (PostgreSQL)**
+- Wiki Oficial PostgreSQL — Generic Audit Trigger (PL/pgSQL): https://wiki.postgresql.org/wiki/Audit_trigger
+- Estrategias Completas de Backup y Recuperación (DR) en Odoo: https://oec.sh/guides/odoo-backup-recovery
+
+---
+
+## 🔮 Mejoras Futuras
+
+Estas mejoras quedan fuera del alcance del TFG pero se documentan para demostrar conocimiento avanzado:
+
+| Mejora | Descripción |
+| :--- | :--- |
+| **Redes Macvlan** | Asignar IPs de red física a los contenedores Docker para que pfSense los vea como hosts independientes. Se descartó en favor de bridge por su complejidad en entorno de laboratorio. |
+| **Ansible (IaC)** | Automatizar toda la configuración del servidor Debian con un Playbook de Ansible, eliminando la configuración manual. |
+| **VPN WireGuard en pfSense** | Ocultar el ERP de Internet público, accesible solo desde la VLAN interna o a través de un túnal VPN cifrado. Diseño "Zero Trust". |
+| **Stack de Monitorización** | Sustituir los scripts de log por Prometheus + Grafana o Uptime Kuma con panel gráfico de estado en tiempo real. |
+| **LDAP / Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 como Controlador de Dominio, integrando Odoo con AD. |

@@ -3,25 +3,39 @@
 # SCRIPT: monitor.sh
 # DESCRIPCIÓN: Comprueba que los 3 contenedores críticos del
 #              ERP estén en funcionamiento. Si alguno está
-#              caído, termina con código de error (exit 1).
+#              caído, intenta reiniciarlo automáticamente y
+#              registra el evento en el log del sistema.
 # USO: ./monitor.sh
-#      También se ejecuta automáticamente cada hora desde cron.
+#      También se ejecuta automáticamente cada 5 min desde cron.
 # ============================================================
 
 # --- CONFIGURACIÓN ---
 
 # Array de Bash con los nombres exactos de los contenedores a vigilar.
 # Deben coincidir con el campo "container_name" del docker-compose.yml
-CONTENEDORES=("odoo-web" "odoo-db" "nginx-proxy")
+CONTENEDORES=("odoo-db" "odoo-web" "nginx-proxy")
+# NOTA: El orden importa: primero DB, luego Odoo, luego Nginx.
+# Si DB se cae y lo reiniciamos, Odoo puede necesitar reiniciarse también.
 
 # Variable bandera: empieza en 0 (sin alertas).
 # Si se detecta un contenedor caído se pondrá en 1.
 ALERTA=0
 
+# Archivo de log donde se registran los reinicios automáticos.
+LOG_FILE="/var/log/erp_monitor.log"
+
+# --- FUNCIÓN DE LOG ---
+
+# Función auxiliar para escribir en el log con marca de tiempo.
+# Uso: log_evento "mensaje a registrar"
+log_evento() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
 # --- MONITORIZACIÓN ---
 
 # Imprime una cabecera con la hora de ejecución del chequeo.
-echo "=== Monitor de Salud ERP ($(date)) ==="
+log_evento "=== Inicio de chequeo de salud ERP ==="
 
 # Itera sobre cada nombre de contenedor del array
 for cont in "${CONTENEDORES[@]}"; do
@@ -33,11 +47,20 @@ for cont in "${CONTENEDORES[@]}"; do
 
     # Compara el estado: si es "true", el contenedor está arriba
     if [ "$ESTADO" = "true" ]; then
-        echo "[OK]    $cont está EN LÍNEA"
+        log_evento "[OK]      $cont está EN LÍNEA"
     else
         # Si no es "true" (puede ser "false" o vacío si no existe), está caído
-        echo "[ERROR] $cont está CAÍDO o no existe"
-        # Activamos la bandera de alerta
+        log_evento "[ALERTA]  $cont está CAÍDO — Intentando reinicio automático..."
+
+        # Intenta arrancar el contenedor caído con docker start
+        if docker start "$cont" 2>/dev/null; then
+            log_evento "[REINICIO] $cont reiniciado correctamente."
+        else
+            # Si docker start falla (p.ej. el contenedor no existe), se registra el fallo grave
+            log_evento "[CRITICO]  No se pudo reiniciar $cont. Intervención manual necesaria."
+        fi
+
+        # Activamos la bandera de alerta para el exit code final
         ALERTA=1
     fi
 
@@ -47,13 +70,12 @@ done  # Fin del bucle for
 
 # Evalúa el resultado global tras revisar todos los contenedores
 if [ "$ALERTA" -eq 1 ]; then
-    echo ""
-    echo "ALERTA CRITICA: Uno o más servicios del ERP están caídos."
+    log_evento "=== Chequeo finalizado con ALERTAS. Ver log: $LOG_FILE ==="
     # exit 1: indica al sistema operativo que el script terminó con ERROR
+    # Esto permite que cron o systemd detecten el fallo
     exit 1
 else
-    echo ""
-    echo "Entorno completamente estable. Todos los servicios operativos."
+    log_evento "=== Chequeo OK. Entorno completamente estable ==="
     # exit 0: indica que el script terminó con ÉXITO
     exit 0
 fi
