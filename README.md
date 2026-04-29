@@ -132,6 +132,6 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 
 | Integrante | Especialización |
 | :--- | :--- |
-| **Sandra Fradejas Avedillo** | Sistemas y Orquestación (Debian, Docker, Proxy Nginx, Cockpit) |
-| **Mario García García** | Redes y Seguridad Perimetral (pfSense, Enrutamiento, VLANs, Hardening) |
-| **Javier Córdoba Del Valle** | Bases de Datos y Automatización (PostgreSQL, PL/pgSQL, Bash Scripting) |
+| **Sandra Fradejas Avedillo** | Sistemas y Orquestación  |
+| **Mario García García** | Redes y Seguridad Perimetral  |
+| **Javier Córdoba Del Valle** | Bases de Datos y Automatización  |
