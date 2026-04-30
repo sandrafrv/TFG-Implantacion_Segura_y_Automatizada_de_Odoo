@@ -202,4 +202,5 @@ Estas mejoras quedan fuera del alcance del TFG pero se documentan para demostrar
 | **Stack de Monitorización** | Sustituir los scripts de log por Prometheus + Grafana o Uptime Kuma con panel gráfico de estado en tiempo real. |
 | **LDAP / Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 como Controlador de Dominio, integrando Odoo con AD. |
  
+    
  
