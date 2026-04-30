@@ -172,7 +172,7 @@ Las reglas se definen en **Firewall > Rules** por interfaz. El orden importa: pf
 
 ## Fase 2: Configuración del Servidor Base (Debian 12)
 
-> ✅ **Completado:** Preparación de sistema, Cockpit y dependencias de Docker cubiertas en el orquestador automático. Las validaciones de acceso están pendientes.
+> ✅ **Completado [2026-04-30]:** Preparación de sistema, Cockpit y dependencias de Docker cubiertas. Acceso validado desde el cliente LAN.
 
 > **🚀 AUTOMATIZACIÓN (NUEVO EN FASE 9):**
 > Aunque a continuación se detalla el proceso manual paso a paso por rigor académico, **todas las tareas de las Fases 2, 3 y 4 se han unificado en el script `install.sh`**.
@@ -262,7 +262,7 @@ docker ps   # Debe devolver una lista vacía (sin contenedores corriendo aún)
 
 ## Fase 3: Despliegue de la Infraestructura Docker (Odoo + PostgreSQL + Nginx)
 
-> ✅ **Completado:** Estructura de volúmenes, red de contenedores, certificados y `docker-compose.yml` listos y unificados en la instalación automatizada.
+> ✅ **Completado [2026-04-30]:** Estructura de volúmenes corregida, red de contenedores operativa, certificados SSL sincronizados y base de datos inicializada. Stack completamente funcional.
 
 ### ¿Por qué estos tres contenedores?
 

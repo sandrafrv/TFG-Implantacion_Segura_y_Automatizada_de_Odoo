@@ -50,8 +50,11 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 - [x] Clonar el repositorio temporalmente o subir `install.sh` al servidor.
 - [x] **[2026-04-30]** Ejecutar el instalador automático: `sudo ./install.sh`.
   - Este script instala Cockpit, Docker, genera certificados SSL, configura el archivo `.env` de forma interactiva y levanta los contenedores.
-- [ ] Validar que Cockpit está accesible desde el Cliente en `https://192.168.30.10:9090`.
-- [ ] Validar que Odoo está accesible en `https://192.168.30.10` (redirigido internamente al puerto 8069).
+- [x] Validar que Cockpit está accesible desde el Cliente en `https://192.168.30.10:9090`.
+- [x] **[2026-04-30]** Validar que Odoo está accesible en `https://192.168.30.10` (redirigido internamente al puerto 8069). ¡Inicialización de BD `odoo_erp` completada con éxito!
+  - _Qué se hizo:_ Ajuste de volúmenes relativos en Compose, corrección de rutas SSL en Nginx, actualización de parámetros en `odoo.conf` e inicialización manual de la BD base.
+  - _Archivos afectados:_ `docker/docker-compose.yml`, `docker/odoo.conf`, `config_nginx/odoo_proxy.conf`
+  - _Resultado:_ Acceso funcional al ERP desde el cliente LAN mediante HTTPS.
 
 ---
 

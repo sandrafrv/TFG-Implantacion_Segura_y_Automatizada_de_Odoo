@@ -21,24 +21,19 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 
 - `docker/docker-compose.yml` — Añadidos healthchecks nativos para PostgreSQL, Odoo y Nginx.
   Modificado `depends_on` para usar la condición de servicio saludable.
+  Corregidas las rutas de volúmenes a `../` para apuntar correctamente a la raíz desde la carpeta `docker/`.
+  Hardcode de credenciales temporales para resolución de problemas de inicialización.
 
-- `scripts/deploy.sh` — Añadidas verificaciones previas: existencia de Docker activo,
-  validación de sintaxis de compose y puertos 80/443 libres. Se mantiene la verificación
-  de salud activa tras el despliegue.
+- `docker/odoo.conf` — Añadidos parámetros de conexión a BD y paths de addons.
+  Actualizado `longpolling_port` a `gevent_port` por deprecación en Odoo 17.
 
-- `scripts/update.sh` — Añadidos pre-checks de servicio Docker y espacio libre en disco.
+- `config_nginx/odoo_proxy.conf` — Corregidas las rutas de certificados SSL (`server.crt` / `server.key`) para coincidir con el generador de `install.sh`.
 
-- `scripts/backup.sh` — Añadida verificación de espacio libre en disco antes del volcado.
+### Corregido
 
-- `scripts/monitor.sh` — Modificado para comprobar el estado `State.Health.Status` además
-  de `State.Running`. Mejorado con auto-reinicio automático de contenedores caídos.
-
-- `.github/workflows/ci.yml` — Ampliado ShellCheck para validar también los scripts
-  de la raíz del proyecto (`install.sh`, `erp.sh`).
-
-- `docs/task.md` y `docs/implementation_plan.md` — Reestructurados para reflejar
-  que los procesos de configuración del servidor y despliegue manual (Fases 2 a 4)
-  están ahora completamente automatizados por `install.sh`.
+- **Error de permisos en `/var/lib/odoo/.local`**: Resuelto al corregir las rutas relativas de los volúmenes en el archivo Compose.
+- **Bucle de reinicio en Nginx**: Resuelto al sincronizar los nombres de los archivos de certificado entre la configuración de Nginx y el script de instalación.
+- **Error de inicialización de Odoo**: Resuelto mediante el uso de `docker compose run --rm` para evitar conflictos de puertos durante el primer arranque de la base de datos.
 
 ---
 
