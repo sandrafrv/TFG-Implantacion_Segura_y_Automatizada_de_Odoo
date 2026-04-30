@@ -49,9 +49,8 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 - [x] Actualizar repositorios y sistema (`apt update && apt upgrade`).
 - [x] Clonar el repositorio temporalmente o subir `install.sh` al servidor.
 - [x] **[2026-04-30]** Ejecutar el instalador automático: `sudo ./install.sh`.
-  - Este script instala Cockpit, Docker, genera certificados SSL, configura el archivo `.env` de forma interactiva y levanta los contenedores.
 - [x] Validar que Cockpit está accesible desde el Cliente en `https://192.168.30.10:9090`.
-- [x] **[2026-04-30]** Validar que Odoo está accesible en `https://192.168.30.10` (redirigido internamente al puerto 8069). ¡Inicialización de BD `odoo_erp` completada con éxito!
+- [x] **[2026-04-30]** Validar que Odoo está accesible en `https://192.168.30.10`. ¡Inicialización de BD `odoo_erp` completada con éxito!
   - _Qué se hizo:_ Ajuste de volúmenes relativos en Compose, corrección de rutas SSL en Nginx, actualización de parámetros en `odoo.conf` e inicialización manual de la BD base.
   - _Archivos afectados:_ `docker/docker-compose.yml`, `docker/odoo.conf`, `config_nginx/odoo_proxy.conf`
   - _Resultado:_ Acceso funcional al ERP desde el cliente LAN mediante HTTPS.
@@ -79,28 +78,23 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 - [x] **[2026-04-29]** `sql/audit_triggers.sql` creado con tabla `asir_audit_log`, función `func_audit_users()` y trigger `trg_audit_new_odoo_user`.
 - [x] **[2026-04-29]** Campo **JSONB** (`row_data`) añadido: almacena el estado completo del registro con `row_to_json(NEW)::JSONB`.
 - [x] **[2026-04-29]** Vista `v_audit_resumen` creada para consultas rápidas en la defensa (extrae `login` y `name` del JSONB).
-- [x] **[2026-04-30]** Script ejecutado en producción: `docker exec -i odoo_erp psql -U odoo -d odoo_erp < /opt/erp-odoo/sql/audit_triggers.sql`
+- [x] **[2026-04-30]** Script ejecutado en producción: `docker exec -i odoo_erp psql -U odoo -d odoo_erp < sql/audit_triggers.sql`
   - _Qué se hizo:_ Se corrigió el nombre del contenedor (`odoo_erp`, no `odoo-db`) y se ejecutó el script en el contenedor PostgreSQL activo.
-  - _Archivos afectados:_ `sql/audit_triggers.sql` (solo ejecución, sin cambios en el archivo)
-  - _Resultado:_ Tabla `asir_audit_log` creada y verificada con `\dt`. Trigger `trg_audit_new_odoo_user` activo sobre `res_users`.
-- [ ] Validar auditoría end-to-end: crear un usuario en Odoo → verificar registro en tabla (`SELECT * FROM v_audit_resumen;`).
+  - _Resultado:_ Tabla `asir_audit_log` creada y verificada con `\dt`. Trigger activo sobre `res_users`.
+- [x] **[2026-04-30]** Validación end-to-end completada: usuario `user@tfg.prueba` creado desde la UI de Odoo.
+  - _Resultado:_ `SELECT * FROM v_audit_resumen` devuelve `audit_id=1, CREACION_USUARIO, res_users, id_registro=8, 2026-04-30 12:13:57 UTC`. Trigger y función PL/pgSQL operativos al 100%.
 
 ---
 
 ## Fase 6: Seguridad de Capa de Red en Servidor (UFW)
 
-- [ ] Instalar `ufw`: `apt install ufw -y`.
-- [ ] Configurar reglas: permitir SSH (22), Cockpit (9090), HTTP (80) y HTTPS (443).
-  ```bash
-  ufw allow 22/tcp
-  ufw allow 9090/tcp
-  ufw allow 80/tcp
-  ufw allow 443/tcp
-  ufw default deny incoming
-  ufw default allow outgoing
-  ```
-- [ ] Habilitar UFW: `ufw enable`.
-- [ ] Verificar estado: `ufw status verbose`.
+- [x] **[2026-04-30]** Instalar `ufw`: `apt install ufw -y`.
+- [x] **[2026-04-30]** Configurar política por defecto: `deny incoming`, `allow outgoing`.
+- [x] **[2026-04-30]** Reglas aplicadas: SSH (22/tcp), Cockpit (9090/tcp), HTTP (80/tcp), HTTPS (443/tcp) — IPv4 e IPv6.
+- [x] **[2026-04-30]** UFW habilitado: `ufw enable` — activo y persistente en arranque del sistema.
+- [x] **[2026-04-30]** Estado verificado con `ufw status verbose`:
+  - _Resultado:_ `Status: active`, logging `on (low)`, default `deny (incoming) / allow (outgoing) / deny (routed)`.
+  - _Reglas activas:_ 22, 9090, 80, 443 en IPv4 e IPv6. Resto de tráfico entrante bloqueado.
 
 ---
 
@@ -119,7 +113,7 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 ## Fase 8: Pipeline CI/CD Completo (GitHub Actions)
 
 - [x] **[2026-04-29]** `.github/workflows/ci.yml` — Pipeline CI: lint de shell scripts con `shellcheck` y validación del `docker-compose.yml`.
-- [x] **[2026-04-29]** `.github/workflows/deploy.yml` — Pipeline CD con self-hosted runner: descarga imágenes Docker y ejecuta `deploy.sh` automáticamente tras cada CI exitoso.
+- [x] **[2026-04-29]** `.github/workflows/deploy.yml` — Pipeline CD con self-hosted runner.
 - [x] **[2026-04-29]** `scripts/setup_runner.sh` — Registra e instala el servidor Debian como runner de GitHub con systemd.
 - [ ] En el servidor Debian: editar `scripts/setup_runner.sh` con la URL del repo y el token de GitHub.
 - [ ] Obtener token en: GitHub → Repositorio → Settings → Actions → Runners → "New self-hosted runner".
@@ -131,29 +125,11 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 ## Fase 9: Mejoras de Automatización Avanzada (Scripting y Docker)
 
 - [x] **[2026-04-30]** Crear script `install.sh` (instalador todo-en-uno).
-  - _Qué se hizo:_ Se desarrolló un script en Bash para la instalación inicial en servidor limpio clonando el repositorio.
-  - _Archivos afectados:_ `install.sh`
-  - _Resultado:_ Permite un despliegue desde cero ejecutando un solo archivo.
 - [x] **[2026-04-30]** Crear plantilla `.env.example` y configurador.
-  - _Qué se hizo:_ Se extrajeron las variables de entorno a una plantilla pública y se creó un script de configuración interactiva.
-  - _Archivos afectados:_ `.env.example`, `scripts/configure.sh`, `.gitignore`
-  - _Resultado:_ Mejora la seguridad al no requerir edición manual de archivos ocultos.
 - [x] **[2026-04-30]** Añadir `healthcheck` nativos en Docker.
-  - _Qué se hizo:_ Se configuró validación nativa para la BD, aplicación y proxy web en el archivo Compose.
-  - _Archivos afectados:_ `docker/docker-compose.yml`
-  - _Resultado:_ Docker puede conocer la salud interna de los servicios antes de arrancar los dependientes.
 - [x] **[2026-04-30]** Mejorar `monitor.sh` y añadir Logrotate.
-  - _Qué se hizo:_ El monitor ahora lee `State.Health.Status` además de `State.Running`. Se añadió política de rotación semanal.
-  - _Archivos afectados:_ `scripts/monitor.sh`, `config/logrotate.d/erp-odoo`, `scripts/install_cron.sh`
-  - _Resultado:_ Monitorización más robusta y prevención de llenado del disco por exceso de logs.
 - [x] **[2026-04-30]** Crear orquestador `erp.sh` y pre-checks.
-  - _Qué se hizo:_ Se unificaron los comandos en `erp.sh` y se añadieron comprobaciones preventivas a los despliegues.
-  - _Archivos afectados:_ `erp.sh`, `scripts/deploy.sh`, `scripts/update.sh`, `scripts/backup.sh`
-  - _Resultado:_ Administración centralizada y scripts más resistentes a fallos de entorno.
 - [x] **[2026-04-30]** Actualizar CI de GitHub Actions.
-  - _Qué se hizo:_ Se incorporaron los nuevos scripts Bash a la validación de ShellCheck.
-  - _Archivos afectados:_ `.github/workflows/ci.yml`
-  - _Resultado:_ El código Bash de la raíz también cuenta con análisis estático de código.
 
 ---
 
@@ -176,8 +152,8 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 | 0 | Investigación y diseño | ✅ Completada |
 | 1 | Arquitectura pfSense y red | ✅ Completada |
 | 2-4 | Despliegue Automatizado (Docker+DevOps) | ✅ Unificado en `install.sh` (Validación pdte) |
-| 5 | Auditoría PostgreSQL | ✅ Completada — validación end-to-end pendiente |
-| 6 | UFW Firewall local | ⏳ Pendiente |
+| 5 | Auditoría PostgreSQL | ✅ Completada |
+| 6 | UFW Firewall local | ✅ Completada |
 | 7 | Pruebas globales | ⏳ Pendiente |
 | 8 | CI/CD GitHub Actions | 🔄 Workflows listos, runner pendiente |
 | 9 | Mejoras Automatización | ✅ Completada |
