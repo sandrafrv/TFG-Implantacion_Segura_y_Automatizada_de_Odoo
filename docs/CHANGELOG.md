@@ -10,6 +10,21 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 
 ---
 
+## [v1.4 — 2026-04-30]
+
+### Añadido
+
+- **Fase 8 completada:** Runner self-hosted de GitHub Actions registrado y activo en el servidor Debian.
+  - Agente descargado manualmente: `actions-runner-linux-x64-2.334.0.tar.gz` (214 MB) en `/opt/actions-runner`.
+  - Hash SHA-256 verificado correctamente: `048024cd2c848eb6f14d5646d56c13a4def2ae7ee3ad12122bee960c56f3d271 OK`.
+  - Runner configurado con `./config.sh` conectado al repositorio `sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo`.
+  - Labels asignadas: `self-hosted`, `Linux`, `X64`. Grupo: `Default`. Work folder: `_work`.
+  - Confirmación de GitHub: `√ Connected to GitHub` / `√ Runner successfully added` / `√ Settings Saved`.
+  - Runner activo y escuchando jobs: `Listening for Jobs` (versión `2.334.0`).
+  - Pendiente: instalar como servicio `systemd` con `sudo ./svc.sh install && sudo ./svc.sh start`.
+
+---
+
 ## [v1.3 — 2026-04-30]
 
 ### Añadido
@@ -25,11 +40,6 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
   - Logs de Nginx verificados: peticiones reales desde `192.168.10.101` con redirección HTTP→HTTPS (301).
   - Prueba de auto-recuperación exitosa: contenedor `odoo-web` parado manualmente y recuperado automáticamente (Up 41s).
   - Auditoría end-to-end validada: `user@tfg.prueba` registrado en `asir_audit_log` desde la UI web de Odoo.
-
-- **Fase 8 en progreso:** Configuración del runner self-hosted de GitHub Actions en el servidor Debian.
-  - `scripts/setup_runner.sh` — Script para automatizar el registro del runner.
-  - `.github/workflows/deploy.yml` — Pipeline CD configurado para ejecutarse en el runner `debian-dmz`.
-  - Descarga manual del agente GitHub Actions v2.334.0 iniciada en `/opt/actions-runner` como usuario `server`.
 
 ### Corregido
 
