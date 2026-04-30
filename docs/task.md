@@ -103,9 +103,12 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 - [x] **[2026-04-29]** `.github/workflows/ci.yml` — Pipeline CI con ShellCheck y validación Docker Compose.
 - [x] **[2026-04-29]** `.github/workflows/deploy.yml` — Pipeline CD con self-hosted runner.
 - [x] **[2026-04-29]** `scripts/setup_runner.sh` — Registra el servidor Debian como runner de GitHub.
-- [ ] Editar `scripts/setup_runner.sh` con la URL del repo y el token de GitHub.
+- [x] **[2026-04-30]** Descarga manual del agente GitHub Actions v2.334.0 iniciada en `/opt/actions-runner`.
+  - _Qué se hizo:_ `curl -o actions-runner-linux-x64-2.334.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.334.0/...` ejecutado en el servidor Debian como usuario `server`.
+  - _Archivos afectados:_ `/opt/actions-runner/` (directorio en el servidor, fuera del repo)
+  - _Resultado:_ Descarga completada. Pendiente: extracción (`tar xzf`) y configuración interactiva (`./config.sh`).
 - [ ] Obtener token en: GitHub → Repositorio → Settings → Actions → Runners → "New self-hosted runner".
-- [ ] Ejecutar en el servidor: `chmod +x scripts/setup_runner.sh && sudo ./scripts/setup_runner.sh`.
+- [ ] Ejecutar `tar xzf ./actions-runner-linux-x64-2.334.0.tar.gz` y luego `./config.sh` con la URL del repo y el token.
 - [ ] Verificar que el runner aparece como **"Idle"** en GitHub → Settings → Actions → Runners.
 - [ ] Hacer un `git push` a `main` y comprobar que el workflow **"CD Deploy"** se activa.
 - [ ] Validar que los contenedores se levantan correctamente tras el despliegue automático.
@@ -143,6 +146,6 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 | 5 | Auditoría PostgreSQL | ✅ Completada |
 | 6 | UFW Firewall local | ✅ Completada |
 | 7 | Pruebas globales | ✅ Completada |
-| 8 | CI/CD GitHub Actions | 🔄 Workflows listos, runner pendiente |
+| 8 | CI/CD GitHub Actions | 🔄 Runner en configuración (descarga completada) |
 | 9 | Mejoras Automatización | ✅ Completada |
 | 10 | Documentación y defensa | ⏳ Pendiente |
