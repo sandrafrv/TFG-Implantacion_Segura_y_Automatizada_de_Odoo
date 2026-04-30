@@ -58,10 +58,10 @@ jobs:
 
       - name: Validar Scripts con ShellCheck
         run: |
-          echo "Analizando todos los scripts de la carpeta scripts/..."
+          echo "Analizando todos los scripts de la carpeta scripts/ y la raíz..."
           # shellcheck analiza cada archivo .sh y reporta los avisos y errores encontrados.
           # Si detecta un error real, el comando fallará y GitHub marcará el commit como fallido.
-          shellcheck scripts/*.sh
+          shellcheck scripts/*.sh *.sh
 
       # PASO 6: Validación del Markdown de la documentación
       - name: Validar Markdown (Limpieza de sintaxis)

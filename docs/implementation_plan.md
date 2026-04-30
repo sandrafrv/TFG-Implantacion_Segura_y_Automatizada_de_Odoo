@@ -277,7 +277,7 @@ Clonar el repositorio del proyecto directamente en el servidor:
 ```bash
 # Clonar el repositorio en la carpeta del proyecto
 cd /opt/erp-odoo
-git clone https://github.com/<usuario>/TFG-ASIRB.git .
+git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git
 
 # Verificar que los archivos están disponibles
 ls -la docker/ scripts/ config_nginx/ sql/
@@ -574,6 +574,23 @@ En la pestaña **Actions** del repositorio de GitHub:
 - Aparecerá el workflow `CD Deploy` ejecutándose en el runner `debian-dmz`
 - El runner ejecutará `scripts/deploy.sh` en el servidor
 - Al finalizar, los contenedores estarán actualizados y funcionando
+
+## Fase 9: Mejoras de Automatización Avanzada (Scripting y Docker)
+
+### ¿Por qué estas mejoras?
+
+Para acercar el despliegue a una experiencia de "enchufar servidor y olvidarse", se han añadido mejoras sobre la infraestructura base que simplifican el despliegue inicial, mejoran la configuración dinámica, robustecen los scripts existentes y aseguran el correcto seguimiento de los contenedores Docker mediante sus healthchecks nativos.
+
+### 9.1 Novedades Implementadas
+
+1. **Instalador `install.sh`**: Despliegue en 1 clic que clona el repo, instala dependencias, crea certificados y activa el cron.
+2. **Plantilla de entorno `.env.example` y configurador `configure.sh`**: Script interactivo para configurar de forma segura las credenciales sin edición manual de archivos.
+3. **Docker Healthchecks**: Se incorporó validación nativa (`pg_isready`, `curl`, `nginx -t`) en el `docker-compose.yml`.
+4. **Logrotate**: Rotación semanal automática de los logs de sistema para evitar llenar la partición root.
+5. **Orquestador `erp.sh`**: Comando único con subcomandos rápidos para el ciclo de vida (deploy, backup, logs, etc.).
+6. **Pre-checks**: Comprobaciones de conectividad Docker, espacio libre y puertos libres antes de los despliegues.
+
+> ✅ **Completado [2026-04-30]:** Todas las mejoras de scripting, plantillas de entorno y comprobaciones de healthcheck han sido implementadas exitosamente y añadidas al pipeline de CI (ShellCheck).
 
 ---
 

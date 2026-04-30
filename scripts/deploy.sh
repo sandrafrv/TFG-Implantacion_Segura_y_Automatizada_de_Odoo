@@ -19,12 +19,34 @@ MAX_INTENTOS=30
 
 # --- DESPLIEGUE ---
 
-echo "[1/3] Cambiando al directorio raíz del proyecto: $PROJECT_DIR"
-# Nos movemos a la raíz del proyecto para que las rutas relativas de los volúmenes sean correctas.
-# El "|| exit 1" hace que el script se detenga si el cd falla (directorio no existe).
+echo "[1/4] Realizando comprobaciones previas..."
+
+# 1. Comprobar si Docker está instalado y activo
+if ! command -v docker &> /dev/null; then
+    echo "[ERROR] Docker no está instalado."
+    exit 1
+fi
+if ! docker info &> /dev/null; then
+    echo "[ERROR] El servicio de Docker no está activo o no tienes permisos."
+    exit 1
+fi
+
+# Nos movemos a la raíz del proyecto
 cd "$PROJECT_DIR" || exit 1
 
-echo "[2/3] Desplegando infraestructura Docker Compose..."
+# 2. Validar sintaxis del archivo compose
+if ! docker compose -f docker/docker-compose.yml config -q; then
+    echo "[ERROR] El archivo docker-compose.yml tiene errores de sintaxis."
+    exit 1
+fi
+
+# 3. Comprobar puertos 80 y 443
+if ss -tlnp | grep -qE ":80\b|:443\b"; then
+    echo "[ERROR] Los puertos 80 o 443 ya están en uso por otro servicio."
+    exit 1
+fi
+
+echo "[2/4] Desplegando infraestructura Docker Compose..."
 # docker compose up: lee el archivo yml y levanta todos los servicios definidos.
 # -f especifica la ruta al archivo de configuración.
 # -d (detached) arranca los contenedores en segundo plano.
@@ -32,7 +54,7 @@ docker compose -f docker/docker-compose.yml up -d
 
 # --- VERIFICACIÓN DE SALUD ---
 
-echo "[3/3] Esperando a que Odoo esté disponible (máx. 5 minutos)..."
+echo "[3/4] Esperando a que Odoo esté disponible (máx. 5 minutos)..."
 
 # Bucle de espera activa: consulta el endpoint de salud de Odoo cada 10 segundos.
 # -sf: silencioso y falla si el código HTTP no es 200.

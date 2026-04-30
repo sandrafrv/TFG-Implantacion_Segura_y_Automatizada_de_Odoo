@@ -10,21 +10,31 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 
 ### Añadido
 
+- `install.sh` — Instalador todo-en-uno que clona el repositorio e instala dependencias.
+- `.env.example` y `scripts/configure.sh` — Plantilla pública y configurador interactivo de entorno.
+- `erp.sh` — Script orquestador centralizado con subcomandos.
+- `config/logrotate.d/erp-odoo` — Política de rotación semanal de logs de cron.
 - `scripts/install_cron.sh` — Script que instala automáticamente todas las tareas
-  programadas (cron) del proyecto: monitorización cada 5 min, backup diario a las 02:00
-  y actualización semanal los domingos a las 03:00.
+  programadas (cron) y aplica la política de logrotate.
 
 ### Modificado
 
-- `scripts/deploy.sh` — Añadida verificación de salud activa tras el despliegue. El script
-  ahora espera hasta 5 minutos consultando el endpoint `/web/health` de Odoo antes de
-  declarar el despliegue exitoso. Si Odoo no responde, muestra los últimos 30 líneas de log
-  y termina con error.
+- `docker/docker-compose.yml` — Añadidos healthchecks nativos para PostgreSQL, Odoo y Nginx.
+  Modificado `depends_on` para usar la condición de servicio saludable.
 
-- `scripts/monitor.sh` — Mejorado con auto-reinicio automático de contenedores caídos
-  mediante `docker start`. Añadida función `log_evento()` que escribe en
-  `/var/log/erp_monitor.log` con marca de tiempo. Corregido el orden de chequeo de
-  contenedores (primero DB, luego Odoo, luego Nginx) para garantizar dependencias correctas.
+- `scripts/deploy.sh` — Añadidas verificaciones previas: existencia de Docker activo,
+  validación de sintaxis de compose y puertos 80/443 libres. Se mantiene la verificación
+  de salud activa tras el despliegue.
+
+- `scripts/update.sh` — Añadidos pre-checks de servicio Docker y espacio libre en disco.
+
+- `scripts/backup.sh` — Añadida verificación de espacio libre en disco antes del volcado.
+
+- `scripts/monitor.sh` — Modificado para comprobar el estado `State.Health.Status` además
+  de `State.Running`. Mejorado con auto-reinicio automático de contenedores caídos.
+
+- `.github/workflows/ci.yml` — Ampliado ShellCheck para validar también los scripts
+  de la raíz del proyecto (`install.sh`, `erp.sh`).
 
 ---
 

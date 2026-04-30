@@ -92,10 +92,23 @@ chown root:root "$CRON_FILE"
 
 echo ""
 echo "[OK] Tareas cron instaladas correctamente."
+
+# --- LOGROTATE ---
+echo "[4/4] Instalando política de rotación de logs (logrotate)..."
+if [ -f "$PROJECT_DIR/config/logrotate.d/erp-odoo" ]; then
+    cp "$PROJECT_DIR/config/logrotate.d/erp-odoo" /etc/logrotate.d/erp-odoo
+    chmod 644 /etc/logrotate.d/erp-odoo
+    chown root:root /etc/logrotate.d/erp-odoo
+    echo "[OK] Logrotate configurado para /var/log/erp_*.log."
+else
+    echo "[WARNING] No se encontró el archivo de logrotate en $PROJECT_DIR/config/logrotate.d/erp-odoo"
+fi
+
 echo ""
 echo "Resumen de tareas programadas:"
 echo "  - Cada 5 min  → monitor.sh  (log: /var/log/erp_monitor.log)"
 echo "  - 02:00 diario → backup.sh  (log: /var/log/erp_backup.log)"
 echo "  - 03:00 domingo → update.sh (log: /var/log/erp_update.log)"
+echo "  - Rotación log → Semanal (mantiene 4 semanas)"
 echo ""
 echo "Para verificar los logs: tail -f /var/log/erp_monitor.log"

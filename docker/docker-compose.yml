@@ -35,6 +35,12 @@ services:
       # Esto hace que los datos de PostgreSQL sobrevivan aunque el contenedor se borre o se recree.
       - ./data/postgres:/var/lib/postgresql/data/pgdata
 
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
     networks:
       - odoo_net  # Este contenedor estará en la red privada "odoo_net" (ver más abajo)
 
@@ -49,7 +55,8 @@ services:
     restart: always           # Reinicio automático ante fallos
 
     depends_on:
-      - db  # Docker espera que el contenedor "db" esté iniciado antes de arrancar este
+      db:
+        condition: service_healthy # Docker espera que el contenedor "db" esté "healthy" antes de arrancar este
 
     environment:
       # Odoo necesita saber cómo conectarse a PostgreSQL.
@@ -67,6 +74,13 @@ services:
       # El path "./docker/odoo.conf" es relativo a la raíz /opt/erp-odoo del proyecto
       - ./docker/odoo.conf:/etc/odoo/odoo.conf
 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8069/web/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s # Odoo tarda en arrancar la primera vez
+
     networks:
       - odoo_net  # Misma red privada que "db" → pueden comunicarse entre sí
 
@@ -82,7 +96,8 @@ services:
     restart: always
 
     depends_on:
-      - odoo  # El proxy espera a que Odoo esté iniciado antes de arrancar
+      odoo:
+        condition: service_healthy # El proxy espera a que Odoo esté "healthy" antes de arrancar
 
     ports:
       # Mapeo de puertos: puerto del HOST (Debian) → puerto del contenedor
@@ -96,6 +111,12 @@ services:
       - ./config_nginx:/etc/nginx/conf.d
       # Los certificados SSL generados con OpenSSL se leen desde la carpeta certs/
       - ./certs:/etc/ssl/certs_local
+
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
     networks:
       - odoo_net  # Misma red que los otros → puede resolver "odoo-web" como hostname

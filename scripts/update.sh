@@ -13,11 +13,34 @@
 # Ruta raíz del proyecto en el servidor Debian.
 PROJECT_DIR="/opt/erp-odoo"
 
-# --- ACTUALIZACIÓN ---
+# --- COMPROBACIONES PREVIAS ---
+echo "Realizando comprobaciones previas..."
 
+# 1. Comprobar Docker
+if ! docker info &> /dev/null; then
+    echo "[ERROR] El servicio de Docker no está activo o no tienes permisos."
+    exit 1
+fi
+
+# 2. Espacio libre en disco
+ESPACIO_LIBRE=$(df -BG /opt | awk 'NR==2 {print $4}' | sed 's/G//')
+if [ "$ESPACIO_LIBRE" -lt 2 ]; then
+    echo "[WARNING] Espacio en disco bajo (${ESPACIO_LIBRE}GB libres). La actualización podría fallar si las imágenes son grandes."
+    echo "¿Deseas continuar? (y/n)"
+    read -r respuesta
+    if [ "$respuesta" != "y" ]; then
+        exit 1
+    fi
+fi
+
+# 3. Cambiando de directorio y validando compose
 echo "Cambiando al directorio raíz del proyecto..."
-# El "|| exit 1" detiene el script si el directorio no existe.
 cd "$PROJECT_DIR" || exit 1
+
+if ! docker compose -f docker/docker-compose.yml config -q; then
+    echo "[ERROR] El archivo docker-compose.yml tiene errores de sintaxis. Abortando actualización."
+    exit 1
+fi
 
 echo "Buscando nuevas versiones de las imágenes Docker en Docker Hub..."
 # docker compose pull: descarga las últimas versiones disponibles de todas las imágenes.

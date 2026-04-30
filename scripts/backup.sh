@@ -26,12 +26,19 @@ DB_USER="odoo"
 # Nombre de la base de datos que queremos respaldar
 DB_NAME="odoo_erp"
 
-# --- PREPARACIÓN DEL DIRECTORIO ---
+# --- PREPARACIÓN DEL DIRECTORIO Y ESPACIO ---
 
 # Crea la carpeta de destino si no existe.
 # El flag -p crea también los directorios intermedios sin error si ya existen.
 mkdir -p "$BACKUP_DIR"
 echo "Usando directorio de backup: $BACKUP_DIR"
+
+# Comprueba espacio libre en la partición de backups
+ESPACIO_LIBRE=$(df -BG "$BACKUP_DIR" | awk 'NR==2 {print $4}' | sed 's/G//')
+if [ "$ESPACIO_LIBRE" -lt 1 ]; then
+    echo "[ERROR] Espacio en disco crítico (${ESPACIO_LIBRE}GB libres). Abortando backup para no saturar el sistema."
+    exit 1
+fi
 
 # --- PROCESO DE VOLCADO (DUMP) ---
 

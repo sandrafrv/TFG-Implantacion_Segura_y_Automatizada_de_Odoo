@@ -41,16 +41,16 @@ log_evento "=== Inicio de chequeo de salud ERP ==="
 for cont in "${CONTENEDORES[@]}"; do
 
     # 'docker inspect' lee los metadatos internos de un contenedor.
-    # -f '{{.State.Running}}' extrae SOLO el campo booleano "Running" (true/false).
-    # 2>/dev/null redirige cualquier error a la "nada" para no ensuciar los logs de cron.
+    # Extraemos si está corriendo y también su estado de salud (healthcheck).
     ESTADO=$(docker inspect -f '{{.State.Running}}' "$cont" 2>/dev/null)
+    SALUD=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$cont" 2>/dev/null)
 
-    # Compara el estado: si es "true", el contenedor está arriba
-    if [ "$ESTADO" = "true" ]; then
-        log_evento "[OK]      $cont está EN LÍNEA"
+    # Compara el estado: debe estar corriendo y, si tiene healthcheck, estar "healthy"
+    if [ "$ESTADO" = "true" ] && { [ "$SALUD" = "healthy" ] || [ "$SALUD" = "unknown" ]; }; then
+        log_evento "[OK]      $cont está EN LÍNEA y SALUDABLE"
     else
-        # Si no es "true" (puede ser "false" o vacío si no existe), está caído
-        log_evento "[ALERTA]  $cont está CAÍDO — Intentando reinicio automático..."
+        # Si no es "true" o está "unhealthy", hay que intervenir
+        log_evento "[ALERTA]  $cont está CAÍDO o UNHEALTHY — Intentando reinicio automático..."
 
         # Intenta arrancar el contenedor caído con docker start
         if docker start "$cont" 2>/dev/null; then

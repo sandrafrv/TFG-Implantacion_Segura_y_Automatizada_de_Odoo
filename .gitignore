@@ -6,6 +6,7 @@
 # El archivo de secretos NUNCA debe subirse
 docker/.env
 .env
+.env.example
 
 # Archivos de datos generados (demasiado grandes para GitHub)
 docker/data/
