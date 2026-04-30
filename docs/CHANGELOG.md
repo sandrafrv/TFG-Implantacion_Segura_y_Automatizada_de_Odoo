@@ -8,6 +8,29 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 
 ## [Sin publicar]
 
+---
+
+## [v1.2 — 2026-04-30]
+
+### Añadido
+
+- **Fase 5 completada:** Trigger de auditoría `trg_audit_new_odoo_user` ejecutado y validado en producción.
+  - Script `sql/audit_triggers.sql` aplicado sobre el contenedor `odoo_erp` (PostgreSQL 16).
+  - Tabla `asir_audit_log` creada con campo JSONB `row_data` para snapshot completo del registro.
+  - Vista `v_audit_resumen` operativa: extrae `login` y `name` del JSONB para consultas rápidas.
+  - Validación end-to-end confirmada: creación de usuario `user@tfg.prueba` desde la UI web de Odoo
+    generó automáticamente el registro `audit_id=1, CREACION_USUARIO, res_users, id=8` a las 12:13:57 UTC.
+
+### Corregido
+
+- **Nombre incorrecto del contenedor PostgreSQL** en `docs/implementation_plan.md` y `sql/audit_triggers.sql`:
+  el nombre real definido en `docker-compose.yml` es `odoo_erp`, no `odoo-db`.
+  Corregido en la documentación de ejecución.
+
+---
+
+## [v1.1 — 2026-04-30]
+
 ### Añadido
 
 - `install.sh` — Instalador todo-en-uno que clona el repositorio e instala dependencias.
@@ -22,18 +45,17 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 - `docker/docker-compose.yml` — Añadidos healthchecks nativos para PostgreSQL, Odoo y Nginx.
   Modificado `depends_on` para usar la condición de servicio saludable.
   Corregidas las rutas de volúmenes a `../` para apuntar correctamente a la raíz desde la carpeta `docker/`.
-  Hardcode de credenciales temporales para resolución de problemas de inicialización.
 
 - `docker/odoo.conf` — Añadidos parámetros de conexión a BD y paths de addons.
   Actualizado `longpolling_port` a `gevent_port` por deprecación en Odoo 17.
 
-- `config_nginx/odoo_proxy.conf` — Corregidas las rutas de certificados SSL (`server.crt` / `server.key`) para coincidir con el generador de `install.sh`.
+- `config_nginx/odoo_proxy.conf` — Corregidas las rutas de certificados SSL para coincidir con `install.sh`.
 
 ### Corregido
 
-- **Error de permisos en `/var/lib/odoo/.local`**: Resuelto al corregir las rutas relativas de los volúmenes en el archivo Compose.
-- **Bucle de reinicio en Nginx**: Resuelto al sincronizar los nombres de los archivos de certificado entre la configuración de Nginx y el script de instalación.
-- **Error de inicialización de Odoo**: Resuelto mediante el uso de `docker compose run --rm` para evitar conflictos de puertos durante el primer arranque de la base de datos.
+- **Error de permisos en `/var/lib/odoo/.local`**: Resuelto al corregir las rutas relativas de los volúmenes.
+- **Bucle de reinicio en Nginx**: Resuelto al sincronizar los nombres de los archivos de certificado.
+- **Error de inicialización de Odoo**: Resuelto mediante `docker compose run --rm` para el primer arranque.
 
 ---
 
@@ -71,9 +93,7 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 - `sql/audit_triggers.sql` — Tabla `asir_audit_log`, función PL/pgSQL `func_audit_users()`
   y trigger `trg_audit_new_odoo_user` sobre `res_users` de Odoo.
 
-- `.github/workflows/ci.yml` — Pipeline CI con GitHub Actions que valida: YAML con
-  `yamllint`, estructura Docker Compose con `docker compose config`, scripts Bash con
-  `ShellCheck` y Markdown con `markdownlint`.
+- `.github/workflows/ci.yml` — Pipeline CI con GitHub Actions.
 
 - `docs/implementation_plan.md` — Plan de implementación por fases.
 
