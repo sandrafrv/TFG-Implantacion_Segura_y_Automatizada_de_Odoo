@@ -37,15 +37,26 @@ La topología divide la red en tres zonas de confianza principales, gestionadas 
 *   **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor **Debian 12 Server** que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL). Gestionado visualmente desde **Cockpit** (`https://192.168.30.10:9090`).
 *   **LAN Clientes (VLAN 10 - 192.168.10.0/24):** Equipos internos de la empresa.
 
-```mermaid
+``mermaid
 graph TD
-    WAN[Internet WAN] --> P[pfSense Firewall Router]
-    P --> |DMZ VLAN 30| N[Servidor Debian 12 Docker Host]
-    N --> |Puerto 80/443| Nginx[Contenedor Nginx Proxy]
-    Nginx --> |Red Interna Docker| Docker[Contenedor Odoo Local]
-    Docker --> |Red Interna Docker| DB[Contenedor PostgreSQL]
-    P --> |LAN Clientes VLAN 10| CLI[Equipos Internos]
+    WAN((Internet / WAN)) -->|DHCP Externo| PFSENSE[pfSense Firewall/Router]
+    PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ / Servidor Principal]
+    PFSENSE -->|Gateway: 192.168.10.1| LAN_CLI[VLAN 10 - LAN Clientes]
+
+    DMZ --> DOCKER_HOST["Servidor Único Debian 12<br>192.168.30.10"]
+
+    subgraph DOCKER_HOST ["Servidor Único Debian 12 (192.168.30.10)"]
+        NGINX_PROXY["Contenedor Nginx<br>(Puertos 80/443 al Host)"]
+        ODOO_DOCKER["Contenedor Odoo<br>(Aislado en Red Docker)"]
+        PG_DOCKER["Contenedor PostgreSQL<br>(Aislado en Red Docker)"]
+        NGINX_PROXY -.->|ProxyPass :8069| ODOO_DOCKER
+        ODOO_DOCKER -.->|SQL :5432| PG_DOCKER
+    end
+
+    LAN_CLI --> PC_CLIENTE["Cliente Windows/Linux<br>192.168.10.x"]
+    PC_CLIENTE -.->|Petición HTTPS 443| DOCKER_HOST
 ```
+
 
 ### Tabla de Direccionamiento IP
 
