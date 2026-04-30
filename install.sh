@@ -41,7 +41,8 @@ if [ ! -d "$PROJECT_DIR/.git" ]; then
 else
     echo "El repositorio ya existe en $PROJECT_DIR. Actualizando..."
     cd "$PROJECT_DIR"
-    git pull
+    git fetch --all
+    git reset --hard origin/main
 fi
 
 cd "$PROJECT_DIR"
