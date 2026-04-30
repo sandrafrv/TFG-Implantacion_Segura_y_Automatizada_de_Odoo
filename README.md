@@ -37,7 +37,8 @@ La topología divide la red en tres zonas de confianza principales, gestionadas 
 *   **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor **Debian 12 Server** que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL). Gestionado visualmente desde **Cockpit** (`https://192.168.30.10:9090`).
 *   **LAN Clientes (VLAN 10 - 192.168.10.0/24):** Equipos internos de la empresa.
 
-``mermaid
+```mermaid
+
 graph TD
     WAN((Internet / WAN)) -->|DHCP Externo| PFSENSE[pfSense Firewall/Router]
     PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ / Servidor Principal]
@@ -55,7 +56,7 @@ graph TD
 
     LAN_CLI --> PC_CLIENTE["Cliente Windows/Linux<br>192.168.10.x"]
     PC_CLIENTE -.->|Petición HTTPS 443| DOCKER_HOST
-    
+
 ```
 
 ---
