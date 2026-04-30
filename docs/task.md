@@ -3,7 +3,7 @@
 Este documento sirve para llevar un seguimiento de nuestro progreso a medida que ejecutamos el proyecto.
 Marca con `[x]` las tareas a medida que se vayan completando en el entorno real o virtual.
 
-> **Última actualización:** 2026-04-29
+> **Última actualización:** 2026-04-30
 
 ---
 
@@ -79,9 +79,11 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 - [x] **[2026-04-29]** `sql/audit_triggers.sql` creado con tabla `asir_audit_log`, función `func_audit_users()` y trigger `trg_audit_new_odoo_user`.
 - [x] **[2026-04-29]** Campo **JSONB** (`row_data`) añadido: almacena el estado completo del registro con `row_to_json(NEW)::JSONB`.
 - [x] **[2026-04-29]** Vista `v_audit_resumen` creada para consultas rápidas en la defensa (extrae `login` y `name` del JSONB).
-- [ ] Conectarse a la BD PostgreSQL: `docker exec -it odoo-db psql -U odoo -d odoo_erp`.
-- [ ] Ejecutar el script: `\i /opt/erp-odoo/sql/audit_triggers.sql`.
-- [ ] Validar auditoría: crear un usuario en Odoo → verificar registro en tabla (`SELECT * FROM v_audit_resumen;`).
+- [x] **[2026-04-30]** Script ejecutado en producción: `docker exec -i odoo_erp psql -U odoo -d odoo_erp < /opt/erp-odoo/sql/audit_triggers.sql`
+  - _Qué se hizo:_ Se corrigió el nombre del contenedor (`odoo_erp`, no `odoo-db`) y se ejecutó el script en el contenedor PostgreSQL activo.
+  - _Archivos afectados:_ `sql/audit_triggers.sql` (solo ejecución, sin cambios en el archivo)
+  - _Resultado:_ Tabla `asir_audit_log` creada y verificada con `\dt`. Trigger `trg_audit_new_odoo_user` activo sobre `res_users`.
+- [ ] Validar auditoría end-to-end: crear un usuario en Odoo → verificar registro en tabla (`SELECT * FROM v_audit_resumen;`).
 
 ---
 
@@ -174,7 +176,7 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 | 0 | Investigación y diseño | ✅ Completada |
 | 1 | Arquitectura pfSense y red | ✅ Completada |
 | 2-4 | Despliegue Automatizado (Docker+DevOps) | ✅ Unificado en `install.sh` (Validación pdte) |
-| 5 | Auditoría PostgreSQL | ⏳ Ejecución pendiente |
+| 5 | Auditoría PostgreSQL | ✅ Completada — validación end-to-end pendiente |
 | 6 | UFW Firewall local | ⏳ Pendiente |
 | 7 | Pruebas globales | ⏳ Pendiente |
 | 8 | CI/CD GitHub Actions | 🔄 Workflows listos, runner pendiente |
