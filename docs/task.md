@@ -103,15 +103,22 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 - [x] **[2026-04-29]** `.github/workflows/ci.yml` — Pipeline CI con ShellCheck y validación Docker Compose.
 - [x] **[2026-04-29]** `.github/workflows/deploy.yml` — Pipeline CD con self-hosted runner.
 - [x] **[2026-04-29]** `scripts/setup_runner.sh` — Registra el servidor Debian como runner de GitHub.
-- [x] **[2026-04-30]** Descarga manual del agente GitHub Actions v2.334.0 iniciada en `/opt/actions-runner`.
-  - _Qué se hizo:_ `curl -o actions-runner-linux-x64-2.334.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.334.0/...` ejecutado en el servidor Debian como usuario `server`.
-  - _Archivos afectados:_ `/opt/actions-runner/` (directorio en el servidor, fuera del repo)
-  - _Resultado:_ Descarga completada. Pendiente: extracción (`tar xzf`) y configuración interactiva (`./config.sh`).
-- [ ] Obtener token en: GitHub → Repositorio → Settings → Actions → Runners → "New self-hosted runner".
-- [ ] Ejecutar `tar xzf ./actions-runner-linux-x64-2.334.0.tar.gz` y luego `./config.sh` con la URL del repo y el token.
-- [ ] Verificar que el runner aparece como **"Idle"** en GitHub → Settings → Actions → Runners.
-- [ ] Hacer un `git push` a `main` y comprobar que el workflow **"CD Deploy"** se activa.
-- [ ] Validar que los contenedores se levantan correctamente tras el despliegue automático.
+- [x] **[2026-04-30]** Runner descargado manualmente: `actions-runner-linux-x64-2.334.0.tar.gz` en `/opt/actions-runner`. SHA256 verificado: OK.
+- [x] **[2026-04-30]** Runner extraído y configurado: `./config.sh --url ... --token ...` — nombre `debian`, grupo `Default`, labels `self-hosted, Linux, X64`.
+- [x] **[2026-04-30]** Runner instalado como servicio systemd: `sudo ./svc.sh install && sudo ./svc.sh start`.
+  - Servicio: `actions.runner.sandrafrv-TFG-Implantacion_Segura_y_Automatizada_de_Odoo.debian.service`
+  - Estado: `active (running)` desde las 17:15:23 CEST.
+- [x] **[2026-04-30]** Runner verificado como **Idle** en GitHub → Settings → Actions → Runners.
+- [x] **[2026-04-30]** Pipeline CD disparado y completado con éxito — commit `0cdee22`.
+  - Errores resueltos durante la puesta en marcha:
+    - `permission denied` en `.env` → `chown root:server + chmod 640`.
+    - `docker-compose.yml tiene errores de sintaxis` → era cascada del error de permisos.
+    - `puertos 80/443 en uso` → `ss -tlnp` sin root no muestra PID; corregido comprobando si `nginx-proxy` está corriendo.
+    - `posesión dudosa` en git → `git config --global --add safe.directory /opt/erp-odoo` añadido al workflow.
+    - `git pull` falla por permisos → `sudo chown -R server:server /opt/erp-odoo`.
+- [x] **[2026-04-30]** Validación final del pipeline: los 3 contenedores `healthy`, Odoo operativo en `https://erp.techsolutions.local`.
+
+---
 
 ## Fase 9: Mejoras de Automatización Avanzada (Scripting y Docker)
 
@@ -146,6 +153,6 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 | 5 | Auditoría PostgreSQL | ✅ Completada |
 | 6 | UFW Firewall local | ✅ Completada |
 | 7 | Pruebas globales | ✅ Completada |
-| 8 | CI/CD GitHub Actions | 🔄 Runner en configuración (descarga completada) |
+| 8 | CI/CD GitHub Actions | ✅ Completada |
 | 9 | Mejoras Automatización | ✅ Completada |
 | 10 | Documentación y defensa | ⏳ Pendiente |

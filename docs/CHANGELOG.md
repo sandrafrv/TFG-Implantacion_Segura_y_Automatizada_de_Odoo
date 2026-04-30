@@ -10,42 +10,44 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 
 ---
 
-## [v1.4 — 2026-04-30]
-
-### Añadido
-
-- **Fase 8 completada:** Runner self-hosted de GitHub Actions registrado y activo en el servidor Debian.
-  - Agente descargado manualmente: `actions-runner-linux-x64-2.334.0.tar.gz` (214 MB) en `/opt/actions-runner`.
-  - Hash SHA-256 verificado correctamente: `048024cd2c848eb6f14d5646d56c13a4def2ae7ee3ad12122bee960c56f3d271 OK`.
-  - Runner configurado con `./config.sh` conectado al repositorio `sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo`.
-  - Labels asignadas: `self-hosted`, `Linux`, `X64`. Grupo: `Default`. Work folder: `_work`.
-  - Confirmación de GitHub: `√ Connected to GitHub` / `√ Runner successfully added` / `√ Settings Saved`.
-  - Runner activo y escuchando jobs: `Listening for Jobs` (versión `2.334.0`).
-  - Pendiente: instalar como servicio `systemd` con `sudo ./svc.sh install && sudo ./svc.sh start`.
-
----
-
 ## [v1.3 — 2026-04-30]
 
 ### Añadido
 
-- **Fase 6 completada:** Firewall de capa host UFW configurado y activo en el servidor Debian.
-  - Política por defecto: `deny incoming`, `allow outgoing`.
-  - Reglas activas: SSH (22/tcp), Cockpit (9090/tcp), HTTP (80/tcp), HTTPS (443/tcp) — IPv4 e IPv6.
-  - UFW habilitado y persistente en arranque del sistema (`ufw enable`).
-
-- **Fase 7 completada:** Validación global del sistema desde el cliente Ubuntu (VLAN 10).
-  - DNS interno configurado en `/etc/hosts` del cliente: `erp.techsolutions.local → 192.168.30.10`.
-  - Acceso HTTPS a `https://erp.techsolutions.local` validado desde el cliente.
-  - Logs de Nginx verificados: peticiones reales desde `192.168.10.101` con redirección HTTP→HTTPS (301).
-  - Prueba de auto-recuperación exitosa: contenedor `odoo-web` parado manualmente y recuperado automáticamente (Up 41s).
-  - Auditoría end-to-end validada: `user@tfg.prueba` registrado en `asir_audit_log` desde la UI web de Odoo.
+- **Fase 8 completada:** Pipeline CI/CD con GitHub Actions 100% operativo en el servidor Debian de la DMZ.
+  - Runner `debian` instalado como servicio systemd en `/opt/actions-runner`.
+    - Versión del agente: `2.334.0`. SHA256 verificado.
+    - Servicio: `actions.runner.sandrafrv-TFG-Implantacion_Segura_y_Automatizada_de_Odoo.debian.service`.
+    - Arranca automáticamente con el sistema (`enabled` en systemd).
+  - Pipeline `CD Deploy` ejecutado y validado end-to-end:
+    - Stack Docker desplegado automáticamente tras push a `main`.
+    - Los 3 contenedores (`odoo_erp`, `odoo-web`, `nginx-proxy`) quedan en estado `healthy`.
+    - Odoo operativo en `https://erp.techsolutions.local` tras el despliegue.
+  - Step `git fetch + git reset --hard origin/main` añadido al workflow para garantizar
+    que el servidor siempre ejecuta la versión más reciente de los scripts del repositorio.
 
 ### Corregido
 
-- **Nombre incorrecto del contenedor PostgreSQL** en `scripts/backup.sh`, `scripts/restore.sh` y `scripts/monitor.sh`:
-  los scripts usaban `odoo-db` como nombre del contenedor, pero el nombre real definido en `docker-compose.yml` es `odoo_erp`.
-  Corregido en commit `b0022e4`. Backup manual ejecutado tras la corrección: `backup_20260430_151554.dump` (1.38 MB) generado correctamente.
+- **`scripts/deploy.sh` — comprobación de puertos 80/443:**
+  El check original usaba `ss -tlnp | grep` para detectar conflictos de puerto, pero sin
+  permisos de root el comando no muestra el nombre del proceso. El script fallaba aunque los
+  puertos los ocupara el propio contenedor `nginx-proxy` del stack.
+  **Solución:** se comprueba si `nginx-proxy` está corriendo con `docker ps`. Si está activo,
+  los puertos son del stack propio y el re-deploy es válido. Solo falla si el contenedor
+  no existe y el puerto está ocupado (conflicto real externo).
+
+- **`scripts/deploy.sh` — permisos de lectura en `.env`:**
+  El archivo `.env` tenía permisos `600` (solo root). El runner corre como usuario `server`
+  y no podía leerlo, lo que causaba un error en cascada interpretado como "error de sintaxis"
+  en `docker-compose.yml`.
+  **Solución:** `sudo chown root:server /opt/erp-odoo/docker/.env && sudo chmod 640 /opt/erp-odoo/docker/.env`.
+
+- **`.github/workflows/deploy.yml` — error `dubious ownership` en git:**
+  El directorio `/opt/erp-odoo` fue creado por `root` (via `install.sh`), pero el runner
+  corre como `server`. Git bloquea el acceso por la política de seguridad `safe.directory`.
+  **Solución:** step `git config --global --add safe.directory /opt/erp-odoo` añadido
+  como primer paso del workflow. Además: `sudo chown -R server:server /opt/erp-odoo`
+  aplicado en el servidor para alinear propietario con usuario del runner.
 
 ---
 
