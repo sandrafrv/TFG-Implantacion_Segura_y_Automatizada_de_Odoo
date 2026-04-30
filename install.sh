@@ -50,6 +50,9 @@ cd "$PROJECT_DIR"
 # 4. Crear estructura de directorios y permisos
 echo "[3/6] Creando estructura de directorios..."
 mkdir -p data/postgres data/odoo_addons data/odoo_web backups certs docker
+# Dar permisos universales a las carpetas montadas para evitar Permission denied (Errno 13)
+# ya que los contenedores usan usuarios no-root internamente (ej. uid 101 para odoo)
+chmod -R 777 data/ backups/
 chmod +x scripts/*.sh
 
 # 5. Generar certificados SSL autofirmados
