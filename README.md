@@ -160,10 +160,10 @@ Antes de definir la arquitectura, se evaluó comparativamente con otras solucion
 
 | Módulo | Contenido aplicado en este TFG |
 | :--- | :--- |
-| **SAD** — Seguridad y Alta Disponibilidad | Topología DMZ con pfSense, UFW en host, reglas de firewall, política default-deny, backups automatizados con retención |
-| **IAW** — Implantación de Aplicaciones Web | Proxy inverso Nginx con terminación SSL/TLS, cabeceras de seguridad HTTP (HSTS, X-Frame-Options), WebSocket para LiveChat |
-| **GBD** — Gestión de Bases de Datos | Triggers PL/pgSQL con auditoría en formato JSONB, función `func_audit_users()`, tabla `asir_audit_log`, vista `v_audit_resumen` |
-| **SOR** — Servicios de Red | Configuración de VLANs (10/30), DHCP en pfSense, NAT/Port Forwarding, DNS interno |
+| **Seguridad y Alta Disponibilidad** | Topología DMZ con pfSense, UFW en host, reglas de firewall, política default-deny, backups automatizados con retención |
+| **Implantación de Aplicaciones Web** | Proxy inverso Nginx con terminación SSL/TLS, cabeceras de seguridad HTTP (HSTS, X-Frame-Options), WebSocket para LiveChat |
+| **Gestión de Bases de Datos** | Triggers PL/pgSQL con auditoría en formato JSONB, función `func_audit_users()`, tabla `asir_audit_log`, vista `v_audit_resumen` |
+| **Servicios de Red**  | Configuración de VLANs (10/30), DHCP en pfSense, NAT/Port Forwarding, DNS interno |
 | **DevOps** | Scripts Bash para despliegue, backup, restauración, monitorización y CI/CD con GitHub Actions |
 
 ---
@@ -201,6 +201,3 @@ Estas mejoras quedan fuera del alcance del TFG pero se documentan para demostrar
 | **VPN WireGuard en pfSense** | Ocultar el ERP de Internet público, accesible solo desde la VLAN interna o a través de un túnal VPN cifrado. Diseño "Zero Trust". |
 | **Stack de Monitorización** | Sustituir los scripts de log por Prometheus + Grafana o Uptime Kuma con panel gráfico de estado en tiempo real. |
 | **LDAP / Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 como Controlador de Dominio, integrando Odoo con AD. |
- 
-    
- 
