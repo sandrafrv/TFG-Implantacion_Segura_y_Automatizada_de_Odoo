@@ -41,8 +41,18 @@ if ! docker compose -f docker/docker-compose.yml config -q; then
 fi
 
 # 3. Comprobar puertos 80 y 443
-if ss -tlnp | grep -qE ":80\b|:443\b"; then
-    echo "[ERROR] Los puertos 80 o 443 ya están en uso por otro servicio."
+# Solo falla si los puertos los ocupa un proceso que NO sea Docker (nginx-proxy).
+# Si ya está corriendo el contenedor nginx-proxy, el re-deploy es válido (up -d es idempotente).
+PORT_CONFLICT=false
+for PORT in 80 443; do
+    PROCESO=$(ss -tlnp | grep ":${PORT}\b" | grep -v "docker\|nginx-proxy" || true)
+    if [ -n "$PROCESO" ]; then
+        PORT_CONFLICT=true
+        echo "[ERROR] El puerto $PORT está en uso por un proceso externo al stack Docker:"
+        echo "$PROCESO"
+    fi
+done
+if [ "$PORT_CONFLICT" = "true" ]; then
     exit 1
 fi
 
