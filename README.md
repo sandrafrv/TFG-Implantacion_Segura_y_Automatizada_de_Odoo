@@ -201,3 +201,5 @@ Estas mejoras quedan fuera del alcance del TFG pero se documentan para demostrar
 | **VPN WireGuard en pfSense** | Ocultar el ERP de Internet público, accesible solo desde la VLAN interna o a través de un túnal VPN cifrado. Diseño "Zero Trust". |
 | **Stack de Monitorización** | Sustituir los scripts de log por Prometheus + Grafana o Uptime Kuma con panel gráfico de estado en tiempo real. |
 | **LDAP / Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 como Controlador de Dominio, integrando Odoo con AD. |
+ 
+ 
