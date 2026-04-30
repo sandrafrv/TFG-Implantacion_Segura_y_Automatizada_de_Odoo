@@ -6,6 +6,7 @@ Este documento es la **hoja de ruta técnica principal** del proyecto. Contiene 
 
 ## Fase 0: Justificación Técnica e Investigación Previa
 
+> ✅ **Completado:** Fase de investigación, comparativa de ERPs y diseño de arquitectura finalizada.
 > Esta fase documenta las decisiones de diseño tomadas **antes de la implantación**, basadas en la investigación técnica previa. No requiere ejecución de comandos — es la base académica del proyecto.
 
 ### 0.1 Elección del ERP: Odoo vs Alternativas
@@ -107,6 +108,8 @@ graph TD
 
 ## Fase 1: Preparación del Entorno de Red (pfSense)
 
+> ✅ **Completado:** Máquinas virtuales creadas, interfaces asignadas y reglas de firewall/NAT configuradas y documentadas.
+
 ### ¿Por qué pfSense?
 
 pfSense es un firewall de código abierto basado en FreeBSD que permite segmentar la red en zonas (WAN, LAN, DMZ), gestionar DHCP por zona, crear reglas de firewall por interfaz y hacer NAT/Port Forwarding. Es la solución estándar para simular un entorno empresarial real en un TFG.
@@ -168,6 +171,17 @@ Las reglas se definen en **Firewall > Rules** por interfaz. El orden importa: pf
 ---
 
 ## Fase 2: Configuración del Servidor Base (Debian 12)
+
+> ✅ **Completado:** Preparación de sistema, Cockpit y dependencias de Docker cubiertas en el orquestador automático. Las validaciones de acceso están pendientes.
+
+> **🚀 AUTOMATIZACIÓN (NUEVO EN FASE 9):**
+> Aunque a continuación se detalla el proceso manual paso a paso por rigor académico, **todas las tareas de las Fases 2, 3 y 4 se han unificado en el script `install.sh`**.
+> Para un despliegue rápido y real, sube el script al servidor o descárgalo y ejecuta:
+> ```bash
+> chmod +x install.sh
+> sudo ./install.sh
+> ```
+> Este orquestador instalará dependencias, Docker, Cockpit, configurará el `.env` interactivo, levantará los contenedores y programará los backups automáticamente.
 
 ### ¿Por qué Debian 12 con entorno gráfico?
 
@@ -247,6 +261,8 @@ docker ps   # Debe devolver una lista vacía (sin contenedores corriendo aún)
 ---
 
 ## Fase 3: Despliegue de la Infraestructura Docker (Odoo + PostgreSQL + Nginx)
+
+> ✅ **Completado:** Estructura de volúmenes, red de contenedores, certificados y `docker-compose.yml` listos y unificados en la instalación automatizada.
 
 ### ¿Por qué estos tres contenedores?
 
@@ -352,6 +368,11 @@ curl -I -k https://127.0.0.1
 ---
 
 ## Fase 4: Automatización y Scripts DevOps
+
+> ✅ **Completado:** Scripts desarrollados, refactorizados, probados mediante CI estático y enlazados en cron. Validaciones finales manuales pendientes.
+
+> **🚀 NOTA DE AUTOMATIZACIÓN:**
+> Al igual que en las fases anteriores, si has ejecutado `install.sh`, **los permisos y las tareas cron ya están configurados automáticamente**. Los siguientes pasos solo explican el funcionamiento interno de estos scripts.
 
 ### ¿Por qué estos scripts?
 
@@ -591,6 +612,36 @@ Para acercar el despliegue a una experiencia de "enchufar servidor y olvidarse",
 6. **Pre-checks**: Comprobaciones de conectividad Docker, espacio libre y puertos libres antes de los despliegues.
 
 > ✅ **Completado [2026-04-30]:** Todas las mejoras de scripting, plantillas de entorno y comprobaciones de healthcheck han sido implementadas exitosamente y añadidas al pipeline de CI (ShellCheck).
+
+---
+
+## Resumen de Ejecución y Orden de Arranque
+
+---
+
+## Fase 10: Documentación Final y Defensa
+
+### ¿Por qué esta fase?
+La última etapa del TFG consiste en asegurar que toda la implantación técnica se refleja correctamente en la memoria escrita y preparar el material necesario para la demostración práctica ante el tribunal.
+
+### 10.1 Cierre de Documentación Técnica
+- **Plan de Implantación**: Asegurar que este documento refleja la arquitectura final con sus automatizaciones.
+- **Changelog**: Asegurar que `CHANGELOG.md` recoge todas las sesiones de trabajo.
+- **Readme**: Consolidar el `README.md` como una guía rápida de despliegue ("Quickstart").
+
+### 10.2 Preparación de la Memoria
+Trasladar todo el trabajo técnico a la estructura formal requerida por el TFG:
+- Introducción y Objetivos (basados en automatización y seguridad).
+- Arquitectura (diagramas de red de pfSense y contenedores Docker).
+- Implementación (detalles de bash scripts, nginx proxy, PostgreSQL audit).
+- Pruebas de funcionamiento y Conclusiones.
+
+### 10.3 Defensa y Demostración Práctica
+Preparar un entorno real (o virtual) saneado y un guion para la demostración en vivo:
+1. **Acceso inicial**: pfSense y reglas DMZ.
+2. **Despliegue rápido**: Ejecutar `install.sh` y mostrar su automatización.
+3. **Resiliencia**: Simular una caída (`docker stop odoo`) y mostrar cómo `monitor.sh` lo recupera automáticamente.
+4. **Auditoría**: Demostrar el trigger PL/pgSQL mediante la creación de un usuario en Odoo y lectura del log.
 
 ---
 

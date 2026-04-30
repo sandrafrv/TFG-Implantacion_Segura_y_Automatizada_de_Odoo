@@ -84,6 +84,7 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 
 ### 3. Automatización y Monitorización (DevOps)
 *   Desarrollo de *scripts* Bash para el ciclo de vida del ERP:
+    *   `install.sh` / `erp.sh`: Instalador todo-en-uno y orquestador centralizado de administración.
     *   `deploy.sh`: Levantamiento automático de la infraestructura.
     *   `backup.sh`: Volcados comprimidos seguros de PostgreSQL (`pg_dump -F c`).
     *   `restore.sh`: Recuperación rápida ante desastres simulados.

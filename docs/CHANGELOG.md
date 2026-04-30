@@ -36,6 +36,10 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 - `.github/workflows/ci.yml` — Ampliado ShellCheck para validar también los scripts
   de la raíz del proyecto (`install.sh`, `erp.sh`).
 
+- `docs/task.md` y `docs/implementation_plan.md` — Reestructurados para reflejar
+  que los procesos de configuración del servidor y despliegue manual (Fases 2 a 4)
+  están ahora completamente automatizados por `install.sh`.
+
 ---
 
 ## [v1.0 — 2026-04-29]

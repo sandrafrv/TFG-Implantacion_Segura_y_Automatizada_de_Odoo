@@ -39,55 +39,35 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 
 ---
 
-## Fase 2: Configuración del Servidor Base (Debian 12 en DMZ)
+## Fase 2 y 3: Configuración Base y Despliegue Docker
+
+> **¡Automatización Completada!** Gracias a las mejoras de la Fase 9, los pasos manuales de instalación de Cockpit, Docker, certificados SSL y primer despliegue se han unificado. Ahora solo debes ejecutar un comando en el servidor.
 
 - [x] Descargar ISO de Debian 12 con entorno gráfico y crear VM en la red de la DMZ.
 - [x] Instalar Debian seleccionando **entorno de escritorio GNOME**.
 - [x] Configurar IP estática (`192.168.30.10`) en `/etc/network/interfaces`.
 - [x] Actualizar repositorios y sistema (`apt update && apt upgrade`).
-- [x] Validar conexión a Internet desde el Servidor Debian (tras corrección de reglas DMZ en pfSense).
-- [x] **[2026-04-29]** Instalar e inicializar Cockpit (`apt install cockpit -y` + `systemctl enable --now cockpit.socket`).
-- [x] **[2026-04-29]** Acceder al panel Cockpit desde el Cliente en `https://192.168.30.10:9090` y validar conectividad.
-- [x] **[2026-04-29]** Instalar `cockpit-pcp` para habilitar historial de métricas y gráficas de rendimiento persistentes.
-- [x] **[2026-04-29]** Configurar el dashboard de Cockpit para monitorizar recursos de los contenedores Docker/Odoo.
-- [x] **[2026-04-29]** Instalar Docker Engine y Docker Compose CLI (`apt install docker.io docker-compose-plugin -y`).
-- [x] Añadir usuario administrador al grupo `docker` (`usermod -aG docker $USER`).
-- [x] Habilitar Docker en el arranque del sistema (`systemctl enable --now docker`).
+- [x] Clonar el repositorio temporalmente o subir `install.sh` al servidor.
+- [x] **[2026-04-30]** Ejecutar el instalador automático: `sudo ./install.sh`.
+  - Este script instala Cockpit, Docker, genera certificados SSL, configura el archivo `.env` de forma interactiva y levanta los contenedores.
+- [ ] Validar que Cockpit está accesible desde el Cliente en `https://192.168.30.10:9090`.
+- [ ] Validar que Odoo está accesible en `https://192.168.30.10` (redirigido internamente al puerto 8069).
 
 ---
 
-## Fase 3: Despliegue de Docker (Odoo, PostgreSQL y Nginx)
+## Fase 4: Activación de Scripts DevOps (Cron y Backups)
 
-> Los ficheros de configuración ya están creados. Esta fase consiste en desplegarlos en el servidor.
+> **¡Automatización Completada!** `install.sh` ya da permisos a los scripts e instala las tareas de Cron. Solo queda realizar validaciones manuales.
 
-- [x] **[2026-04-29]** `docker/docker-compose.yml` redactado: servicios `db` (PostgreSQL 16), `odoo` (17.0) y `nginx`. Odoo no exporta puertos externos; Nginx expone 80 y 443.
-- [x] **[2026-04-29]** `docker/odoo.conf` configurado: workers con fórmula `(CPU×2)+1`, `longpolling_port = 8072`, `max_cron_threads = 1`.
-- [x] **[2026-04-29]** `docker/.env` creado con variables de entorno para credenciales y nombres de BD.
-- [x] **[2026-04-29]** `config_nginx/odoo_proxy.conf` creado: proxy inverso HTTP→HTTPS, cabeceras de seguridad (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy), bloque WebSocket `/longpolling/` en puerto 8072.
-- [ ] Crear estructura de directorios en `/opt/erp-odoo` en el servidor (data, scripts, certs, config_nginx).
-- [ ] Subir los ficheros del repositorio al servidor (`git clone` o `scp`).
-- [ ] Generar certificados SSL autofirmados con OpenSSL y guardarlos en `/opt/erp-odoo/certs/`.
-- [ ] Ejecutar `docker compose up -d` desde `/opt/erp-odoo/docker/`.
-- [ ] Revisar logs globales (`docker compose logs -f`) para comprobar salud de los tres contenedores.
-- [ ] Validar desde el host: `curl -I -k https://127.0.0.1` devuelve `200 OK`.
-
----
-
-## Fase 4: Automatización y Scripts DevOps (Bash)
-
-> Todos los scripts están creados y documentados. Esta fase consiste en activarlos en el servidor.
-
-- [x] **[2026-04-29]** `scripts/deploy.sh` — Despliega el stack con verificación de salud activa (curl al endpoint `/web/health`).
-- [x] **[2026-04-29]** `scripts/update.sh` — Actualización de imágenes y limpieza de contenedores huérfanos.
-- [x] **[2026-04-29]** `scripts/backup.sh` — Volcado comprimido con `pg_dump -F c`, marca de tiempo y política de retención de 7 días.
-- [x] **[2026-04-29]** `scripts/restore.sh` — Restauración limpia (`dropdb` + `createdb` + `pg_restore`).
-- [x] **[2026-04-29]** `scripts/monitor.sh` — Chequeo de salud con auto-reinicio y log en `/var/log/erp_monitor.log`.
-- [x] **[2026-04-29]** `scripts/install_cron.sh` — Instala todas las tareas cron automáticamente (monitor cada 5 min, backup a las 2AM, update domingo 3AM).
-- [x] **[2026-04-29]** `scripts/setup_runner.sh` — Registra e instala el servidor Debian como runner de GitHub con systemd.
-- [ ] Subir la carpeta `scripts/` al servidor Debian (dentro de `/opt/erp-odoo/`).
-- [ ] Dar permisos de ejecución a todos los scripts: `chmod +x /opt/erp-odoo/scripts/*.sh`.
-- [ ] Ejecutar `sudo ./scripts/install_cron.sh` en el servidor para activar las tareas cron automáticas.
-- [ ] Testear un ciclo completo: desplegar → hacer backup → borrar BD → restaurar → validar integridad.
+- [x] `scripts/deploy.sh` — Despliega el stack con verificación de salud activa.
+- [x] `scripts/update.sh` — Actualización de imágenes y limpieza.
+- [x] `scripts/backup.sh` — Volcado comprimido con política de retención de 7 días.
+- [x] `scripts/restore.sh` — Restauración limpia de base de datos.
+- [x] `scripts/monitor.sh` — Chequeo de salud con auto-reinicio.
+- [x] **[Automatizado]** Permisos de ejecución aplicados por `install.sh`.
+- [x] **[Automatizado]** Instalación de tareas cron automáticas por `install.sh`.
+- [ ] Validar crontab: ejecutar `crontab -l` en el servidor para comprobar tareas (monitor, backup, update).
+- [ ] Testear ciclo completo manual usando el orquestador: `./erp.sh backup` → `./erp.sh logs` → probar caída del servicio.
 
 ---
 
@@ -189,11 +169,9 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 | Fase | Descripción | Estado |
 |:---:|:---|:---:|
 | 0 | Investigación y diseño | ✅ Completada |
-| 1 | Arquitectura pfSense y red | ✅ Completada (limpieza EasyRules pendiente) |
-| 2 | Servidor Debian base | 🔄 En progreso (Docker pendiente) |
-| 3 | Despliegue Docker | 🔄 Ficheros listos, despliegue pendiente |
-| 4 | Scripts DevOps | 🔄 Scripts listos, activación en servidor pendiente |
-| 5 | Auditoría PostgreSQL | 🔄 Script listo, ejecución en BD pendiente |
+| 1 | Arquitectura pfSense y red | ✅ Completada |
+| 2-4 | Despliegue Automatizado (Docker+DevOps) | ✅ Unificado en `install.sh` (Validación pdte) |
+| 5 | Auditoría PostgreSQL | ⏳ Ejecución pendiente |
 | 6 | UFW Firewall local | ⏳ Pendiente |
 | 7 | Pruebas globales | ⏳ Pendiente |
 | 8 | CI/CD GitHub Actions | 🔄 Workflows listos, runner pendiente |
