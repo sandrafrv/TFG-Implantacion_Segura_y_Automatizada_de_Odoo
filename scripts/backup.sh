@@ -9,31 +9,19 @@
 
 # --- VARIABLES DE CONFIGURACIÓN ---
 
-# $1 es el primer argumento que el usuario pasa al script (opcional).
-# Si no se pasa ningún argumento, se usa la ruta por defecto gracias al operador ":-"
 BACKUP_DIR="${1:-/opt/erp-odoo/backups}"
-
-# Genera una marca de tiempo con formato AÑO-MES-DÍA_HORA-MIN-SEG
-# Esto hace que cada backup tenga un nombre de archivo único
 FECHA=$(date +"%Y%m%d_%H%M%S")
 
 # Nombre exacto del contenedor Docker de PostgreSQL (definido en docker-compose.yml)
-DB_CONT="odoo-db"
-
-# Usuario de PostgreSQL que tiene permisos para hacer el volcado
+DB_CONT="odoo_erp"
 DB_USER="odoo"
-
-# Nombre de la base de datos que queremos respaldar
 DB_NAME="odoo_erp"
 
 # --- PREPARACIÓN DEL DIRECTORIO Y ESPACIO ---
 
-# Crea la carpeta de destino si no existe.
-# El flag -p crea también los directorios intermedios sin error si ya existen.
 mkdir -p "$BACKUP_DIR"
 echo "Usando directorio de backup: $BACKUP_DIR"
 
-# Comprueba espacio libre en la partición de backups
 ESPACIO_LIBRE=$(df -BG "$BACKUP_DIR" | awk 'NR==2 {print $4}' | sed 's/G//')
 if [ "$ESPACIO_LIBRE" -lt 1 ]; then
     echo "[ERROR] Espacio en disco crítico (${ESPACIO_LIBRE}GB libres). Abortando backup para no saturar el sistema."
@@ -44,28 +32,12 @@ fi
 
 echo "Iniciando volcado comprimido de la BBDD de Odoo..."
 
-# Ejecuta pg_dump DENTRO del contenedor Docker de PostgreSQL:
-#   -U → Usuario de PostgreSQL
-#   -d → Base de datos a volcar
-#   -F c → Formato "custom" (comprimido y portable para pg_restore)
-#   -f → Ruta dentro del contenedor donde se guarda el archivo temporal
 docker exec -t "$DB_CONT" pg_dump -U "$DB_USER" -d "$DB_NAME" -F c -f "/tmp/backup_${FECHA}.dump"
-
-# Copia el archivo generado desde DENTRO del contenedor al HOST (Debian)
 docker cp "$DB_CONT:/tmp/backup_${FECHA}.dump" "$BACKUP_DIR/backup_${FECHA}.dump"
-
-# Borra el temporal del contenedor para no desperdiciar espacio dentro de él
 docker exec -t "$DB_CONT" rm "/tmp/backup_${FECHA}.dump"
 
-# Confirma que el backup se ha completado con éxito e indica la ruta exacta del fichero
 echo "Backup completado y guardado en $BACKUP_DIR/backup_${FECHA}.dump"
 
 # --- POLÍTICA DE RETENCIÓN DE BACKUPS ---
-# Elimina automáticamente los archivos .dump con más de 7 días de antigüedad.
-# Justificación: práctica estándar documentada en el informe de referencia del proyecto
-# (Semana 10, estrategia de backups y recuperación). Evita que el disco se llene
-# con copias de seguridad ilimitadas en entornos de producción.
-# El flag -mtime +7 significa "modificado hace más de 7 días"
-# El flag -delete elimina los archivos encontrados
 find "$BACKUP_DIR" -name "backup_*.dump" -mtime +7 -delete
 echo "Limpieza de backups antiguos completada (política de retención: 7 días)."
