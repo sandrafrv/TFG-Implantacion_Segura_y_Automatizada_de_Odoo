@@ -33,7 +33,7 @@ services:
     volumes:
       # Mapeo: carpeta del HOST (Debian) → carpeta dentro del contenedor
       # Esto hace que los datos de PostgreSQL sobrevivan aunque el contenedor se borre o se recree.
-      - ./data/postgres:/var/lib/postgresql/data/pgdata
+      - ../data/postgres:/var/lib/postgresql/data/pgdata
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
@@ -67,12 +67,11 @@ services:
 
     volumes:
       # Módulos extra de Odoo (si instalamos aplicaciones específicas de la empresa)
-      - ./data/odoo_addons:/mnt/extra-addons
+      - ../data/odoo_addons:/mnt/extra-addons
       # Datos persistentes de Odoo (archivos subidos, sesiones, caché)
-      - ./data/odoo_web:/var/lib/odoo
+      - ../data/odoo_web:/var/lib/odoo
       # Archivo de configuración propio (activa proxy_mode y ajustes de rendimiento)
-      # El path "./docker/odoo.conf" es relativo a la raíz /opt/erp-odoo del proyecto
-      - ./docker/odoo.conf:/etc/odoo/odoo.conf
+      - ./odoo.conf:/etc/odoo/odoo.conf
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8069/web/health"]
@@ -108,9 +107,9 @@ services:
     volumes:
       # La configuración del Proxy se lee desde la carpeta config_nginx del proyecto
       # (relativa a la raíz /opt/erp-odoo)
-      - ./config_nginx:/etc/nginx/conf.d
+      - ../config_nginx:/etc/nginx/conf.d
       # Los certificados SSL generados con OpenSSL se leen desde la carpeta certs/
-      - ./certs:/etc/ssl/certs_local
+      - ../certs:/etc/ssl/certs_local
 
     healthcheck:
       test: ["CMD-SHELL", "nginx -t"]
