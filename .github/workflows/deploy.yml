@@ -1,4 +1,4 @@
-name: CD Deploy (Self-Hosted)  # Nombre del Workflow visible en la pestaña "Actions" de GitHub
+name: CD Deploy (Self-Hosted)
 
 # ============================================================
 # GITHUB ACTION: CD Deploy
@@ -11,34 +11,23 @@ name: CD Deploy (Self-Hosted)  # Nombre del Workflow visible en la pestaña "Act
 #                Ver: scripts/setup_runner.sh
 # ============================================================
 
-# --- DISPARADORES ---
 on:
-  # Solo se activa cuando el workflow de CI pasa correctamente en main.
-  # Esto garantiza que nunca se desplegará código que no haya pasado la validación.
   workflow_run:
-    workflows: ["CI Validator"]   # Debe coincidir exactamente con el "name:" de ci.yml
+    workflows: ["CI Validator"]
     types:
-      - completed                 # Se dispara cuando el CI termina (sea éxito o fallo)
+      - completed
     branches:
-      - main                      # Solo en la rama principal
+      - main
 
-# --- JOBS ---
 jobs:
 
   deploy:
     name: Desplegar Stack en Servidor Debian
-    # Este job SOLO se ejecuta si el CI anterior terminó con éxito.
-    # Sin esta condición, se ejecutaría también cuando el CI falla.
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
-    # ⬇️ CLAVE: "self-hosted" indica que este job NO corre en las VMs de GitHub,
-    # sino en el runner registrado manualmente en nuestro servidor Debian.
     runs-on: self-hosted
 
-    # --- STEPS ---
     steps:
 
-      # PASO 1: Verificación inicial del entorno en el servidor Debian
       - name: Verificar entorno del servidor
         run: |
           echo "============================================="
@@ -48,8 +37,17 @@ jobs:
           echo " Docker:   $(docker --version)"
           echo "============================================="
 
-      # PASO 2: Descargar las imágenes Docker más recientes desde Docker Hub.
-      # Esto garantiza que siempre corremos la versión más actualizada de cada imagen.
+      # PASO CLAVE: sincronizar el repositorio en el servidor antes de ejecutar
+      # cualquier script. Garantiza que siempre se usa la versión más reciente
+      # de los scripts del repo, no una copia antigua en /opt/erp-odoo.
+      - name: Sincronizar repositorio en el servidor (git pull)
+        working-directory: /opt/erp-odoo
+        run: |
+          echo "Sincronizando repositorio con origin/main..."
+          git fetch origin
+          git reset --hard origin/main
+          echo "Repositorio actualizado al commit: $(git rev-parse --short HEAD)"
+
       - name: Descargar imágenes Docker (docker pull)
         run: |
           echo "[1/3] Descargando imagen de PostgreSQL 16..."
@@ -63,15 +61,12 @@ jobs:
 
           echo "Todas las imágenes están actualizadas."
 
-      # PASO 3: Ejecutar el script de despliegue del proyecto.
-      # Este script levanta el stack con docker compose y espera a que Odoo esté sano.
       - name: Ejecutar deploy.sh
-        working-directory: /opt/erp-odoo   # Directorio raíz del proyecto en el servidor
+        working-directory: /opt/erp-odoo
         run: |
           echo "Ejecutando script de despliegue..."
           bash scripts/deploy.sh
 
-      # PASO 4: Mostrar el estado final de los contenedores para confirmar éxito.
       - name: Verificar estado del stack
         working-directory: /opt/erp-odoo
         run: |
