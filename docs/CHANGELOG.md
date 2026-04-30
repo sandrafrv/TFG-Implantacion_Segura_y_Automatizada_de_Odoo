@@ -10,6 +10,35 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 
 ---
 
+## [v1.3 — 2026-04-30]
+
+### Añadido
+
+- **Fase 6 completada:** Firewall de capa host UFW configurado y activo en el servidor Debian.
+  - Política por defecto: `deny incoming`, `allow outgoing`.
+  - Reglas activas: SSH (22/tcp), Cockpit (9090/tcp), HTTP (80/tcp), HTTPS (443/tcp) — IPv4 e IPv6.
+  - UFW habilitado y persistente en arranque del sistema (`ufw enable`).
+
+- **Fase 7 completada:** Validación global del sistema desde el cliente Ubuntu (VLAN 10).
+  - DNS interno configurado en `/etc/hosts` del cliente: `erp.techsolutions.local → 192.168.30.10`.
+  - Acceso HTTPS a `https://erp.techsolutions.local` validado desde el cliente.
+  - Logs de Nginx verificados: peticiones reales desde `192.168.10.101` con redirección HTTP→HTTPS (301).
+  - Prueba de auto-recuperación exitosa: contenedor `odoo-web` parado manualmente y recuperado automáticamente (Up 41s).
+  - Auditoría end-to-end validada: `user@tfg.prueba` registrado en `asir_audit_log` desde la UI web de Odoo.
+
+- **Fase 8 en progreso:** Configuración del runner self-hosted de GitHub Actions en el servidor Debian.
+  - `scripts/setup_runner.sh` — Script para automatizar el registro del runner.
+  - `.github/workflows/deploy.yml` — Pipeline CD configurado para ejecutarse en el runner `debian-dmz`.
+  - Descarga manual del agente GitHub Actions v2.334.0 iniciada en `/opt/actions-runner` como usuario `server`.
+
+### Corregido
+
+- **Nombre incorrecto del contenedor PostgreSQL** en `scripts/backup.sh`, `scripts/restore.sh` y `scripts/monitor.sh`:
+  los scripts usaban `odoo-db` como nombre del contenedor, pero el nombre real definido en `docker-compose.yml` es `odoo_erp`.
+  Corregido en commit `b0022e4`. Backup manual ejecutado tras la corrección: `backup_20260430_151554.dump` (1.38 MB) generado correctamente.
+
+---
+
 ## [v1.2 — 2026-04-30]
 
 ### Añadido
