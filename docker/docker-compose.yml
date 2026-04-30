@@ -1,13 +1,10 @@
-version: '3.8'
-# Docker Compose versión 3.8 - Define cómo orquestar múltiples contenedores juntos.
-
 # ====================================================================
 # STACK DOCKER: ERP Odoo TFG ASIR
 # DESCRIPCIÓN: Este archivo define los 3 servicios (contenedores) que
 #              forman el sistema ERP: Base de Datos, Aplicación Web y
 #              Proxy Inverso (puerta de entrada desde Internet).
 # USO: Ejecutar desde /opt/erp-odoo con:
-#      docker-compose -f docker/docker-compose.yml up -d
+#      docker compose -f docker/docker-compose.yml up -d
 # ====================================================================
 
 services:
@@ -18,31 +15,27 @@ services:
   # Odoo intentará conectarse a él en el arranque.
   # ------------------------------------------------------------------
   db:
-    image: postgres:16       # Imagen oficial de PostgreSQL versión 16 desde Docker Hub
-    container_name: odoo-db  # Nombre de referencia del contenedor (usado en los scripts y en monitor.sh)
-    restart: always          # Si el contenedor se cae por error, Docker lo reinicia automáticamente
+    image: postgres:16
+    container_name: odoo_erp
+    restart: always
 
     environment:
-      # Las variables se leen de forma segura desde el archivo .env oculto.
-      # El operador ${VARIABLE} busca el valor en el fichero .env de la misma carpeta.
-      - POSTGRES_DB=${POSTGRES_DB}           # Nombre de la base de datos que creará Postgres al arrancar
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD} # Contraseña del usuario de base de datos
-      - POSTGRES_USER=${POSTGRES_USER}       # Usuario administrador de la base de datos
-      - PGDATA=/var/lib/postgresql/data/pgdata # Ruta interna del contenedor donde almacena los datos
+      - POSTGRES_DB=odoo_erp
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo123
+      - PGDATA=/var/lib/postgresql/data/pgdata
 
     volumes:
-      # Mapeo: carpeta del HOST (Debian) → carpeta dentro del contenedor
-      # Esto hace que los datos de PostgreSQL sobrevivan aunque el contenedor se borre o se recree.
-      - ../data/postgres:/var/lib/postgresql/data/pgdata
+      - ./postgres-data:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
     networks:
-      - odoo_net  # Este contenedor estará en la red privada "odoo_net" (ver más abajo)
+      - odoo_net
 
   # ------------------------------------------------------------------
   # SERVICIO 2: Aplicación Web Odoo
@@ -50,38 +43,40 @@ services:
   # y guardar datos, pero nunca está expuesto directamente a Internet.
   # ------------------------------------------------------------------
   odoo:
-    image: odoo:17            # Imagen oficial de Odoo versión 17 Community Edition
-    container_name: odoo-web  # Nombre del contenedor (referenciado en backup.sh, restore.sh y monitor.sh)
-    restart: always           # Reinicio automático ante fallos
+    image: odoo:17
+    container_name: odoo-web
+    restart: always
 
     depends_on:
       db:
-        condition: service_healthy # Docker espera que el contenedor "db" esté "healthy" antes de arrancar este
+        condition: service_healthy
 
     environment:
-      # Odoo necesita saber cómo conectarse a PostgreSQL.
-      # HOST=db usa el nombre del contenedor como hostname DNS dentro de la red docker.
       - HOST=db
-      - USER=${POSTGRES_USER}       # El mismo usuario definido en el contenedor "db"
-      - PASSWORD=${POSTGRES_PASSWORD} # La misma contraseña
+      - USER=odoo
+      - PASSWORD=odoo123
+
+    user: "101:101"
 
     volumes:
-      # Módulos extra de Odoo (si instalamos aplicaciones específicas de la empresa)
-      - ../data/odoo_addons:/mnt/extra-addons
-      # Datos persistentes de Odoo (archivos subidos, sesiones, caché)
-      - ../data/odoo_web:/var/lib/odoo
-      # Archivo de configuración propio (activa proxy_mode y ajustes de rendimiento)
+      - ./addons:/mnt/extra-addons
+      - ./odoo-data:/var/lib/odoo
       - ./odoo.conf:/etc/odoo/odoo.conf
+      - ./odoo_sessions:/tmp/odoo
+
+    ports:
+      - "8069:8069"
+      - "8072:8072"
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8069/web/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8069/web/health" ]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s # Odoo tarda en arrancar la primera vez
+      retries: 6
+      start_period: 90s
 
     networks:
-      - odoo_net  # Misma red privada que "db" → pueden comunicarse entre sí
+      - odoo_net
 
   # ------------------------------------------------------------------
   # SERVICIO 3: Proxy Inverso Nginx
@@ -90,35 +85,29 @@ services:
   # Es el ÚNICO contenedor que abre puertos al Host (Debian).
   # ------------------------------------------------------------------
   nginx:
-    image: nginx:alpine       # Imagen de Nginx sobre Alpine Linux (muy ligera, ~5MB)
-    container_name: nginx-proxy # Nombre referenciado en monitor.sh
+    image: nginx:alpine
+    container_name: nginx-proxy
     restart: always
 
     depends_on:
-      odoo:
-        condition: service_healthy # El proxy espera a que Odoo esté "healthy" antes de arrancar
+      - odoo
 
     ports:
-      # Mapeo de puertos: puerto del HOST (Debian) → puerto del contenedor
-      # Así, las peticiones que llegan al Host en el puerto 80/443 las recoge Nginx
-      - "80:80"    # HTTP (solo para redirigir a HTTPS)
-      - "443:443"  # HTTPS (el tráfico real y seguro de Odoo)
+      - "80:80"
+      - "443:443"
 
     volumes:
-      # La configuración del Proxy se lee desde la carpeta config_nginx del proyecto
-      # (relativa a la raíz /opt/erp-odoo)
       - ../config_nginx:/etc/nginx/conf.d
-      # Los certificados SSL generados con OpenSSL se leen desde la carpeta certs/
       - ../certs:/etc/ssl/certs_local
 
     healthcheck:
-      test: ["CMD-SHELL", "nginx -t"]
+      test: [ "CMD-SHELL", "nginx -t" ]
       interval: 30s
       timeout: 5s
       retries: 3
 
     networks:
-      - odoo_net  # Misma red que los otros → puede resolver "odoo-web" como hostname
+      - odoo_net
 
 # ====================================================================
 # REDES DOCKER
@@ -129,4 +118,4 @@ services:
 # ====================================================================
 networks:
   odoo_net:
-    driver: bridge  # Tipo "bridge" = red virtual privada interna del host Docker
+    driver: bridge
