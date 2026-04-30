@@ -55,9 +55,10 @@ graph TD
 
     LAN_CLI --> PC_CLIENTE["Cliente Windows/Linux<br>192.168.10.x"]
     PC_CLIENTE -.->|Petición HTTPS 443| DOCKER_HOST
+    
 ```
 
-
+---
 ### Tabla de Direccionamiento IP
 
 | Zona | Subred (CIDR) | Gateway (pfSense) | IP del Sistema | Puertos Abiertos | Servicio |
