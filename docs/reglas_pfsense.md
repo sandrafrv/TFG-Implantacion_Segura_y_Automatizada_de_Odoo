@@ -8,21 +8,20 @@ La infraestructura cuenta con tres interfaces: **WAN** (red pública), **LAN** (
 ---
 
 ## Interfaz WAN
+
 *Firewall → Rules → WAN*
 
-Controla el tráfico que entra desde Internet hacia la red.
-
-| # | Estado | Protocolo | Source | Puerto | Destino | Puerto | Descripción |
-|---|:---:|:---:|:---|:---:|:---|:---:|:---|
-| 1 | ❌ Block | * | RFC 1918 networks | * | * | * | Block private networks *(auto)* |
-| 2 | ❌ Block | * | Reserved / Not assigned by IANA | * | * | * | Block bogon networks *(auto)* |
-| 3 | ❌ Block | IPv4 * | * | * | * | * | **Bloquear todo lo demás** *(regla final de denegación)* |
-| 4 | ✅ Pass | IPv4 TCP | * | * | WAN address | 80 (HTTP) | HTTP — redirige a HTTPS |
-| 5 | ✅ Pass | IPv4 TCP | * | * | WAN address | 443 (HTTPS) | HTTPS público hacia Odoo |
-| 6 | ✅ Pass | IPv4 TCP | * | * | 192.168.30.10 | 80 (HTTP) | NAT HTTP → Nginx Odoo |
-| 7 | ✅ Pass | IPv4 TCP | * | * | 192.168.30.10 | 443 (HTTPS) | NAT HTTPS → Nginx Odoo |
-| 8 | ✅ Pass | IPv4 TCP | 192.168.163.140 | * | 192.168.30.10 | 22 (SSH) | NAT SSH admin *(restringido a IP de administrador)* |
-| 9 | ✅ Pass | IPv4 TCP | 192.168.163.140 | * | 192.168.30.10 | 9090 | NAT Cockpit admin panel *(restringido a IP de administrador)* |
+| Posición | Estado | Protocolo | Origen | Destino | Puerto | Descripción |
+| :---: | :---: | :--- | :--- | :--- | :--- | :--- |
+| 1 | ❌ Block | * | Redes RFC 1918 | * | * | Block private networks (automática) |
+| 2 | ❌ Block | * | Redes Bogon | * | * | Block bogon networks (automática) |
+| 3 | ✅ Pass | IPv4 TCP | * | WAN address | 80 | HTTP (redirige a HTTPS) |
+| 4 | ✅ Pass | IPv4 TCP | * | WAN address | 443 | HTTPS público hacia Odoo |
+| 5 | ✅ Pass | IPv4 TCP | * | 192.168.30.10 | 80 | NAT HTTP → Nginx Odoo |
+| 6 | ✅ Pass | IPv4 TCP | * | 192.168.30.10 | 443 | NAT HTTPS → Nginx Odoo |
+| 7 | ✅ Pass | IPv4 TCP | `192.168.163.140` | 192.168.30.10 | 22 | NAT SSH admin (restringido) |
+| 8 | ✅ Pass | IPv4 TCP | `192.168.163.140` | 192.168.30.10 | 9090 | NAT Cockpit admin panel |
+| 9 | ❌ Block | IPv4 * | * | * | * | **Bloquear todo lo demás** |
 
 ### ⚠️ Puntos clave — WAN
 - Las reglas **Block private networks** y **Block bogon networks** son generadas automáticamente por pfSense al activar la opción en la interfaz WAN. Protegen contra spoofing de IPs privadas/reservadas.
@@ -160,10 +159,161 @@ Internet (WAN)
 
 ---
 
+## DNS — Resolución de Nombres para Odoo (proceso completo)
+*Services → DNS Resolver + Firewall → NAT → Port Forward*
+
+Esta sección documenta el proceso completo de configuración DNS para que los clientes de la VLAN 10 (192.168.10.0/24) accedan a Odoo mediante `https://erp.odoo.tfg.com` en lugar de por IP directa.
+
+---
+
+### Paso 1 — Host Override en el DNS Resolver
+
+*Services → DNS Resolver → Host Overrides → + Add*
+
+Asocia el nombre de dominio con la IP del servidor Odoo en la DMZ (VLAN 30):
+
+| Campo | Valor |
+|:---|:---|
+| **Host** | `erp.odoo` |
+| **Domain** | `tfg.com` |
+| **IP Address** | `192.168.30.10` |
+| **Description** | `Servidor Odoo ERP - DMZ` |
+
+➡️ **Save** → **Apply Changes**
+
+---
+
+### Paso 2 — DNS Server en el DHCP de la LAN
+
+*Services → DHCP Server → LAN → sección "Server Options"*
+
+Configurar pfSense como servidor DNS que reciben todos los clientes de la VLAN 10 por DHCP:
+
+| Campo | Valor |
+|:---|:---|
+| **DNS Server 1** | `192.168.10.1` |
+
+➡️ **Save** → **Apply Changes**
+
+> **Por qué es necesario:** Sin esto, los clientes usarán DNS públicos (8.8.8.8, etc.) que no conocen el Host Override interno y resolverán el dominio a una IP de internet incorrecta.
+
+---
+
+### Paso 3 — Regla NAT: Interceptar todo el DNS de la VLAN 10
+
+*Firewall → NAT → Port Forward → + Add*
+
+**Problema real encontrado durante el TFG:** Los clientes Linux modernos (Lubuntu, Ubuntu, Debian) utilizan `systemd-resolved` con `127.0.0.53` como stub DNS local. Este servicio puede ignorar el DNS enviado por DHCP y reenviar consultas a servidores DNS públicos externos, haciendo que `erp.odoo.tfg.com` resuelva a una IP real de internet (`185.151.30.174`) en lugar de a `192.168.30.10`.
+
+**Solución implementada:** Regla NAT de redirección que intercepta **cualquier consulta DNS** de la VLAN 10, sin importar a qué servidor DNS vaya dirigida:
+
+| Campo | Valor |
+|:---|:---|
+| **Interface** | `LAN` |
+| **Protocol** | `TCP/UDP` |
+| **Source** | `LAN subnets` (`192.168.10.0/24`) |
+| **Source Ports** | `*` |
+| **Destination** | `*` (cualquier IP exterior) |
+| **Destination port** | `53 (DNS)` |
+| **Redirect target IP** | `192.168.10.1` |
+| **Redirect target port** | `53` |
+| **Description** | `Forzar DNS VLAN10 → pfSense` |
+
+➡️ **Save** → **Apply Changes**
+
+> **Efecto:** Cualquier paquete UDP/TCP al puerto 53 desde la VLAN 10 es redirigido a pfSense (`192.168.10.1`), que responde con el Host Override correcto. Da igual que el cliente use 8.8.8.8, 1.1.1.1 o `127.0.0.53` — pfSense siempre intercepta y responde con `192.168.30.10`.
+
+---
+
+### Flujo completo de resolución DNS con la arquitectura real
+
+```
+Cliente VLAN 10 (192.168.10.101 — Lubuntu con systemd-resolved)
+        │
+        │  1. Pregunta DNS: "¿dónde está erp.odoo.tfg.com?"
+        │     systemd-resolved envía la consulta a 8.8.8.8:53
+        │
+        ▼ pfSense intercepta (Regla NAT Port Forward — LAN TCP/UDP :53)
+        │
+        │  2. Redirige a sí mismo → 192.168.10.1:53
+        ▼
+[ pfSense DNS Resolver ]
+        │
+        │  3. Consulta el Host Override → encuentra erp.odoo.tfg.com
+        │     Responde: 192.168.30.10
+        ▼
+Cliente recibe la IP: erp.odoo.tfg.com = 192.168.30.10
+        │
+        │  4. El cliente abre conexión HTTPS hacia 192.168.30.10:443
+        │     (permitida por reglas de firewall LAN→DMZ puerto 443)
+        ▼
+[ Nginx — 192.168.30.10:443 ]
+        │  proxy_pass → http://odoo:8069
+        ▼
+[ Contenedor Odoo :8069 ] ✅ — Login de Odoo 17
+```
+
+---
+
+### Paso 4 — Actualizar server_name en Nginx (servidor Debian)
+
+La configuración de Nginx debe coincidir con el dominio del Host Override.
+Ejecutar en el servidor Debian (`192.168.30.10`):
+
+```bash
+# Verificar el valor actual
+grep server_name /opt/erp-odoo/config_nginx/*.conf
+
+# Actualizar al dominio correcto si es necesario
+sudo sed -i 's/erp.techsolutions.local/erp.odoo.tfg.com/g' /opt/erp-odoo/config_nginx/*.conf
+
+# Confirmar el cambio
+grep server_name /opt/erp-odoo/config_nginx/*.conf
+# Debe mostrar: server_name erp.odoo.tfg.com;
+
+# Recargar Nginx sin cortar el servicio
+docker exec nginx-proxy nginx -s reload
+
+# Validar sintaxis de configuración
+docker exec nginx-proxy nginx -t
+# OK: "nginx: configuration file test is successful"
+```
+
+---
+
+### Verificación final — desde el cliente Lubuntu (VLAN 10)
+
+```bash
+# 1. Verificar que DNS resuelve a la IP interna (no a internet)
+nslookup erp.odoo.tfg.com
+# Debe devolver → Address: 192.168.30.10
+
+# 2. Verificar acceso HTTPS al servidor
+curl -k -I https://erp.odoo.tfg.com
+# Debe devolver → HTTP/2 200 o HTTP/1.1 302
+
+# 3. Abrir en navegador (siempre con https://)
+# https://erp.odoo.tfg.com
+```
+
+### ⚠️ Puntos clave
+
+- **La regla NAT Port Forward** (Paso 3) es imprescindible en entornos con clientes Linux modernos (`systemd-resolved`). Sin ella, el DNS interno no funciona aunque el DHCP esté bien configurado.
+- **El DNS Resolver** debe estar activo: `Services → DNS Resolver → General Settings → Enable ✅` con interfaz LAN incluida.
+- **`server_name` de Nginx** debe coincidir con el dominio del Host Override (`erp.odoo.tfg.com`).
+- **En el navegador** siempre escribir con `https://` para que no lo interprete como búsqueda.
+- El dominio `tfg.com` existe en internet; la regla NAT garantiza que pfSense responda antes que cualquier DNS público.
+
+---
+
+
 ## Acciones pendientes / mejoras recomendadas
 
-- [ ] **Limpiar reglas EasyRule duplicadas** en OPT1: hay HTTP, HTTPS y DNS repetidos. Consolidar en una sola regla por protocolo/puerto.
-- [ ] **Eliminar o restringir** la regla `Passed via EasyRule` con `IPv4 *` (allow all) en OPT1 — es demasiado permisiva.
-- [ ] **Verificar el orden** en OPT1: las reglas de bloqueo (B1, B2) deben estar antes de las reglas de permiso.
-- [ ] Confirmar si la regla `IPv4 *` al final de WAN (Bloquear todo lo demás) está correctamente posicionada como última regla.
-- [ ] Documentar la IP real del administrador (`192.168.163.140`) en el inventario del proyecto.
+- [x] **Limpiar reglas EasyRule duplicadas** en OPT1: hay HTTP, HTTPS y DNS repetidos. Consolidar en una sola regla por protocolo/puerto.
+- [x] **Eliminar o restringir** la regla `Passed via EasyRule` con `IPv4 *` (allow all) en OPT1 — es demasiado permisiva.
+- [x] **Configurar DNS Resolver** con Host Override `erp.odoo.tfg.com → 192.168.30.10` para resolución de nombres interna.
+- [x] **Regla NAT DNS redirect** en Port Forward para interceptar consultas DNS de VLAN 10 y forzarlas a pfSense.
+- [x] **Actualizar server_name de Nginx** a `erp.odoo.tfg.com` en el servidor Debian.
+- [x] **Verificar el orden** en OPT1: las reglas de bloqueo (B1, B2) deben estar antes de las reglas de permiso. (¡Correcto en las capturas!)
+- [x] Confirmar si la regla `IPv4 *` al final de WAN (Bloquear todo lo demás) está correctamente posicionada como última regla. (¡Detectado como erróneo! Ver aviso arriba).
+- [x] Documentar la IP real del administrador (`192.168.163.140`) en el inventario del proyecto.

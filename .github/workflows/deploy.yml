@@ -45,9 +45,11 @@ jobs:
 
       - name: Sincronizar repositorio en el servidor (git pull)
         working-directory: /opt/erp-odoo
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "Sincronizando repositorio con origin/main..."
-          git fetch origin
+          git -c http.extraHeader="AUTHORIZATION: bearer $GH_TOKEN" fetch origin
           git reset --hard origin/main
           echo "Repositorio actualizado al commit: $(git rev-parse --short HEAD)"
 

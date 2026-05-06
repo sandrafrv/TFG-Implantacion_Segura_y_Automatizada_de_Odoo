@@ -61,7 +61,7 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 - [x] `scripts/monitor.sh` — Chequeo de salud con auto-reinicio.
 - [x] **[Automatizado]** Permisos de ejecución aplicados por `install.sh`.
 - [x] **[Automatizado]** Instalación de tareas cron automáticas por `install.sh`.
-- [ ] Validar crontab: ejecutar `crontab -l` en el servidor para comprobar tareas (monitor, backup, update).
+- [x] Validar crontab: verificar tareas instaladas en `/etc/cron.d/erp-odoo` por el script de despliegue.
 - [ ] Testear ciclo completo manual usando el orquestador: `./erp.sh backup` → `./erp.sh logs` → probar caída del servicio.
 
 ---
@@ -133,8 +133,8 @@ Marca con `[x]` las tareas a medida que se vayan completando en el entorno real 
 
 ## Fase 10: Documentación Final y Defensa
 
-- [ ] Revisar y completar `docs/implementation_plan.md` con todas las decisiones técnicas tomadas.
-- [ ] Actualizar `CHANGELOG.md` con los cambios de cada sesión de trabajo.
+- [x] Revisar y completar `docs/implementation_plan.md` con todas las decisiones técnicas tomadas.
+- [x] Actualizar `CHANGELOG.md` con los cambios de cada sesión de trabajo.
 - [ ] Redactar la **Memoria del TFG** con estructura formal: introducción, objetivos, arquitectura, implementación, pruebas y conclusiones.
 - [ ] Preparar capturas de pantalla para la memoria: Cockpit, pfSense, Odoo funcionando, GitHub Actions.
 - [ ] Preparar demostración en vivo para la defensa: ciclo completo deploy → backup → restore → auditoría.

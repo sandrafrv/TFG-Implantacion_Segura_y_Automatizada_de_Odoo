@@ -168,6 +168,89 @@ Las reglas se definen en **Firewall > Rules** por interfaz. El orden importa: pf
 - IP de redirección: `192.168.30.10`
 - Puerto de redirección: `80` y `443`
 
+### 1.4 Resolución de Nombres DNS Interna (pfSense DNS Resolver)
+
+> ✅ **Completado:** Host Override configurado, regla NAT DNS redirect activa y `server_name` de Nginx actualizado a `erp.odoo.tfg.com`.
+
+Para que los clientes de la VLAN 10 accedan a Odoo mediante `https://erp.odoo.tfg.com` en lugar de por IP directa, se configuran tres elementos en pfSense:
+
+#### Paso 1 — Host Override en el DNS Resolver
+
+*Services → DNS Resolver → Host Overrides → + Add*
+
+| Campo | Valor |
+|:---|:---|
+| **Host** | `erp.odoo` |
+| **Domain** | `tfg.com` |
+| **IP Address** | `192.168.30.10` |
+| **Description** | `Servidor Odoo ERP - DMZ` |
+
+Guardar → Apply Changes.
+
+#### Paso 2 — Servidor DNS en el DHCP de la LAN
+
+*Services → DHCP Server → LAN → Server Options → DNS Server 1: `192.168.10.1`*
+
+Esto fuerza a que los clientes que reciban IP por DHCP usen pfSense como DNS primario.
+
+#### Paso 3 — Regla NAT: Interceptar todo el DNS de la VLAN 10
+
+*Firewall → NAT → Port Forward → + Add*
+
+**Problema real:** Los clientes Linux modernos (Lubuntu, Ubuntu) usan `systemd-resolved` con `127.0.0.53` como stub local, lo que puede ignorar el DNS del DHCP y consultar directamente a servidores públicos (8.8.8.8), obteniendo la IP real de internet de `tfg.com` en lugar de `192.168.30.10`.
+
+**Solución:** Redirigir todo el tráfico UDP/TCP al puerto 53 originado desde la VLAN 10 hacia pfSense:
+
+| Campo | Valor |
+|:---|:---|
+| **Interface** | `LAN` |
+| **Protocol** | `TCP/UDP` |
+| **Source** | `LAN subnets` (`192.168.10.0/24`) |
+| **Destination** | `*` (cualquier IP exterior) |
+| **Destination port** | `53 (DNS)` |
+| **Redirect target IP** | `192.168.10.1` |
+| **Redirect target port** | `53` |
+| **Description** | `Forzar DNS VLAN10 → pfSense` |
+
+Guardar → Apply Changes.
+
+Con esta regla, da igual que el cliente apunte a `8.8.8.8`, `1.1.1.1` o `127.0.0.53`: pfSense intercepta la consulta y responde con el Host Override correcto (`192.168.30.10`).
+
+#### Paso 4 — Actualizar server_name en Nginx
+
+La directiva `server_name` del contenedor Nginx debe coincidir con el dominio configurado en el Host Override:
+
+```bash
+# Actualizar el dominio en la configuración de Nginx
+sudo sed -i 's/erp.techsolutions.local/erp.odoo.tfg.com/g' /opt/erp-odoo/config_nginx/*.conf
+
+# Recargar Nginx sin cortar el servicio
+docker exec nginx-proxy nginx -s reload
+
+# Validar sintaxis
+docker exec nginx-proxy nginx -t
+# Resultado esperado: "nginx: configuration file test is successful"
+```
+
+#### Flujo completo de resolución DNS
+
+```
+Cliente VLAN 10 (systemd-resolved → intenta 8.8.8.8:53)
+        │
+        ▼ pfSense intercepta (NAT Port Forward LAN TCP/UDP :53)
+        │
+[ pfSense DNS Resolver ] → Host Override → responde: 192.168.30.10
+        │
+        ▼
+Cliente abre HTTPS hacia 192.168.30.10:443
+        │
+[ Nginx :443 ] → proxy_pass → http://odoo-web:8069
+        │
+[ Contenedor Odoo :8069 ] ✅
+```
+
+> Documentación detallada completa en [`docs/reglas_pfsense.md`](./reglas_pfsense.md) — sección *DNS — Resolución de Nombres para Odoo*.
+
 ---
 
 ## Fase 2: Configuración del Servidor Base (Debian 12)
@@ -508,23 +591,35 @@ sudo ufw status verbose
 
 ### 7.1 Prueba de Acceso desde el Cliente (VLAN 10)
 
+> ✅ **Completado [2026-04-30]:** DNS interno, NAT redirect y acceso HTTPS validados desde cliente Lubuntu (VLAN 10).
+
 Desde el equipo cliente en la red LAN (`192.168.10.x`):
 
-**Opción A — DNS local en pfSense:**
-Ir a **Services > DNS Resolver** en pfSense y añadir un host override:
-- Host: `erp`
-- Domain: `techsolutions.local`
-- IP: `192.168.30.10`
+**DNS interno pfSense (método principal — CONFIGURADO ✅):**
 
-**Opción B — Archivo hosts en el cliente:**
+La resolución DNS está completamente configurada en pfSense (ver [Fase 1.4](#14-resolución-de-nombres-dns-interna-pfsense-dns-resolver) y `docs/reglas_pfsense.md` para el detalle completo). El cliente obtiene automáticamente `192.168.30.10` al resolver `erp.odoo.tfg.com`.
+
+Verificación desde el cliente:
+
+```bash
+# Verificar que DNS resuelve a la IP interna (no a internet)
+nslookup erp.odoo.tfg.com
+# Debe devolver → Address: 192.168.30.10
+
+# Verificar acceso HTTPS
+curl -k -I https://erp.odoo.tfg.com
+# Debe devolver → HTTP/2 200 o HTTP/1.1 302
+```
+
+**Alternativa — Archivo hosts en el cliente (si no hay DNS):**
 ```
 # En Windows: C:\Windows\System32\drivers\etc\hosts
 # En Linux:   /etc/hosts
-192.168.30.10   erp.techsolutions.local
+192.168.30.10   erp.odoo.tfg.com
 ```
 
 **Verificación final:**
-1. Abrir navegador en el cliente → `https://erp.techsolutions.local`
+1. Abrir navegador en el cliente → `https://erp.odoo.tfg.com`
 2. Aceptar el aviso del certificado autofirmado
 3. Debe aparecer la pantalla de login de Odoo 17
 4. Iniciar sesión con las credenciales creadas durante la instalación de Odoo
@@ -534,9 +629,9 @@ Ir a **Services > DNS Resolver** en pfSense y añadir un host override:
 1. En Odoo → **Ajustes > Usuarios** → Crear un nuevo usuario
 2. Volver al servidor y ejecutar:
 ```bash
-docker exec -it odoo-db psql -U odoo -d odoo_erp -c "SELECT * FROM asir_audit_log ORDER BY action_time DESC;"
+docker exec -it odoo_erp psql -U odoo -d odoo_erp -c "SELECT * FROM asir_audit_log ORDER BY action_time DESC;"
 ```
-Debe aparecer una fila con `action_type = 'CREACION USUARIO'`.
+Debe aparecer una fila con `action_type = 'CREACION_USUARIO'`.
 
 ---
 
@@ -564,7 +659,7 @@ chmod +x /opt/erp-odoo/scripts/setup_runner.sh
 ```
 
 El script pedirá interactivamente:
-1. La URL del repositorio (`https://github.com/<usuario>/TFG-ASIRB`)
+1. La URL del repositorio (`https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git`)
 2. El token de registro de GitHub (no se muestra en pantalla)
 
 Después, automáticamente:
@@ -596,6 +691,8 @@ En la pestaña **Actions** del repositorio de GitHub:
 - El runner ejecutará `scripts/deploy.sh` en el servidor
 - Al finalizar, los contenedores estarán actualizados y funcionando
 
+> 🔄 **En Progreso [2026-05-05]:** Agente runner descargado en `/opt/actions-runner`. Pendiente configuración del servicio systemd y ejecución final del pipeline CD.
+
 ## Fase 9: Mejoras de Automatización Avanzada (Scripting y Docker)
 
 ### ¿Por qué estas mejoras?
@@ -615,19 +712,15 @@ Para acercar el despliegue a una experiencia de "enchufar servidor y olvidarse",
 
 ---
 
-## Resumen de Ejecución y Orden de Arranque
-
----
-
 ## Fase 10: Documentación Final y Defensa
 
 ### ¿Por qué esta fase?
 La última etapa del TFG consiste en asegurar que toda la implantación técnica se refleja correctamente en la memoria escrita y preparar el material necesario para la demostración práctica ante el tribunal.
 
 ### 10.1 Cierre de Documentación Técnica
-- **Plan de Implantación**: Asegurar que este documento refleja la arquitectura final con sus automatizaciones.
-- **Changelog**: Asegurar que `CHANGELOG.md` recoge todas las sesiones de trabajo.
-- **Readme**: Consolidar el `README.md` como una guía rápida de despliegue ("Quickstart").
+- **Plan de Implantación**: ✅ Actualizado y revisado. Refleja la arquitectura final con sus automatizaciones.
+- **Changelog**: ✅ Actualizado con las últimas sesiones de trabajo (`v1.5`).
+- **Readme**: Consolidar el `README.md` como una guía rápida de despliegue ("Quickstart"). (Pendiente)
 
 ### 10.2 Preparación de la Memoria
 Trasladar todo el trabajo técnico a la estructura formal requerida por el TFG:
@@ -651,7 +744,9 @@ Una vez desplegado todo el sistema, el orden correcto de arranque ante un reinic
 
 1. **Encender la VM de pfSense** → esperar a que las interfaces de red estén activas
 2. **Encender la VM de Debian** → Docker arranca automáticamente y levanta los tres contenedores
-3. **Verificar desde el cliente** → abrir `https://erp.techsolutions.local` y comprobar acceso al ERP
+3. **Verificar desde el cliente** → abrir `https://erp.odoo.tfg.com` y comprobar acceso al ERP
 4. **Acceder a Cockpit** → `https://192.168.30.10:9090` para monitorizar el estado del servidor
 
 El sistema es autosuficiente: los contenedores Docker tienen `restart: always`, por lo que si el servidor se reinicia o un contenedor falla, se recuperan solos. El script `monitor.sh` ejecutado por cron cada 5 minutos proporciona una capa adicional de supervisión activa.
+
+> 📌 **Dominio de acceso final:** `https://erp.odoo.tfg.com` — resuelto internamente por pfSense DNS Resolver con Host Override hacia `192.168.30.10`.
