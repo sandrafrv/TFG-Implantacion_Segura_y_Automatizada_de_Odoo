@@ -10,6 +10,47 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 
 ---
 
+## [v1.4 — 2026-05-06]
+
+### Corregido
+
+- **Fallo del pipeline CD Deploy — base de datos Odoo no inicializada:**
+  El job `Desplegar Stack en Servidor Debian` completaba con resultado `Failed` de forma
+  repetida (5+ ejecuciones consecutivas entre las 16:21 y las 17:57 UTC).
+
+  **Causa raíz:** El archivo `.env` no existía en el servidor (`/opt/erp-odoo/.env`).
+  Al arrancar el stack Docker sin variables de entorno, Odoo no podía conectarse a
+  PostgreSQL y la base de datos `odoo_erp` quedaba sin inicializar. La tabla
+  `ir_module_module` no existía, lo que provocaba el error en cascada:
+  ```
+  ERROR: relation "ir_module_module" does not exist
+  KeyError: 'ir.http'
+  GET /web/health HTTP/1.1" 500
+  ```
+  El healthcheck del contenedor fallaba y el script `deploy.sh` agotaba los 30 intentos
+  (300 segundos) sin que Odoo respondiera.
+
+  **Solución aplicada:**
+  1. Parada completa del stack: `docker compose -f docker/docker-compose.yml down`.
+  2. Borrado de los volúmenes de datos corruptos:
+     `sudo rm -rf postgres-data/pgdata` y `sudo rm -rf odoo-data/filestore`.
+  3. Creación del archivo `.env` a partir de la plantilla:
+     `cp .env.example .env` y configuración de credenciales.
+  4. Reinicio del stack: `docker compose -f docker/docker-compose.yml up -d`.
+  5. Odoo inicializó la base de datos desde cero correctamente.
+     Primer healthcheck exitoso: `GET /web/health HTTP/1.1" 200` a las 18:08:12 UTC.
+
+  **Causa secundaria detectada:** El directorio `/opt/erp-odoo` contenía una carpeta
+  `postgres-data/pgdata/` con permisos de `root` inaccesibles para el usuario `server`,
+  lo que impedía a git listar el directorio (advertencia `Permiso denegado`).
+
+  **Prevención:** El archivo `.env` debe crearse manualmente en el servidor durante el
+  proceso de instalación inicial (`install.sh`). Ver `.env.example` para referencia de
+  las variables requeridas (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
+  `ODOO_MASTER_PASSWORD`).
+
+---
+
 ## [v1.3 — 2026-04-30]
 
 ### Añadido
