@@ -56,9 +56,22 @@ done
 echo "[2/4] Desplegando infraestructura Docker Compose..."
 docker compose -f docker/docker-compose.yml up -d
 
+# --- INICIALIZACIÓN AUTOMÁTICA DE BASE DE DATOS (SI ES NUEVA) ---
+echo "[3/4] Comprobando estado de la base de datos..."
+# Comprobamos directamente en PostgreSQL si la tabla maestra de Odoo existe
+HAS_TABLES=$(docker exec odoo_erp psql -U odoo -d odoo_erp -tAc "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'ir_module_module');" 2>/dev/null || echo "f")
+
+if [ "$HAS_TABLES" = "f" ] || [ "$HAS_TABLES" = "false" ]; then
+    echo "  [!] Base de datos vacía detectada. Inicializando estructura de Odoo (esto puede tardar 1-2 minutos)..."
+    docker exec odoo-web bash -c 'odoo -w "$PASSWORD" -d odoo_erp -i base --stop-after-init --http-port=8070'
+    echo "  [OK] Base de datos inicializada."
+else
+    echo "  [OK] La base de datos ya está inicializada."
+fi
+
 # --- VERIFICACIÓN DE SALUD ---
 
-echo "[3/4] Esperando a que Odoo esté disponible (máx. 5 minutos)..."
+echo "[4/4] Esperando a que Odoo esté disponible (máx. 5 minutos)..."
 
 INTENTO=1
 until curl -sf -k https://127.0.0.1/web/health -o /dev/null; do
@@ -77,4 +90,5 @@ echo "Estado actual de los contenedores:"
 docker compose -f docker/docker-compose.yml ps
 
 echo ""
-echo "[OK] Stack desplegado y Odoo operativo en https://erp.techsolutions.local"
+echo "[OK] Stack desplegado y Odoo operativo en https:/erp.odoo.local"
+
