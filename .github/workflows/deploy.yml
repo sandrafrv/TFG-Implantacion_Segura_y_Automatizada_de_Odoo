@@ -49,7 +49,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "Sincronizando repositorio con origin/main..."
-          git -c http.extraHeader="AUTHORIZATION: bearer $GH_TOKEN" fetch origin
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+          git fetch origin
           git reset --hard origin/main
           echo "Repositorio actualizado al commit: $(git rev-parse --short HEAD)"
 
