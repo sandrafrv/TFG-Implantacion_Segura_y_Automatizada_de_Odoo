@@ -216,7 +216,7 @@ Antes de definir la arquitectura, se evaluó comparativamente con otras solucion
 | **Implantación de Aplicaciones Web** | Proxy inverso Nginx con terminación SSL/TLS, cabeceras de seguridad HTTP (HSTS, X-Frame-Options), WebSocket para LiveChat |
 | **Gestión de Bases de Datos** | Triggers PL/pgSQL con auditoría en formato JSONB, función `func_audit_users()`, tabla `asir_audit_log`, vista `v_audit_resumen` |
 | **Servicios de Red** | Configuración de VLANs (10/30), DHCP en pfSense, NAT/Port Forwarding, DNS interno, redes MACVLAN Docker |
-|**Redes**| Configuracion de VLANs (10/30)|
+|**Redes**| Configuracion de VLANs (10/30), monitorizacion de la red y los paquetes, topologia de red|
 |**Arquitectura de la Nube **| Creacion y uso de Dockers, uso del servidor de proxy inverso NGINX |
 |**Administracion de Sistemas Operativos**| Creacion y gestion de servidor LDAP, creacion y uso de scripts bash |
 | **DevOps** | Scripts Bash para despliegue, backup, restauración, monitorización y CI/CD con GitHub Actions |
