@@ -218,6 +218,7 @@ Antes de definir la arquitectura, se evaluó comparativamente con otras solucion
 | **Servicios de Red** | Configuración de VLANs (10/30), DHCP en pfSense, NAT/Port Forwarding, DNS interno, redes MACVLAN Docker |
 |**Redes**| Configuracion de VLANs (10/30)|
 |**Arquitectura de la Nube **| Creacion y uso de Dockers, uso del servidor de proxy inverso NGINX |
+|**Administracion de Sistemas Operativos**| Creacion y gestion de servidor LDAP, creacion y uso de scripts bash |
 | **DevOps** | Scripts Bash para despliegue, backup, restauración, monitorización y CI/CD con GitHub Actions |
 
 ---
