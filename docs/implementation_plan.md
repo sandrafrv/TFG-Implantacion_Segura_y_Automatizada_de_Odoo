@@ -1,752 +1,910 @@
-# Plan de Implantación Detallado: Odoo ERP con pfSense y Docker (TFG ASIR)
+# Plan de Implementación — Infraestructura como Código
+## TFG: Implantación Segura y Automatizada de Odoo
+### GitHub como Plataforma Central de Despliegue
 
-Este documento es la **hoja de ruta técnica principal** del proyecto. Contiene todos los pasos necesarios para desplegar el sistema ERP completo, con los comandos exactos a ejecutar, la justificación de cada decisión técnica y el orden correcto de ejecución. Sigue este plan de principio a fin para reproducir el entorno desde cero.
-
----
-
-## Fase 0: Justificación Técnica e Investigación Previa
-
-> ✅ **Completado:** Fase de investigación, comparativa de ERPs y diseño de arquitectura finalizada.
-> Esta fase documenta las decisiones de diseño tomadas **antes de la implantación**, basadas en la investigación técnica previa. No requiere ejecución de comandos — es la base académica del proyecto.
-
-### 0.1 Elección del ERP: Odoo vs Alternativas
-
-Se evaluaron tres soluciones ERP de código abierto antes de elegir Odoo 17:
-
-| Criterio | **Odoo 17** | Dolibarr | ERPNext |
-| :--- | :--- | :--- | :--- |
-| Facilidad de uso | ✅ Alta — interfaz moderna | Media — básico | Media — abrumador |
-| Flexibilidad de API | ✅ XML-RPC + JSON-RPC maduro | Limitada | Alta pero compleja |
-| Consumo de recursos | Moderado (VM decente) | ✅ Muy ligero | Pesado |
-| Cobertura funcional | ✅ CRM, Ventas, RRHH, Inventario | Básico | Muy completo |
-| Módulos de comunidad | ✅ Muy amplia | Moderada | Moderada |
-| **Veredicto** | ✅ **Elegido** | Descartado | Descartado |
-
-**Justificación**: Odoo 17 CE ofrece la mejor relación entre cobertura funcional, flexibilidad de integración y documentación oficial para un entorno académico ASIR.
-
-### 0.2 Decisión de Sistema Operativo: Debian 12 vs Ubuntu/Mint
-
-El informe de investigación menciona "Linux Mint 22 / base Ubuntu" como alternativa, pero el proyecto elige **Debian 12 (Bookworm)** por:
-- **Estabilidad superior**: Debian tiene ciclos de soporte más largos que Ubuntu LTS
-- **Estándar de producción**: La documentación de Odoo cita Debian como sistema de referencia
-- **Sin snap ni paquetes propietarios**: El servidor queda limpio y predecible
-- **Compatibilidad con Docker**: `docker.io` está disponible directamente en los repositorios oficiales de Debian
-
-### 0.3 Nota Técnica: Redes Docker — Bridge vs Macvlan
-
-La investigación menciona redes **macvlan** para exponer contenedores directamente a pfSense con IPs propias de la red física. Se evaluó su implementación:
-
-**¿Qué es macvlan?**
-Macvlan asigna a cada contenedor una dirección MAC e IP propias de la red física (VLAN 30, rango `192.168.30.x`). pfSense los vería como hosts físicos separados, no como un único servidor.
-
-**¿Por qué se descarta en este TFG?**
-- Requiere configuración adicional en el kernel del host Debian (`ip link add macvlan0 link eth0 type macvlan`)
-- El contenedor host pierde comunicación con sus propios contenedores macvlan en algunos drivers
-- Aumenta la complejidad de depuración sin aporte académico diferencial
-- El modo **bridge** (tipo `bridge` en Docker Compose) es suficiente para la arquitectura DMZ con un único punto de entrada (Nginx en `192.168.30.10`)
-
-**Documentado como mejora futura**: macvlan es la solución para entornos de producción real donde cada contenedor necesita su propia identidad de red ante el firewall.
-
-### 0.4 Referencias Técnicas del Proyecto
-
-| Área | Recurso | URL |
-| :--- | :--- | :--- |
-| Redes/pfSense | Configuración VLAN — Netgate | https://docs.netgate.com/pfsense/en/latest/vlan/configuration.html |
-| Docker en DMZ | Macvlan Network en pfSense | https://vegard.blog.engen.priv.no/?p=364 |
-| Hardening Linux | Linux Server Hardening Checklist 2026 | https://hostperl.com/blog/linux-server-hardening-checklist-essential-security-controls-production-2026 |
-| Estándar CIS | CIS Linux Mint 22 Benchmark v1.0.0 | https://www.scribd.com/document/946643717/CIS-Linux-Mint-22-Benchmark-v1-0-0 |
-| Odoo despliegue | Producción y Workers Multiproceso | https://www.odoo.com/documentation/19.0/administration/on_premise/deploy.html |
-| Nginx para Odoo | Proxy Inverso y SSL | https://oec.sh/guides/odoo-nginx-config |
-| PostgreSQL | Generic Audit Trigger (PL/pgSQL) | https://wiki.postgresql.org/wiki/Audit_trigger |
-| Odoo Backup | Backup y Disaster Recovery | https://oec.sh/guides/odoo-backup-recovery |
+**Proyecto:** TFG — Implantación Segura y Automatizada de Odoo
+**Repositorio:** [sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo](https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo)
+**Autores:** Sandra Fradejas Avedillo · Mario García García · Javier Córdoba Del Valle
+**Centro:** IES Cañaveral — ASIR 2025/2026
 
 ---
 
+## Resumen ejecutivo
 
-## Arquitectura General del Sistema
+Este documento describe la arquitectura completa de la infraestructura del TFG, donde **GitHub actúa como fuente de verdad y plataforma central de despliegue**. Todo el estado deseado del sistema — scripts de configuración, red MACVLAN, hardening SSH, roles de Odoo y el propio stack Docker — está versionado en el repositorio. El servidor Debian no decide nada por sí mismo: aplica exactamente lo que hay en la rama `main` cada vez que el pipeline de CI/CD se dispara.
 
-### ¿Por qué esta arquitectura?
-
-El diseño separa el sistema en tres capas de red diferenciadas (WAN → LAN → DMZ) gestionadas por pfSense. Esta segmentación garantiza que el servidor ERP en la DMZ nunca sea accesible directamente desde Internet sin pasar por el firewall, y que los equipos de la LAN tampoco puedan acceder al servidor sin reglas explícitas.
-
-Dentro del servidor Debian, se usa Docker para aislar los tres procesos principales (base de datos, aplicación y proxy inverso) entre sí. Nginx es el único punto de entrada desde el exterior: el contenedor Odoo y el de PostgreSQL nunca exponen puertos al host, garantizando que no puedan ser atacados directamente.
-
-### Diagrama de Conexiones Lógicas
-
-```mermaid
-graph TD
-    WAN((Internet / WAN)) -->|DHCP Externo| PFSENSE[pfSense Firewall/Router]
-    PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ / Servidor Principal]
-    PFSENSE -->|Gateway: 192.168.10.1| LAN_CLI[VLAN 10 - LAN Clientes]
-
-    DMZ --> DOCKER_HOST["Servidor Único Debian 12<br>192.168.30.10"]
-
-    subgraph DOCKER_HOST ["Servidor Único Debian 12 (192.168.30.10)"]
-        NGINX_PROXY["Contenedor Nginx<br>(Puertos 80/443 al Host)"]
-        ODOO_DOCKER["Contenedor Odoo<br>(Aislado en Red Docker)"]
-        PG_DOCKER["Contenedor PostgreSQL<br>(Aislado en Red Docker)"]
-        NGINX_PROXY -.->|ProxyPass :8069| ODOO_DOCKER
-        ODOO_DOCKER -.->|SQL :5432| PG_DOCKER
-    end
-
-    LAN_CLI --> PC_CLIENTE["Cliente Windows/Linux<br>192.168.10.x"]
-    PC_CLIENTE -.->|Petición HTTPS 443| DOCKER_HOST
-```
-
-### Tabla de Direccionamiento IP
-
-| Zona | Subred (CIDR) | Gateway (pfSense) | IP del Sistema | Puertos expuestos | Servicio |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **WAN** | Red DHCP del router físico | Router ISP | IP dinámica WAN | `80`, `443` (NAT) | Entrada desde Internet |
-| **DMZ (VLAN 30)** | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | `22`, `80`, `443`, `9090` | Servidor Debian + Docker |
-| **LAN Clientes (VLAN 10)** | `192.168.10.0/24` | `192.168.10.1` | `192.168.10.x` | — | Equipo cliente de usuario |
-| *(Contenedor nginx)* | Red Docker interna | Switch Docker | Dinámica | `80`, `443` → host | Proxy Inverso |
-| *(Contenedor odoo)* | Red Docker interna | Switch Docker | Dinámica | `8069` (cerrado) | Aplicación Odoo 17 |
-| *(Contenedor db)* | Red Docker interna | Switch Docker | Dinámica | `5432` (cerrado) | PostgreSQL 16 |
+El enfoque seguido es **Infrastructure as Code (IaC)**: si el servidor se pierde o hay que replicar el entorno, basta con registrar un nuevo runner y hacer un push a `main` para restaurar todo el sistema automáticamente.
 
 ---
 
-## Fase 1: Preparación del Entorno de Red (pfSense)
+## 1. Arquitectura general
 
-> ✅ **Completado:** Máquinas virtuales creadas, interfaces asignadas y reglas de firewall/NAT configuradas y documentadas.
-
-### ¿Por qué pfSense?
-
-pfSense es un firewall de código abierto basado en FreeBSD que permite segmentar la red en zonas (WAN, LAN, DMZ), gestionar DHCP por zona, crear reglas de firewall por interfaz y hacer NAT/Port Forwarding. Es la solución estándar para simular un entorno empresarial real en un TFG.
-
-### 1.1 Creación de Máquinas Virtuales
-
-Crear en VirtualBox las siguientes VMs en este orden:
-
-**VM 1 — pfSense (Firewall/Enrutador):**
-- RAM: 1 GB | CPU: 1 core | Disco: 10 GB
-- Adaptador 1: NAT o Bridged → será la interfaz **WAN** (salida a Internet)
-- Adaptador 2: Red Interna `"LAN"` → será la interfaz **LAN Clientes (VLAN 10)**
-- Adaptador 3: Red Interna `"DMZ"` → será la interfaz **DMZ (VLAN 30)**
-
-**VM 2 — Debian 12 Server (Servidor ERP):**
-- RAM: 4 GB | CPU: 2 cores | Disco: 40 GB
-- Adaptador 1: Red Interna `"DMZ"` (misma que el Adaptador 3 de pfSense)
-- IP estática a configurar: `192.168.30.10`
-
-**VM 3 — Cliente Windows/Linux (Validación):**
-- RAM: 2 GB | Adaptador 1: Red Interna `"LAN"`
-- Obtendrá IP por DHCP de pfSense en el rango `192.168.10.x`
-
-### 1.2 Configuración Inicial de pfSense
-
-Arrancar la VM de pfSense e ir asignando las interfaces en el asistente de texto:
-- `vtnet0` (Adaptador 1) → **WAN**
-- `vtnet1` (Adaptador 2) → **LAN** (Gateway: `192.168.10.1`)
-- `vtnet2` (Adaptador 3) → **DMZ** (Gateway: `192.168.30.1`)
-
-Desde el interfaz web de pfSense (`https://192.168.10.1`), configurar:
-- **DHCP en LAN (VLAN 10):** rango `192.168.10.100 – 192.168.10.200`
-- **IP estática en DMZ:** asignar `192.168.30.1` a la interfaz OPT1/DMZ
-
-### 1.3 Reglas de Firewall en pfSense
-
-Las reglas se definen en **Firewall > Rules** por interfaz. El orden importa: pfSense evalúa de arriba a abajo y aplica la primera coincidencia.
-
-**Interfaz WAN** (tráfico que llega desde Internet):
-- Bloquear todo excepto los puertos `80` y `443` que serán redirigidos por NAT a la DMZ.
-
-**Interfaz DMZ** (tráfico que sale del servidor Debian):
-- Permitir: DNS saliente → `cualquier destino` en puerto `53/UDP`
-- Permitir: HTTP/HTTPS saliente → `any` en puertos `80/TCP` y `443/TCP` (para que Debian pueda descargar paquetes y Docker pueda descargar imágenes)
-- Bloquear: acceso desde DMZ hacia LAN Clientes (aislamiento de zonas)
-
-**Interfaz LAN** (tráfico del equipo cliente):
-- Permitir acceso desde LAN hacia la IP `192.168.30.10` en puertos `443`, `80` y `9090` (Cockpit)
-- Permitir salida normal a Internet desde la LAN
-
-**NAT / Port Forwarding** (Firewall > NAT > Port Forward):
-- Interfaz: **WAN**
-- Protocolo: TCP
-- Destino: WAN address
-- Puerto destino: `80` y `443`
-- IP de redirección: `192.168.30.10`
-- Puerto de redirección: `80` y `443`
-
-### 1.4 Resolución de Nombres DNS Interna (pfSense DNS Resolver)
-
-> ✅ **Completado:** Host Override configurado, regla NAT DNS redirect activa y `server_name` de Nginx actualizado a `erp.odoo.tfg.com`.
-
-Para que los clientes de la VLAN 10 accedan a Odoo mediante `https://erp.odoo.tfg.com` en lugar de por IP directa, se configuran tres elementos en pfSense:
-
-#### Paso 1 — Host Override en el DNS Resolver
-
-*Services → DNS Resolver → Host Overrides → + Add*
-
-| Campo | Valor |
-|:---|:---|
-| **Host** | `erp.odoo` |
-| **Domain** | `tfg.com` |
-| **IP Address** | `192.168.30.10` |
-| **Description** | `Servidor Odoo ERP - DMZ` |
-
-Guardar → Apply Changes.
-
-#### Paso 2 — Servidor DNS en el DHCP de la LAN
-
-*Services → DHCP Server → LAN → Server Options → DNS Server 1: `192.168.10.1`*
-
-Esto fuerza a que los clientes que reciban IP por DHCP usen pfSense como DNS primario.
-
-#### Paso 3 — Regla NAT: Interceptar todo el DNS de la VLAN 10
-
-*Firewall → NAT → Port Forward → + Add*
-
-**Problema real:** Los clientes Linux modernos (Lubuntu, Ubuntu) usan `systemd-resolved` con `127.0.0.53` como stub local, lo que puede ignorar el DNS del DHCP y consultar directamente a servidores públicos (8.8.8.8), obteniendo la IP real de internet de `tfg.com` en lugar de `192.168.30.10`.
-
-**Solución:** Redirigir todo el tráfico UDP/TCP al puerto 53 originado desde la VLAN 10 hacia pfSense:
-
-| Campo | Valor |
-|:---|:---|
-| **Interface** | `LAN` |
-| **Protocol** | `TCP/UDP` |
-| **Source** | `LAN subnets` (`192.168.10.0/24`) |
-| **Destination** | `*` (cualquier IP exterior) |
-| **Destination port** | `53 (DNS)` |
-| **Redirect target IP** | `192.168.10.1` |
-| **Redirect target port** | `53` |
-| **Description** | `Forzar DNS VLAN10 → pfSense` |
-
-Guardar → Apply Changes.
-
-Con esta regla, da igual que el cliente apunte a `8.8.8.8`, `1.1.1.1` o `127.0.0.53`: pfSense intercepta la consulta y responde con el Host Override correcto (`192.168.30.10`).
-
-#### Paso 4 — Actualizar server_name en Nginx
-
-La directiva `server_name` del contenedor Nginx debe coincidir con el dominio configurado en el Host Override:
-
-```bash
-# Actualizar el dominio en la configuración de Nginx
-sudo sed -i 's/erp.techsolutions.local/erp.odoo.tfg.com/g' /opt/erp-odoo/config_nginx/*.conf
-
-# Recargar Nginx sin cortar el servicio
-docker exec nginx-proxy nginx -s reload
-
-# Validar sintaxis
-docker exec nginx-proxy nginx -t
-# Resultado esperado: "nginx: configuration file test is successful"
-```
-
-#### Flujo completo de resolución DNS
+### 1.1 Principio de funcionamiento
 
 ```
-Cliente VLAN 10 (systemd-resolved → intenta 8.8.8.8:53)
-        │
-        ▼ pfSense intercepta (NAT Port Forward LAN TCP/UDP :53)
-        │
-[ pfSense DNS Resolver ] → Host Override → responde: 192.168.30.10
-        │
-        ▼
-Cliente abre HTTPS hacia 192.168.30.10:443
-        │
-[ Nginx :443 ] → proxy_pass → http://odoo-web:8069
-        │
-[ Contenedor Odoo :8069 ] ✅
+Desarrollador / Admin
+       │
+       │  git push → rama feature/...
+       ▼
+┌─────────────────────────────────────────────┐
+│              GitHub                         │
+│                                             │
+│  ┌──────────────────────────────────────┐   │
+│  │  CI Validator (ci.yml)               │   │
+│  │  ├── ShellCheck scripts/*.sh         │   │
+│  │  ├── Validar docker-compose.yml      │   │
+│  │  └── Lint Markdown                   │   │
+│  └──────────────────────────────────────┘   │
+│            │ (solo si pasa)                 │
+│  ┌──────────────────────────────────────┐   │
+│  │  CD Deploy (deploy.yml)              │   │
+│  │  runs-on: self-hosted                │   │
+│  │  ├── git reset --hard origin/main    │   │
+│  │  ├── Fase 1: Preparación host        │   │
+│  │  ├── Fase 2: Red MACVLAN             │   │
+│  │  ├── Fase 3: Hardening SSH + DBA     │   │
+│  │  ├── Fase 4: Docker stack up         │   │
+│  │  └── Fase 5: Roles Odoo             │   │
+│  └──────────────────────────────────────┘   │
+└─────────────────────────────────────────────┘
+       │  self-hosted runner (corre en el propio servidor)
+       ▼
+┌─────────────────────────────────────────────┐
+│         Servidor Debian (192.168.30.10)     │
+│  ├── Contenedor Odoo    (192.168.30.21)     │
+│  └── Contenedor PostgreSQL (192.168.30.22) │
+└─────────────────────────────────────────────┘
 ```
 
-> Documentación detallada completa en [`docs/reglas_pfsense.md`](./reglas_pfsense.md) — sección *DNS — Resolución de Nombres para Odoo*.
+### 1.2 Regla fundamental
+
+> **Nunca se ejecuta nada manualmente en el servidor en producción.**
+> Cualquier cambio se hace en el repositorio, pasa por CI, y se despliega automáticamente.
+> La única excepción es la instalación inicial del runner (`setup_runner.sh`), que se hace una sola vez.
+
+### 1.3 Topología de red
+
+| Elemento | IP | VLAN | Rol |
+|---|---|---|---|
+| pfSense (gateway LAN) | 192.168.10.1 | VLAN 10 | Firewall / enrutador |
+| pfSense (gateway DMZ) | 192.168.30.1 | VLAN 30 | Firewall / enrutador |
+| pfSense (gateway Admin) | 192.168.40.1 | **VLAN 40** | Firewall / enrutador |
+| Servidor Debian (host) | 192.168.30.10 | VLAN 30 | Self-hosted runner + Docker host |
+| Contenedor Odoo | 192.168.30.21 | VLAN 30 | Aplicación ERP (MACVLAN) |
+| Contenedor PostgreSQL | 192.168.30.22 | VLAN 30 | Base de datos (MACVLAN) |
+| Subinterfaz host MACVLAN | 192.168.30.23 | VLAN 30 | Comunicación host ↔ contenedores |
+| Máquina Admin | 192.168.40.11 | **VLAN 40** | Administración SSH |
+| Máquina DBA | 192.168.40.12 | **VLAN 40** | Acceso PostgreSQL vía túnel SSH |
+| Clientes Odoo | 192.168.10.x | VLAN 10 | Acceso web HTTPS |
+
+> **Por qué VLAN 40 separada:** Si un atacante compromete Odoo (VLAN 30), no puede alcanzar las máquinas de administración. Las reglas de pfSense `VLAN30→VLAN40 BLOCK` y `VLAN10→VLAN40 BLOCK` garantizan ese aislamiento.
 
 ---
 
-## Fase 2: Configuración del Servidor Base (Debian 12)
+## 2. Estructura del repositorio
 
-> ✅ **Completado [2026-04-30]:** Preparación de sistema, Cockpit y dependencias de Docker cubiertas. Acceso validado desde el cliente LAN.
-
-> **🚀 AUTOMATIZACIÓN (NUEVO EN FASE 9):**
-> Aunque a continuación se detalla el proceso manual paso a paso por rigor académico, **todas las tareas de las Fases 2, 3 y 4 se han unificado en el script `install.sh`**.
-> Para un despliegue rápido y real, sube el script al servidor o descárgalo y ejecuta:
-> ```bash
-> chmod +x install.sh
-> sudo ./install.sh
-> ```
-> Este orquestador instalará dependencias, Docker, Cockpit, configurará el `.env` interactivo, levantará los contenedores y programará los backups automáticamente.
-
-### ¿Por qué Debian 12 con entorno gráfico?
-
-Se elige Debian 12 con GNOME porque la estabilidad de Debian es superior a Ubuntu Server para entornos de producción académica, y el entorno gráfico facilita la administración visual inicial y el acceso a Cockpit desde el propio servidor. Es una decisión pragmática para el TFG, donde la facilidad de demostración es importante.
-
-### 2.1 Preparación Inicial del Sistema
-
-Acceder al servidor Debian (por consola de VirtualBox o SSH desde el cliente):
-
-```bash
-# Verificar que la IP estática está bien asignada
-ip addr show
-# Debe mostrar 192.168.30.10 en la interfaz de red
-
-# Comprobar conectividad a Internet a través del gateway pfSense
-ping -c 4 8.8.8.8
-
-# Actualizar el sistema completo antes de instalar nada
-# Justificación: evita conflictos de dependencias con paquetes desactualizados
-sudo apt update && sudo apt upgrade -y
-
-# Instalar herramientas de administración esenciales
-sudo apt install curl nano git bash-completion htop -y
 ```
-
-### 2.2 Instalación de Cockpit (Panel Web de Gestión)
-
-Cockpit permite administrar el servidor visualmente desde cualquier navegador sin necesidad de instalar software adicional en el cliente. Incluye terminal, monitor de recursos, gestión de servicios y, con plugins, gestión de contenedores Docker.
-
-```bash
-# Instalar Cockpit desde los repositorios oficiales de Debian
-sudo apt install cockpit -y
-
-# Activar el socket de Cockpit y habilitarlo en el arranque
-# Usar el socket (no el servicio) es la práctica recomendada:
-# Cockpit solo consume recursos cuando hay una sesión activa
-sudo systemctl enable --now cockpit.socket
-
-# Verificar que está escuchando correctamente
-sudo systemctl status cockpit.socket
-```
-
-**Verificación:** Desde el equipo cliente (VLAN 10), abrir un navegador y acceder a `https://192.168.30.10:9090`. El navegador mostrará un aviso de certificado autofirmado (normal), aceptarlo y entrar con las credenciales del sistema operativo Debian.
-
-```bash
-# Instalar el plugin de métricas persistentes (historial de gráficas en Cockpit)
-sudo apt install cockpit-pcp -y
-sudo systemctl restart cockpit.socket
-```
-
-### 2.3 Instalación de Docker Engine y Docker Compose
-
-Docker es el motor de contenedores que aísla cada servicio del ERP. Docker Compose orquesta los tres contenedores (db, odoo, nginx) como un stack unificado.
-
-```bash
-# Instalar Docker Engine y el CLI de Docker Compose
-# Se usa docker.io (paquete oficial del repositorio Debian) para simplicidad en TFG
-sudo apt install docker.io docker-compose -y
-
-# Habilitar Docker para que arranque automáticamente con el sistema
-sudo systemctl enable --now docker
-
-# Añadir el usuario administrador al grupo docker
-# Justificación: evita tener que usar "sudo" en cada comando docker,
-# lo cual es necesario para que los scripts funcionen sin privilegios root
-sudo usermod -aG docker $USER
-
-# Aplicar el cambio de grupo sin cerrar sesión
-newgrp docker
-
-# Verificar la instalación
-docker --version
-docker compose version
-docker ps   # Debe devolver una lista vacía (sin contenedores corriendo aún)
+TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
+│
+├── .github/
+│   └── workflows/
+│       ├── ci.yml              ← Validación automática (ShellCheck, YAML, Markdown)
+│       └── deploy.yml          ← Despliegue automático (self-hosted runner)
+│
+├── scripts/
+│   ├── setup_runner.sh         ← [EXISTENTE] Instala el runner de GitHub Actions
+│   ├── deploy.sh               ← [EXISTENTE] Levanta el stack Docker
+│   ├── backup.sh               ← [EXISTENTE] Backup de PostgreSQL
+│   ├── restore.sh              ← [EXISTENTE] Restauración de backup
+│   ├── monitor.sh              ← [EXISTENTE] Monitorización del stack
+│   ├── update.sh               ← [EXISTENTE] Actualización de imágenes Docker
+│   ├── configure.sh            ← [EXISTENTE] Configuración post-despliegue
+│   ├── install_cron.sh         ← [EXISTENTE] Configura tareas programadas
+│   │
+│   ├── headless_check.sh       ← [NUEVO] Configura Debian sin interfaz gráfica
+│   ├── ssh_hardening.sh        ← [NUEVO] Restringe SSH a Admin y DBA + UFW
+│   ├── dba_user_setup.sh       ← [NUEVO] Crea usuario sistema DBA (solo túneles)
+│   ├── macvlan_setup.sh        ← [NUEVO] Crea red Docker MACVLAN
+│   └── odoo_init_roles.sh      ← [NUEVO] Crea departamentos y roles en Odoo
+│
+├── docker/
+│   └── docker-compose.yml      ← Stack Odoo + PostgreSQL + Nginx con IPs MACVLAN
+│
+├── nginx/
+│   └── odoo.conf               ← Configuración reverse proxy
+│
+├── .env.example                ← Variables de entorno (sin secretos reales)
+└── README.md
 ```
 
 ---
 
-## Fase 3: Despliegue de la Infraestructura Docker (Odoo + PostgreSQL + Nginx)
+## 3. Pipeline CI/CD detallado
 
-> ✅ **Completado [2026-04-30]:** Estructura de volúmenes corregida, red de contenedores operativa, certificados SSL sincronizados y base de datos inicializada. Stack completamente funcional.
+### 3.1 Fase CI — `ci.yml`
 
-### ¿Por qué estos tres contenedores?
+Se ejecuta en cada push o Pull Request a `main`. Valida:
+- Sintaxis YAML de `docker-compose.yml` con `yamllint` y `docker compose config -q`.
+- Todos los scripts `.sh` con **ShellCheck**.
+- Documentación Markdown con `markdownlint`.
 
-- **PostgreSQL** (`db`): Motor de base de datos relacional. Odoo lo requiere obligatoriamente. Se aísla en la red Docker para que solo Odoo pueda acceder a él.
-- **Odoo** (`odoo-web`): La aplicación ERP. No expone puertos al host, solo se comunica internamente.
-- **Nginx** (`nginx-proxy`): Proxy inverso. Es el único punto de entrada desde el exterior. Gestiona SSL/TLS y redirige el tráfico al puerto interno `8069` de Odoo.
+### 3.2 Fase CD — `deploy.yml` ampliado
 
-### 3.1 Preparar Estructura de Directorios en el Servidor
+```yaml
+name: CD Deploy (Self-Hosted)
 
-```bash
-# Crear la estructura de carpetas del proyecto ERP
-# Justificación de cada carpeta:
-#   data/postgres   → Datos persistentes de PostgreSQL (sobrevive al borrado del contenedor)
-#   data/odoo_addons → Módulos extra de Odoo (ampliaciones del ERP)
-#   data/odoo_web   → Archivos subidos por usuarios, sesiones y caché de Odoo
-#   data/odoo_etc   → Reservada para configuraciones adicionales
-#   scripts/        → Scripts DevOps del proyecto (deploy, backup, monitor, etc.)
-#   config_nginx/   → Configuración del servidor Nginx (proxy inverso)
-#   certs/          → Certificados SSL autofirmados
-mkdir -p /opt/erp-odoo/data/{postgres,odoo_addons,odoo_etc,odoo_web}
-mkdir -p /opt/erp-odoo/{scripts,config_nginx,certs}
-```
+on:
+  workflow_run:
+    workflows: ["CI Validator"]
+    types:
+      - completed
+    branches:
+      - main
 
-### 3.2 Copiar los Archivos del Repositorio al Servidor
+jobs:
 
-Clonar el repositorio del proyecto directamente en el servidor:
+  deploy:
+    name: Desplegar Stack en Servidor Debian
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: self-hosted
 
-```bash
-# Clonar el repositorio en la carpeta del proyecto
-cd /opt/erp-odoo
-git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git
+    steps:
 
-# Verificar que los archivos están disponibles
-ls -la docker/ scripts/ config_nginx/ sql/
-```
+      - name: Verificar entorno del servidor
+        run: |
+          echo "============================================="
+          echo " Iniciando despliegue automático"
+          echo " Servidor: $(hostname)"
+          echo " Fecha:    $(date '+%Y-%m-%d %H:%M:%S')"
+          echo " Docker:   $(docker --version)"
+          echo "============================================="
 
-O, si el repositorio ya está descargado en el PC de desarrollo, copiar los archivos por SCP:
+      - name: Marcar directorio del proyecto como seguro para Git
+        run: git config --global --add safe.directory /opt/erp-odoo
 
-```bash
-# Desde el PC de desarrollo (Windows/Linux):
-scp -r docker/ scripts/ config_nginx/ sql/ sandra@192.168.30.10:/opt/erp-odoo/
-```
+      # ── FASE 0: Sincronización ───────────────────────────────────────────
+      - name: Sincronizar repositorio (git pull)
+        working-directory: /opt/erp-odoo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+          git fetch origin
+          git reset --hard origin/main
+          echo "Repositorio actualizado al commit: $(git rev-parse --short HEAD)"
 
-### 3.3 Generar los Certificados SSL Autofirmados
+      # ── FASE 1: Preparación del host ─────────────────────────────────────
+      - name: "[1/5] Configurar modo headless"
+        working-directory: /opt/erp-odoo
+        run: sudo bash scripts/headless_check.sh
 
-Los certificados SSL son necesarios para que Nginx pueda cifrar el tráfico HTTPS. En un TFG se usan autofirmados (no son válidos para producción real, pero son funcionales en entornos internos).
+      # ── FASE 2: Red MACVLAN ──────────────────────────────────────────────
+      - name: "[2/5] Configurar red MACVLAN"
+        working-directory: /opt/erp-odoo
+        env:
+          PARENT_IFACE: ${{ vars.PARENT_IFACE }}
+          SUBNET: ${{ vars.SUBNET }}
+          GATEWAY: ${{ vars.GATEWAY }}
+          ODOO_IP: ${{ vars.ODOO_IP }}
+          POSTGRES_IP: ${{ vars.POSTGRES_IP }}
+          HOST_MACVLAN_IP: ${{ vars.HOST_MACVLAN_IP }}
+        run: sudo -E bash scripts/macvlan_setup.sh
 
-```bash
-# Generar clave privada y certificado autofirmado con validez de 1 año
-# -x509: genera directamente el certificado (sin CSR intermedio)
-# -nodes: sin contraseña en la clave privada (necesario para que Nginx lo cargue automáticamente)
-# -days 365: validez de 1 año
-# -newkey rsa:2048: clave RSA de 2048 bits (estándar actual)
-sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /opt/erp-odoo/certs/odoo-selfsigned.key \
-    -out /opt/erp-odoo/certs/odoo-selfsigned.crt \
-    -subj "/C=ES/ST=España/L=Local/O=TechSolutions/CN=erp.techsolutions.local"
+      # ── FASE 3: Hardening SSH + usuario DBA ──────────────────────────────
+      - name: "[3/5] SSH hardening y usuario DBA"
+        working-directory: /opt/erp-odoo
+        env:
+          ADMIN_IP: ${{ secrets.ADMIN_IP }}
+          DBA_IP: ${{ secrets.DBA_IP }}
+          DBA_PUBKEY: ${{ secrets.DBA_PUBKEY }}
+        run: |
+          sudo -E bash scripts/ssh_hardening.sh
+          sudo -E bash scripts/dba_user_setup.sh
 
-# Verificar que se han generado correctamente
-ls -la /opt/erp-odoo/certs/
-```
+      # ── FASE 4: Despliegue Docker ─────────────────────────────────────────
+      - name: "[4/5] Descargar imágenes Docker"
+        run: |
+          docker pull postgres:16
+          docker pull odoo:17
+          docker pull nginx:alpine
 
-### 3.4 Revisar y Ajustar el Archivo `.env`
+      - name: "[4/5] Ejecutar deploy.sh"
+        working-directory: /opt/erp-odoo
+        run: bash scripts/deploy.sh
 
-El archivo `docker/.env` contiene las credenciales de la base de datos. **No debe subirse nunca a Git** (está en `.gitignore`). Ajustar los valores:
+      # ── FASE 5: Postconfiguración Odoo ───────────────────────────────────
+      - name: "[5/5] Inicializar departamentos y roles en Odoo"
+        working-directory: /opt/erp-odoo
+        run: |
+          echo "Esperando a que Odoo esté disponible..."
+          sleep 20
+          bash scripts/odoo_init_roles.sh
 
-```bash
-nano /opt/erp-odoo/docker/.env
-```
-
-Contenido recomendado:
-```env
-POSTGRES_DB=odoo_erp
-POSTGRES_USER=odoo
-POSTGRES_PASSWORD=<contraseña_segura_aqui>
-```
-
-### 3.5 Levantar el Stack con Docker Compose
-
-El `docker-compose.yml` define los tres servicios (`db`, `odoo`, `nginx`) con sus volúmenes, variables de entorno y redes internas. Se ejecuta desde la raíz `/opt/erp-odoo`:
-
-```bash
-cd /opt/erp-odoo
-
-# Arrancar todos los contenedores en segundo plano (detached)
-docker compose -f docker/docker-compose.yml up -d
-
-# Ver los logs en tiempo real para verificar que no hay errores
-# (PostgreSQL debe arrancar primero, luego Odoo, luego Nginx)
-docker compose -f docker/docker-compose.yml logs -f
-
-# Verificar que los tres contenedores están en estado "Up"
-docker compose -f docker/docker-compose.yml ps
-```
-
-**Verificación de salud desde el propio servidor:**
-```bash
-# Comprobar que Nginx responde en HTTPS (ignora error de certificado autofirmado con -k)
-curl -I -k https://127.0.0.1
-# Debe devolver: HTTP/2 302 o HTTP/1.1 200 OK (redirección al login de Odoo)
-```
-
----
-
-## Fase 4: Automatización y Scripts DevOps
-
-> ✅ **Completado:** Scripts desarrollados, refactorizados, probados mediante CI estático y enlazados en cron. Validaciones finales manuales pendientes.
-
-> **🚀 NOTA DE AUTOMATIZACIÓN:**
-> Al igual que en las fases anteriores, si has ejecutado `install.sh`, **los permisos y las tareas cron ya están configurados automáticamente**. Los siguientes pasos solo explican el funcionamiento interno de estos scripts.
-
-### ¿Por qué estos scripts?
-
-El TFG exige demostrar buenas prácticas DevOps: despliegue automatizado, backups programados, monitorización activa y capacidad de recuperación ante fallos. Los scripts del directorio `/scripts` cubren cada uno de estos requisitos.
-
-### 4.1 Dar Permisos de Ejecución a los Scripts
-
-```bash
-# Conceder permisos de ejecución a todos los scripts Bash
-chmod +x /opt/erp-odoo/scripts/*.sh
-
-# Verificar los permisos
-ls -la /opt/erp-odoo/scripts/
-```
-
-### 4.2 Descripción y Justificación de Cada Script
-
-| Script | Función | Cuándo usarlo |
-|--------|---------|--------------|
-| `deploy.sh` | Levanta el stack Docker con verificación de salud activa (espera hasta que Odoo responde en `/web/health`) | Primer despliegue o arranque manual |
-| `update.sh` | Descarga nuevas versiones de las imágenes Docker y elimina imágenes huérfanas | Actualización del sistema ERP |
-| `backup.sh` | Vuelca PostgreSQL con `pg_dump -F c` (formato comprimido con marca de tiempo) | Ejecución manual o por cron |
-| `restore.sh` | Restauración limpia: elimina la BD actual, la recrea y restaura desde un backup | Recuperación ante fallos |
-| `monitor.sh` | Verifica que los tres contenedores están activos; si alguno falla, lo reinicia y lo registra en `/var/log/erp_monitor.log` | Ejecución periódica por cron |
-| `install_cron.sh` | Instala automáticamente todas las tareas cron del sistema de una sola vez | Configuración inicial del servidor |
-
-### 4.3 Instalar las Tareas Cron Automáticamente
-
-El script `install_cron.sh` programa las tres tareas automáticas sin necesidad de editar manualmente el crontab:
-
-```bash
-# Ejecutar el instalador de tareas cron
-sudo /opt/erp-odoo/scripts/install_cron.sh
-
-# Verificar que las tareas quedaron registradas
-crontab -l
-```
-
-Las tareas que instala:
-- **Monitor de salud** → cada 5 minutos (reinicia contenedores caídos automáticamente)
-- **Backup diario** → todos los días a las 02:00 AM
-- **Actualización semanal** → domingos a las 03:00 AM
-
-### 4.4 Probar un Ciclo Completo de Backup y Restauración
-
-```bash
-# 1. Hacer un backup manual para comprobar que funciona
-sudo /opt/erp-odoo/scripts/backup.sh
-# Verificar que se creó el archivo .dump en la carpeta de backups
-ls -lh /opt/erp-odoo/backups/
-
-# 2. Probar la restauración (con el servicio odoo parado temporalmente)
-docker compose -f /opt/erp-odoo/docker/docker-compose.yml stop odoo
-sudo /opt/erp-odoo/scripts/restore.sh /opt/erp-odoo/backups/<archivo_mas_reciente>.dump
-docker compose -f /opt/erp-odoo/docker/docker-compose.yml start odoo
+      # ── VERIFICACIÓN FINAL ────────────────────────────────────────────────
+      - name: Verificar estado del stack
+        working-directory: /opt/erp-odoo
+        run: |
+          echo "Estado final de los contenedores:"
+          docker compose -f docker/docker-compose.yml ps
+          echo ""
+          echo "[OK] Despliegue completado con éxito."
 ```
 
 ---
 
-## Fase 5: Auditoría Avanzada de Base de Datos (PL/pgSQL)
+## 4. Secrets y variables en GitHub
 
-### ¿Por qué un trigger de auditoría?
+### 4.1 Secrets (Settings → Secrets and variables → Actions → Secrets)
 
-El sistema de auditoría registra automáticamente en una tabla de log cada vez que se crea un nuevo usuario en Odoo. Esto demuestra conocimiento de PL/pgSQL y cumple con los requisitos de trazabilidad del TFG.
+| Secret | Descripción | Valor |
+|---|---|---|
+| `ADMIN_IP` | IP máquina administración | `192.168.40.11` (VLAN 40) |
+| `DBA_IP` | IP máquina DBA | `192.168.40.12` (VLAN 40) |
+| `DBA_PUBKEY` | Clave pública SSH del usuario DBA | `ssh-rsa AAAA...` |
+| `ODOO_ADMIN_PASSWORD` | Contraseña del administrador de Odoo | — |
+| `POSTGRES_PASSWORD` | Contraseña de PostgreSQL | — |
 
-### 5.1 Conectarse a PostgreSQL dentro del Contenedor
+### 4.2 Variables (Settings → Secrets and variables → Actions → Variables)
+
+| Variable | Valor ejemplo | Descripción |
+|---|---|---|
+| `PARENT_IFACE` | `eth0` | Interfaz de red física del servidor |
+| `SUBNET` | `192.168.30.0/24` | Subred VLAN DMZ |
+| `GATEWAY` | `192.168.30.1` | pfSense gateway DMZ |
+| `ODOO_IP` | `192.168.30.21` | IP fija contenedor Odoo |
+| `POSTGRES_IP` | `192.168.30.22` | IP fija contenedor PostgreSQL |
+| `HOST_MACVLAN_IP` | `192.168.30.23` | IP subinterfaz MACVLAN del host |
+| `ODOO_DB` | `odoo` | Nombre de la base de datos |
+| `ODOO_URL` | `http://localhost:8069` | URL interna de Odoo |
+
+---
+
+## 5. Scripts nuevos — Código completo
+
+### 5.1 `scripts/headless_check.sh`
 
 ```bash
-# Acceder al intérprete de PostgreSQL dentro del contenedor odoo-db
-docker exec -it odoo-db psql -U odoo -d odoo_erp
-```
+#!/usr/bin/env bash
+# ============================================================
+# SCRIPT: headless_check.sh
+# DESCRIPCIÓN: Verifica que el servidor Debian no tenga entorno
+#              gráfico instalado y lo configura en modo headless.
+# USO: sudo bash scripts/headless_check.sh
+# ============================================================
 
-### 5.2 Ejecutar el Script de Auditoría
+set -euo pipefail
 
-Una vez dentro de `psql`, ejecutar el contenido del archivo `sql/audit_triggers.sql`:
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; NC='\033[0m'
+log_info()  { echo -e "${BLUE}[INFO]${NC}  $*"; }
+log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
-```bash
-# Desde la terminal del servidor (fuera del contenedor)
-docker exec -i odoo-db psql -U odoo -d odoo_erp < /opt/erp-odoo/sql/audit_triggers.sql
-```
+if [ "$(id -u)" -ne 0 ]; then
+    log_error "Ejecutar como root: sudo bash $0"; exit 1
+fi
 
-El script crea:
-1. **Tabla `asir_audit_log`** → almacena cada evento auditado (tipo de acción, tabla afectada, ID del registro, timestamp)
-2. **Función `func_audit_users()`** → lógica PL/pgSQL que inserta una fila en el log cuando se detecta un INSERT en `res_users`
-3. **Trigger `trg_audit_new_odoo_user`** → enlaza la función a la tabla `res_users` de Odoo
+log_info "=== Verificación y configuración del modo headless ==="
 
-### 5.3 Validar que la Auditoría Funciona
+GRAPHICAL_PACKAGES="xorg xserver-xorg gnome kde-plasma-desktop xfce4 lxde mate-desktop-environment"
+DISPLAY_MANAGERS="gdm gdm3 lightdm sddm xdm"
+FOUND_PACKAGES=""
 
-```bash
-# Conectarse de nuevo a psql
-docker exec -it odoo-db psql -U odoo -d odoo_erp
+for pkg in $GRAPHICAL_PACKAGES $DISPLAY_MANAGERS; do
+    if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+        FOUND_PACKAGES="$FOUND_PACKAGES $pkg"
+    fi
+done
 
-# Comprobar el contenido del log (después de crear un usuario desde la interfaz web de Odoo)
-SELECT * FROM asir_audit_log ORDER BY action_time DESC LIMIT 10;
+if [ -n "$FOUND_PACKAGES" ]; then
+    log_warn "Paquetes gráficos encontrados:$FOUND_PACKAGES"
+    if [ -t 0 ]; then
+        read -r -p "¿Eliminar? [s/N]: " CONFIRM
+        [ "$CONFIRM" = "s" ] || [ "$CONFIRM" = "S" ] || { log_warn "Omitido."; exit 0; }
+    fi
+    # shellcheck disable=SC2086
+    apt-get purge -y $FOUND_PACKAGES
+    apt-get autoremove -y && apt-get autoclean
+    log_ok "Paquetes gráficos eliminados."
+else
+    log_ok "No se encontraron paquetes de entorno gráfico."
+fi
+
+for dm in $DISPLAY_MANAGERS; do
+    if systemctl is-enabled "$dm" 2>/dev/null | grep -q "enabled"; then
+        systemctl disable "$dm" --now || true
+        log_ok "$dm deshabilitado."
+    fi
+done
+
+systemctl set-default multi-user.target
+CURRENT_TARGET=$(systemctl get-default)
+if [ "$CURRENT_TARGET" = "multi-user.target" ]; then
+    log_ok "Servidor configurado en modo headless (multi-user.target)."
+else
+    log_error "Target incorrecto: ${CURRENT_TARGET}"; exit 1
+fi
 ```
 
 ---
 
-## Fase 6: Seguridad de Capa Host (UFW)
-
-### ¿Por qué UFW además de pfSense?
-
-pfSense protege el perímetro de red. UFW (Uncomplicated Firewall) protege el propio servidor Debian a nivel de host: si un atacante burla pfSense, UFW bloquea los puertos que no deberían estar accesibles. Es defensa en profundidad, una práctica de seguridad estándar.
+### 5.2 `scripts/ssh_hardening.sh`
 
 ```bash
-# Instalar UFW si no está disponible
-sudo apt install ufw -y
+#!/usr/bin/env bash
+# ============================================================
+# SCRIPT: ssh_hardening.sh
+# DESCRIPCIÓN: Restringe acceso SSH al servidor únicamente
+#              desde la IP Admin (VLAN 40) y la IP DBA (VLAN 40).
+#              Configura UFW con política de denegación por defecto.
+# USO: ADMIN_IP=192.168.40.11 DBA_IP=192.168.40.12 sudo -E bash scripts/ssh_hardening.sh
+# ============================================================
 
-# Definir la política por defecto: bloquear todo el tráfico entrante
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
+set -euo pipefail
 
-# Permitir SSH para administración remota
-sudo ufw allow 22/tcp
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; NC='\033[0m'
+log_info()  { echo -e "${BLUE}[INFO]${NC}  $*"; }
+log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
-# Permitir Cockpit para el panel de gestión web
-sudo ufw allow 9090/tcp
+if [ "$(id -u)" -ne 0 ]; then
+    log_error "Ejecutar como root: sudo -E bash $0"; exit 1
+fi
 
-# Permitir tráfico HTTP y HTTPS al proxy Nginx
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
+if [ -z "${ADMIN_IP:-}" ]; then
+    read -r -p "IP de la máquina Admin (VLAN 40): " ADMIN_IP
+fi
+[ -z "${ADMIN_IP:-}" ] && { log_error "ADMIN_IP no definida."; exit 1; }
 
-# Activar el firewall (pedirá confirmación)
-sudo ufw enable
+DBA_IP="${DBA_IP:-}"
 
-# Verificar el estado final
-sudo ufw status verbose
+log_info "=== SSH Hardening — Admin: ${ADMIN_IP} (VLAN 40) | DBA: ${DBA_IP:-no definido} (VLAN 40) ==="
+
+command -v ufw > /dev/null 2>&1 || apt-get install -y ufw
+
+BACKUP_FILE="/etc/ssh/sshd_config.bak.$(date +%Y%m%d_%H%M%S)"
+cp /etc/ssh/sshd_config "$BACKUP_FILE"
+log_ok "Backup: ${BACKUP_FILE}"
+
+sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+grep -q "^PasswordAuthentication" /etc/ssh/sshd_config || echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
+grep -q "^PermitRootLogin"        /etc/ssh/sshd_config || echo "PermitRootLogin no"        >> /etc/ssh/sshd_config
+grep -q "^PubkeyAuthentication"   /etc/ssh/sshd_config || echo "PubkeyAuthentication yes"  >> /etc/ssh/sshd_config
+log_ok "Configuración SSH aplicada."
+
+ufw --force reset
+ufw default deny incoming
+ufw default allow outgoing
+
+# SSH solo desde VLAN 40 (administración)
+ufw allow from "$ADMIN_IP" to any port 22 proto tcp comment "SSH Admin - VLAN40"
+log_ok "SSH permitido desde Admin: ${ADMIN_IP} (VLAN 40)"
+
+if [ -n "$DBA_IP" ]; then
+    ufw allow from "$DBA_IP" to any port 22 proto tcp comment "SSH DBA túnel - VLAN40"
+    log_ok "SSH permitido desde DBA: ${DBA_IP} (VLAN 40)"
+fi
+
+ufw allow 443/tcp comment "HTTPS Odoo"
+ufw --force enable
+
+systemctl restart sshd
+log_ok "UFW activo. SSH reiniciado."
+
+echo ""
+log_info "=== Resumen ==="
+echo "  PasswordAuthentication : no"
+echo "  PermitRootLogin        : no"
+echo "  SSH Admin              : ${ADMIN_IP} (VLAN 40) → ALLOW"
+echo "  SSH DBA                : ${DBA_IP:-no configurado} (VLAN 40)"
+echo "  Puerto 443 HTTPS       : ABIERTO"
+echo "  Todo lo demás          : BLOQUEADO"
+log_warn "Verifica acceso desde Admin (VLAN 40) antes de cerrar esta sesión."
 ```
 
 ---
 
-## Fase 7: Validación Global del Sistema
-
-### 7.1 Prueba de Acceso desde el Cliente (VLAN 10)
-
-> ✅ **Completado [2026-04-30]:** DNS interno, NAT redirect y acceso HTTPS validados desde cliente Lubuntu (VLAN 10).
-
-Desde el equipo cliente en la red LAN (`192.168.10.x`):
-
-**DNS interno pfSense (método principal — CONFIGURADO ✅):**
-
-La resolución DNS está completamente configurada en pfSense (ver [Fase 1.4](#14-resolución-de-nombres-dns-interna-pfsense-dns-resolver) y `docs/reglas_pfsense.md` para el detalle completo). El cliente obtiene automáticamente `192.168.30.10` al resolver `erp.odoo.tfg.com`.
-
-Verificación desde el cliente:
+### 5.3 `scripts/dba_user_setup.sh`
 
 ```bash
-# Verificar que DNS resuelve a la IP interna (no a internet)
-nslookup erp.odoo.tfg.com
-# Debe devolver → Address: 192.168.30.10
+#!/usr/bin/env bash
+# ============================================================
+# SCRIPT: dba_user_setup.sh
+# DESCRIPCIÓN: Crea usuario de sistema 'odoo-dba' con acceso
+#              SSH restringido exclusivamente a túneles TCP.
+#              Sin shell interactiva, sin sudo.
+#              El DBA se conecta desde VLAN 40 (192.168.40.12).
+# USO: DBA_PUBKEY="ssh-rsa AAAA..." sudo -E bash scripts/dba_user_setup.sh
+# ============================================================
 
-# Verificar acceso HTTPS
-curl -k -I https://erp.odoo.tfg.com
-# Debe devolver → HTTP/2 200 o HTTP/1.1 302
+set -euo pipefail
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; NC='\033[0m'
+log_info()  { echo -e "${BLUE}[INFO]${NC}  $*"; }
+log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
+
+if [ "$(id -u)" -ne 0 ]; then
+    log_error "Ejecutar como root: sudo bash $0"; exit 1
+fi
+
+DBA_USER="odoo-dba"
+DBA_HOME="/home/${DBA_USER}"
+DBA_SSH_DIR="${DBA_HOME}/.ssh"
+DBA_PUBKEY="${DBA_PUBKEY:-}"
+
+log_info "=== Configuración usuario DBA: ${DBA_USER} ==="
+
+if id "$DBA_USER" > /dev/null 2>&1; then
+    log_warn "Usuario '${DBA_USER}' ya existe."
+else
+    useradd --create-home --shell /usr/sbin/nologin \
+        --comment "DBA Odoo - solo SSH tunnel desde VLAN 40" "$DBA_USER"
+    log_ok "Usuario '${DBA_USER}' creado (sin shell interactiva)."
+fi
+
+mkdir -p "$DBA_SSH_DIR"
+chmod 700 "$DBA_SSH_DIR"
+chown "${DBA_USER}:${DBA_USER}" "$DBA_SSH_DIR"
+
+if [ -n "$DBA_PUBKEY" ]; then
+    echo "$DBA_PUBKEY" > "${DBA_SSH_DIR}/authorized_keys"
+    chmod 600 "${DBA_SSH_DIR}/authorized_keys"
+    chown "${DBA_USER}:${DBA_USER}" "${DBA_SSH_DIR}/authorized_keys"
+    log_ok "Clave pública DBA registrada."
+else
+    log_warn "DBA_PUBKEY no definida. Añade la clave manualmente en:"
+    log_warn "  ${DBA_SSH_DIR}/authorized_keys"
+fi
+
+SSHD_CONFIG="/etc/ssh/sshd_config"
+MARKER="# dba_user_setup — bloque DBA"
+
+if grep -q "$MARKER" "$SSHD_CONFIG"; then
+    log_warn "Bloque DBA ya existe en sshd_config."
+else
+    cat >> "$SSHD_CONFIG" << SSHBLOCK
+
+${MARKER}
+Match User ${DBA_USER}
+    AllowTcpForwarding yes
+    X11Forwarding no
+    PermitTTY no
+    ForceCommand /bin/false
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+SSHBLOCK
+    log_ok "Bloque SSH restrictivo DBA añadido."
+fi
+
+systemctl restart sshd
+log_ok "SSH reiniciado."
+
+echo ""
+log_info "=== Resumen usuario DBA ==="
+echo "  Usuario             : ${DBA_USER}"
+echo "  Shell               : /usr/sbin/nologin"
+echo "  Túneles TCP         : PERMITIDOS"
+echo "  Shell remota        : DENEGADA (ForceCommand /bin/false)"
+echo "  Autenticación       : solo clave pública"
+echo "  Acceso desde        : VLAN 40 (192.168.40.12)"
+echo ""
+log_info "Cómo conectarse desde la máquina DBA (VLAN 40):"
+log_info "  ssh -N -L 5433:192.168.30.22:5432 odoo-dba@192.168.30.10"
+log_info "  psql -h 127.0.0.1 -p 5433 -U odoo -d odoo_erp"
 ```
-
-**Alternativa — Archivo hosts en el cliente (si no hay DNS):**
-```
-# En Windows: C:\Windows\System32\drivers\etc\hosts
-# En Linux:   /etc/hosts
-192.168.30.10   erp.odoo.tfg.com
-```
-
-**Verificación final:**
-1. Abrir navegador en el cliente → `https://erp.odoo.tfg.com`
-2. Aceptar el aviso del certificado autofirmado
-3. Debe aparecer la pantalla de login de Odoo 17
-4. Iniciar sesión con las credenciales creadas durante la instalación de Odoo
-
-### 7.2 Verificar los Triggers de Auditoría desde la Web
-
-1. En Odoo → **Ajustes > Usuarios** → Crear un nuevo usuario
-2. Volver al servidor y ejecutar:
-```bash
-docker exec -it odoo_erp psql -U odoo -d odoo_erp -c "SELECT * FROM asir_audit_log ORDER BY action_time DESC;"
-```
-Debe aparecer una fila con `action_type = 'CREACION_USUARIO'`.
 
 ---
 
-## Fase 8: Pipeline CI/CD con GitHub Actions (Self-Hosted Runner)
-
-### ¿Por qué un runner self-hosted?
-
-Los runners gratuitos de GitHub (ubuntu-latest) no tienen acceso a la red privada de la DMZ. Registrar el propio servidor Debian como runner permite que GitHub Actions ejecute el despliegue automáticamente dentro de la red local cada vez que se hace un `git push` a `main`.
-
-### 8.1 Obtener el Token de Registro en GitHub
-
-1. Ir al repositorio en GitHub
-2. **Settings → Actions → Runners → New self-hosted runner**
-3. Seleccionar: `Linux` / `x64`
-4. Copiar la URL del repositorio y el token que aparece (caduca en 1 hora)
-
-### 8.2 Ejecutar el Script de Configuración del Runner
-
-En el servidor Debian (`192.168.30.10`), como el usuario administrador (no root):
+### 5.4 `scripts/macvlan_setup.sh`
 
 ```bash
-# Dar permisos y ejecutar el script de instalación del runner
-chmod +x /opt/erp-odoo/scripts/setup_runner.sh
-./opt/erp-odoo/scripts/setup_runner.sh
+#!/usr/bin/env bash
+# ============================================================
+# SCRIPT: macvlan_setup.sh
+# DESCRIPCIÓN: Crea la red Docker MACVLAN para que los
+#              contenedores tengan IP propia en la red física.
+#              Crea subinterfaz en el host para comunicación
+#              host ↔ contenedores.
+# USO: sudo -E bash scripts/macvlan_setup.sh
+# ============================================================
+
+set -euo pipefail
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; NC='\033[0m'
+log_info()  { echo -e "${BLUE}[INFO]${NC}  $*"; }
+log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
+
+if [ "$(id -u)" -ne 0 ]; then
+    log_error "Ejecutar como root: sudo -E bash $0"; exit 1
+fi
+
+PARENT_IFACE="${PARENT_IFACE:-}"
+SUBNET="${SUBNET:-192.168.30.0/24}"
+GATEWAY="${GATEWAY:-192.168.30.1}"
+ODOO_IP="${ODOO_IP:-192.168.30.21}"
+POSTGRES_IP="${POSTGRES_IP:-192.168.30.22}"
+HOST_MACVLAN_IP="${HOST_MACVLAN_IP:-192.168.30.23}"
+DOCKER_NET_NAME="${DOCKER_NET_NAME:-macvlan_vlan30}"
+IP_RANGE="${IP_RANGE:-192.168.30.21/29}"
+MACVLAN_HOST_IFACE="macvlan_host"
+
+log_info "=== Configuración de red MACVLAN (VLAN 30 - DMZ) ==="
+
+if [ -z "$PARENT_IFACE" ]; then
+    PARENT_IFACE=$(ip route | grep default | awk '{print $5}' | head -1)
+    [ -z "$PARENT_IFACE" ] && { log_error "No se pudo detectar interfaz. Define PARENT_IFACE."; exit 1; }
+    log_info "Interfaz detectada: ${PARENT_IFACE}"
+fi
+
+command -v docker > /dev/null 2>&1 || { log_error "Docker no instalado."; exit 1; }
+
+if docker network inspect "$DOCKER_NET_NAME" > /dev/null 2>&1; then
+    log_warn "Red '${DOCKER_NET_NAME}' ya existe."
+else
+    docker network create \
+        --driver macvlan \
+        --subnet="$SUBNET" \
+        --gateway="$GATEWAY" \
+        --ip-range="$IP_RANGE" \
+        --opt parent="$PARENT_IFACE" \
+        "$DOCKER_NET_NAME"
+    log_ok "Red Docker MACVLAN '${DOCKER_NET_NAME}' creada."
+fi
+
+if ip link show "$MACVLAN_HOST_IFACE" > /dev/null 2>&1; then
+    log_warn "Subinterfaz ${MACVLAN_HOST_IFACE} ya existe."
+else
+    ip link add "$MACVLAN_HOST_IFACE" link "$PARENT_IFACE" type macvlan mode bridge
+    ip addr add "${HOST_MACVLAN_IP}/32" dev "$MACVLAN_HOST_IFACE"
+    ip link set "$MACVLAN_HOST_IFACE" up
+    ip route add "$ODOO_IP/32"      dev "$MACVLAN_HOST_IFACE"
+    ip route add "$POSTGRES_IP/32"  dev "$MACVLAN_HOST_IFACE"
+    log_ok "Subinterfaz ${MACVLAN_HOST_IFACE} activa con IP ${HOST_MACVLAN_IP}."
+fi
+
+RC_LOCAL="/etc/rc.local"
+MARKER="# macvlan_setup — TFG"
+if ! grep -q "$MARKER" "$RC_LOCAL" 2>/dev/null; then
+    [ ! -f "$RC_LOCAL" ] && { printf '#!/bin/sh -e\nexit 0\n' > "$RC_LOCAL"; chmod +x "$RC_LOCAL"; }
+    sed -i "/^exit 0/i \\
+${MARKER}\\
+ip link add ${MACVLAN_HOST_IFACE} link ${PARENT_IFACE} type macvlan mode bridge 2>/dev/null || true\\
+ip addr add ${HOST_MACVLAN_IP}/32 dev ${MACVLAN_HOST_IFACE} 2>/dev/null || true\\
+ip link set ${MACVLAN_HOST_IFACE} up 2>/dev/null || true\\
+ip route add ${ODOO_IP}/32 dev ${MACVLAN_HOST_IFACE} 2>/dev/null || true\\
+ip route add ${POSTGRES_IP}/32 dev ${MACVLAN_HOST_IFACE} 2>/dev/null || true" "$RC_LOCAL"
+    log_ok "Configuración persistente añadida en ${RC_LOCAL}."
+fi
+
+echo ""
+log_info "=== Resumen MACVLAN ==="
+echo "  Interfaz física       : ${PARENT_IFACE}"
+echo "  Red Docker            : ${DOCKER_NET_NAME}"
+echo "  IP contenedor Odoo    : ${ODOO_IP}"
+echo "  IP contenedor Postgres: ${POSTGRES_IP}"
+echo "  IP host (subinterfaz) : ${HOST_MACVLAN_IP}"
+log_ok "MACVLAN configurado. Actualiza docker-compose.yml con las IPs fijas."
 ```
-
-El script pedirá interactivamente:
-1. La URL del repositorio (`https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git`)
-2. El token de registro de GitHub (no se muestra en pantalla)
-
-Después, automáticamente:
-- Descarga el agente del runner de GitHub (detecta arquitectura x64/arm64)
-- Registra el runner con el nombre `debian-dmz` y la etiqueta `self-hosted,debian-dmz,linux`
-- Lo instala como servicio `systemd` para que arranque con el servidor
-
-### 8.3 Verificar que el Runner está Activo
-
-```bash
-# Comprobar el estado del servicio del runner
-cd ~/actions-runner
-sudo ./svc.sh status
-```
-
-En GitHub: **Settings → Actions → Runners** → el runner `debian-dmz` debe aparecer como **Idle** (esperando jobs).
-
-### 8.4 Activar el Pipeline Automático
-
-```bash
-# En el PC de desarrollo, hacer cualquier commit y push a main
-git add .
-git commit -m "feat: activar pipeline CD"
-git push origin main
-```
-
-En la pestaña **Actions** del repositorio de GitHub:
-- Aparecerá el workflow `CD Deploy` ejecutándose en el runner `debian-dmz`
-- El runner ejecutará `scripts/deploy.sh` en el servidor
-- Al finalizar, los contenedores estarán actualizados y funcionando
-
-> 🔄 **En Progreso [2026-05-05]:** Agente runner descargado en `/opt/actions-runner`. Pendiente configuración del servicio systemd y ejecución final del pipeline CD.
-
-## Fase 9: Mejoras de Automatización Avanzada (Scripting y Docker)
-
-### ¿Por qué estas mejoras?
-
-Para acercar el despliegue a una experiencia de "enchufar servidor y olvidarse", se han añadido mejoras sobre la infraestructura base que simplifican el despliegue inicial, mejoran la configuración dinámica, robustecen los scripts existentes y aseguran el correcto seguimiento de los contenedores Docker mediante sus healthchecks nativos.
-
-### 9.1 Novedades Implementadas
-
-1. **Instalador `install.sh`**: Despliegue en 1 clic que clona el repo, instala dependencias, crea certificados y activa el cron.
-2. **Plantilla de entorno `.env.example` y configurador `configure.sh`**: Script interactivo para configurar de forma segura las credenciales sin edición manual de archivos.
-3. **Docker Healthchecks**: Se incorporó validación nativa (`pg_isready`, `curl`, `nginx -t`) en el `docker-compose.yml`.
-4. **Logrotate**: Rotación semanal automática de los logs de sistema para evitar llenar la partición root.
-5. **Orquestador `erp.sh`**: Comando único con subcomandos rápidos para el ciclo de vida (deploy, backup, logs, etc.).
-6. **Pre-checks**: Comprobaciones de conectividad Docker, espacio libre y puertos libres antes de los despliegues.
-
-> ✅ **Completado [2026-04-30]:** Todas las mejoras de scripting, plantillas de entorno y comprobaciones de healthcheck han sido implementadas exitosamente y añadidas al pipeline de CI (ShellCheck).
 
 ---
 
-## Fase 10: Documentación Final y Defensa
+### 5.5 `scripts/odoo_init_roles.sh`
 
-### ¿Por qué esta fase?
-La última etapa del TFG consiste en asegurar que toda la implantación técnica se refleja correctamente en la memoria escrita y preparar el material necesario para la demostración práctica ante el tribunal.
+```bash
+#!/usr/bin/env bash
+# ============================================================
+# SCRIPT: odoo_init_roles.sh
+# DESCRIPCIÓN: Crea departamentos, perfiles y usuarios en Odoo
+#              mediante API XML-RPC. Solo usa curl.
+# USO: bash scripts/odoo_init_roles.sh
+# ============================================================
 
-### 10.1 Cierre de Documentación Técnica
-- **Plan de Implantación**: ✅ Actualizado y revisado. Refleja la arquitectura final con sus automatizaciones.
-- **Changelog**: ✅ Actualizado con las últimas sesiones de trabajo (`v1.5`).
-- **Readme**: Consolidar el `README.md` como una guía rápida de despliegue ("Quickstart"). (Pendiente)
+set -euo pipefail
 
-### 10.2 Preparación de la Memoria
-Trasladar todo el trabajo técnico a la estructura formal requerida por el TFG:
-- Introducción y Objetivos (basados en automatización y seguridad).
-- Arquitectura (diagramas de red de pfSense y contenedores Docker).
-- Implementación (detalles de bash scripts, nginx proxy, PostgreSQL audit).
-- Pruebas de funcionamiento y Conclusiones.
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; NC='\033[0m'
+log_info()  { echo -e "${BLUE}[INFO]${NC}  $*"; }
+log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
-### 10.3 Defensa y Demostración Práctica
-Preparar un entorno real (o virtual) saneado y un guion para la demostración en vivo:
-1. **Acceso inicial**: pfSense y reglas DMZ.
-2. **Despliegue rápido**: Ejecutar `install.sh` y mostrar su automatización.
-3. **Resiliencia**: Simular una caída (`docker stop odoo`) y mostrar cómo `monitor.sh` lo recupera automáticamente.
-4. **Auditoría**: Demostrar el trigger PL/pgSQL mediante la creación de un usuario en Odoo y lectura del log.
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ENV_FILE="${SCRIPT_DIR}/.env"
+[ -f "$ENV_FILE" ] || { log_error ".env no encontrado en ${ENV_FILE}"; exit 1; }
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+
+ODOO_URL="${ODOO_URL:-http://localhost:8069}"
+ODOO_DB="${ODOO_DB:-odoo}"
+ADMIN_USER="${ADMIN_USER:-admin}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
+[ -z "$ADMIN_PASSWORD" ] && { log_error "ADMIN_PASSWORD no definida en .env"; exit 1; }
+
+log_info "Verificando disponibilidad de Odoo en ${ODOO_URL}..."
+MAX_RETRIES=12; RETRY=0
+until curl -s --max-time 5 "${ODOO_URL}/web/database/selector" > /dev/null 2>&1; do
+    RETRY=$((RETRY + 1))
+    [ "$RETRY" -ge "$MAX_RETRIES" ] && { log_error "Odoo no disponible tras ${MAX_RETRIES} intentos."; exit 1; }
+    log_warn "Reintento ${RETRY}/${MAX_RETRIES}..."; sleep 5
+done
+log_ok "Odoo disponible."
+
+xmlrpc_call() {
+    curl -s -X POST -H "Content-Type: text/xml" --data "$2" "${ODOO_URL}/${1}"
+}
+
+AUTH_XML="<?xml version='1.0'?>
+<methodCall><methodName>authenticate</methodName><params>
+  <param><value><string>${ODOO_DB}</string></value></param>
+  <param><value><string>${ADMIN_USER}</string></value></param>
+  <param><value><string>${ADMIN_PASSWORD}</string></value></param>
+  <param><value><struct></struct></value></param>
+</params></methodCall>"
+
+UID=$(xmlrpc_call "xmlrpc/2/common" "$AUTH_XML" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1)
+[ -z "$UID" ] || [ "$UID" = "0" ] && { log_error "Autenticación fallida."; exit 1; }
+log_ok "Autenticado. UID: ${UID}"
+
+odoo_create() {
+    local model="$1"; local fields_xml="$2"
+    local call_xml="<?xml version='1.0'?>
+<methodCall><methodName>execute_kw</methodName><params>
+  <param><value><string>${ODOO_DB}</string></value></param>
+  <param><value><int>${UID}</int></value></param>
+  <param><value><string>${ADMIN_PASSWORD}</string></value></param>
+  <param><value><string>${model}</string></value></param>
+  <param><value><string>create</string></value></param>
+  <param><value><array><data><value><struct>${fields_xml}</struct></value></data></array></value></param>
+  <param><value><struct></struct></value></param>
+</params></methodCall>"
+    xmlrpc_call "xmlrpc/2/object" "$call_xml" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1
+}
+
+create_dept() {
+    local name="$1"
+    local id; id=$(odoo_create "hr.department" "<member><name>name</name><value><string>${name}</string></value></member>")
+    [ -n "$id" ] && log_ok "Departamento '${name}' → ID ${id}" || log_warn "No se pudo crear '${name}'"
+    echo "$id"
+}
+
+log_info "=== Creando departamentos ==="
+create_dept "Ventas"
+create_dept "Almacén"
+create_dept "Recursos Humanos"
+create_dept "Contabilidad"
+create_dept "IT / Administración"
+
+create_user() {
+    local fullname="$1"; local login="$2"; local pass="$3"; local gid="$4"
+    local fields="
+      <member><name>name</name><value><string>${fullname}</string></value></member>
+      <member><name>login</name><value><string>${login}</string></value></member>
+      <member><name>password</name><value><string>${pass}</string></value></member>
+      <member><name>groups_id</name><value><array><data>
+        <value><array><data><value><int>4</int></value><value><int>${gid}</int></value></data></array></value>
+      </data></array></value></member>"
+    local uid; uid=$(odoo_create "res.users" "$fields")
+    [ -n "$uid" ] && log_ok "Usuario '${login}' → ID ${uid}" || log_warn "No se pudo crear '${login}'"
+}
+
+log_info "=== Creando usuarios ==="
+create_user "Usuario Ventas"       "ventas.usuario"      "Ventas2024!"   "2"
+create_user "Responsable Ventas"   "ventas.responsable"  "Ventas2024!"   "2"
+create_user "Operario Almacén"     "almacen.operario"    "Almacen2024!"  "2"
+create_user "Responsable Almacén"  "almacen.responsable" "Almacen2024!"  "2"
+create_user "Usuario RRHH"         "rrhh.usuario"        "RRHH2024!"     "2"
+create_user "Responsable RRHH"     "rrhh.responsable"    "RRHH2024!"     "2"
+create_user "Contable"             "conta.contable"      "Conta2024!"    "2"
+create_user "Responsable Conta"    "conta.responsable"   "Conta2024!"    "2"
+create_user "Administrador IT"     "it.admin"            "ITAdmin2024!"  "2"
+
+echo ""
+log_ok "========================================"
+log_ok "  Inicialización de roles completada"
+log_ok "========================================"
+log_warn "Cambia las contraseñas antes de producción."
+log_info "Gestión de usuarios: ${ODOO_URL}/odoo/settings/users"
+```
 
 ---
 
-## Resumen de Ejecución y Orden de Arranque
+## 6. Cambios en `docker-compose.yml`
 
-Una vez desplegado todo el sistema, el orden correcto de arranque ante un reinicio es:
+```yaml
+networks:
+  internal:
+    driver: bridge
+    internal: true
 
-1. **Encender la VM de pfSense** → esperar a que las interfaces de red estén activas
-2. **Encender la VM de Debian** → Docker arranca automáticamente y levanta los tres contenedores
-3. **Verificar desde el cliente** → abrir `https://erp.odoo.tfg.com` y comprobar acceso al ERP
-4. **Acceder a Cockpit** → `https://192.168.30.10:9090` para monitorizar el estado del servidor
+  macvlan_vlan30:
+    external: true
+    name: macvlan_vlan30
 
-El sistema es autosuficiente: los contenedores Docker tienen `restart: always`, por lo que si el servidor se reinicia o un contenedor falla, se recuperan solos. El script `monitor.sh` ejecutado por cron cada 5 minutos proporciona una capa adicional de supervisión activa.
+services:
+  odoo:
+    networks:
+      internal:
+      macvlan_vlan30:
+        ipv4_address: 192.168.30.21
 
-> 📌 **Dominio de acceso final:** `https://erp.odoo.tfg.com` — resuelto internamente por pfSense DNS Resolver con Host Override hacia `192.168.30.10`.
+  db:
+    networks:
+      internal:    # Solo accesible desde Odoo, nunca desde fuera
+```
+
+---
+
+## 7. Perfiles de acceso al sistema
+
+| Perfil | IP | VLAN | Acceso SSH | Acceso PostgreSQL | Acceso Odoo web |
+|---|---|---|---|---|---|
+| Admin técnico | 192.168.40.11 | **VLAN 40** | ✅ Shell + sudo | ✅ Por `docker exec` | ✅ Puerto 8069 |
+| DBA | 192.168.40.12 | **VLAN 40** | ✅ Solo túnel TCP | ✅ Vía túnel SSH (127.0.0.1:5433) | ❌ |
+| Usuarios Odoo | 192.168.10.x | VLAN 10 | ❌ | ❌ | ✅ HTTPS 443 |
+| GitHub Actions runner | localhost | VLAN 30 | N/A | ❌ | ❌ |
+| Cualquier otro | — | — | ❌ UFW DENY | ❌ | ❌ |
+
+---
+
+## 8. Cómo usar PostgreSQL como DBA
+
+```bash
+# Desde la máquina DBA (192.168.40.12 — VLAN 40)
+
+# 1. Abrir túnel SSH
+ssh -N -L 5433:192.168.30.22:5432 -i ~/.ssh/dba_key odoo-dba@192.168.30.10
+
+# 2. Conectar con psql (en otra terminal)
+psql -h 127.0.0.1 -p 5433 -U odoo -d odoo_erp
+
+# O con pgAdmin / DBeaver:
+#   host=127.0.0.1  puerto=5433  usuario=odoo  bd=odoo_erp
+```
+
+El contenedor PostgreSQL **nunca tiene el puerto 5432 expuesto** en la red. El túnel SSH desde la VLAN 40 es el único camino de acceso.
+
+---
+
+## 9. Reglas pfSense
+
+| Regla | Origen | Destino | Puerto | Acción |
+|---|---|---|---|---|
+| SSH Admin | 192.168.40.11/32 (VLAN 40) | 192.168.30.10 | 22/TCP | ALLOW |
+| SSH DBA | 192.168.40.12/32 (VLAN 40) | 192.168.30.10 | 22/TCP | ALLOW |
+| HTTPS clientes → Odoo | 192.168.10.0/24 | 192.168.30.21 | 443/TCP | ALLOW |
+| Admin → Odoo debug | 192.168.40.11/32 | 192.168.30.21 | 8069/TCP | ALLOW |
+| Bloquear PostgreSQL | Cualquiera | 192.168.30.22 | 5432/TCP | BLOCK |
+| **VLAN 30 → VLAN 40** | **192.168.30.0/24** | **192.168.40.0/24** | **any** | **BLOCK** |
+| **VLAN 10 → VLAN 40** | **192.168.10.0/24** | **192.168.40.0/24** | **any** | **BLOCK** |
+| SSH resto | Cualquiera | 192.168.30.10 | 22/TCP | BLOCK |
+| Todo lo demás | Cualquiera | Cualquiera | — | DENY |
+
+---
+
+## 10. Checklist de puesta en marcha
+
+### Primera vez — pfSense (antes que todo)
+
+- [ ] Crear VLAN 40 en pfSense (Interfaces → VLANs → Add, tag 40).
+- [ ] Asignar y habilitar OPT2 con IP `192.168.40.1/24`.
+- [ ] Configurar reservas DHCP: Admin `192.168.40.11`, DBA `192.168.40.12`.
+- [ ] Añadir reglas de firewall en OPT2 (ver sección 9).
+- [ ] Añadir reglas de bloqueo inter-VLAN en OPT1 y LAN.
+
+### Primera vez — Máquinas Admin y DBA
+
+- [ ] Reconectar Admin a la VLAN 40 (IP `192.168.40.11`, gateway `192.168.40.1`).
+- [ ] Reconectar DBA a la VLAN 40 (IP `192.168.40.12`, gateway `192.168.40.1`).
+- [ ] Verificar que Admin puede hacer SSH al servidor desde la nueva IP.
+
+### Primera vez — GitHub y servidor
+
+- [ ] Actualizar Secrets en GitHub: `ADMIN_IP=192.168.40.11`, `DBA_IP=192.168.40.12`.
+- [ ] Ejecutar `scripts/setup_runner.sh` para registrar el self-hosted runner.
+- [ ] Copiar `.env.example` a `.env` en el servidor y rellenar valores reales.
+
+### Despliegue automático (cada push a `main`)
+
+- [ ] CI Validator pasa (ShellCheck, YAML, Markdown).
+- [ ] CD Deploy ejecuta las 5 fases automáticamente en el servidor.
+- [ ] Verificar en la pestaña Actions de GitHub que todos los pasos están en verde.
+
+---
+
+## 11. Notas de seguridad
+
+- Los Secrets de GitHub (contraseñas, IPs, claves) **nunca se almacenan en el repositorio**.
+- Las contraseñas de ejemplo de `odoo_init_roles.sh` deben cambiarse antes de producción.
+- La IP del Admin y del DBA deben ser **estáticas** en pfSense (reserva DHCP o IP fija).
+- El puerto 5432 de PostgreSQL **nunca se expone** en la red física.
+- La VLAN 40 es inalcanzable desde VLAN 10 y VLAN 30 por reglas pfSense explícitas.
+- El acceso SSH ya **no se expone por WAN** — solo desde la VLAN 40 interna.
+
+---
+
+## 12. Verificaciones detalladas por componente
+
+### 12.1 Debian headless
+
+```bash
+systemctl get-default
+# Esperado: multi-user.target
+```
+
+### 12.2 SSH y UFW
+
+```bash
+ufw status verbose
+
+# Desde Admin (192.168.40.11, VLAN 40) — debe funcionar
+ssh adminodoo@192.168.30.10
+
+# Desde VLAN 10 o VLAN 30 — debe rechazarse
+ssh adminodoo@192.168.30.10
+# Esperado: Connection refused
+
+# Verificar aislamiento VLAN 40 desde el servidor
+ping 192.168.40.11
+# Esperado: sin respuesta (bloqueado por pfSense)
+```
+
+### 12.3 Red MACVLAN
+
+```bash
+docker network ls | grep macvlan
+docker inspect odoo-web | grep '"IPAddress"'
+ping -c 2 192.168.30.21
+ping -c 2 192.168.30.22
+```
+
+### 12.4 Usuario DBA
+
+```bash
+getent passwd odoo-dba
+# Esperado: /usr/sbin/nologin
+
+# Desde DBA (192.168.40.12, VLAN 40)
+ssh -N -L 5433:192.168.30.22:5432 -i ~/.ssh/dba_key odoo-dba@192.168.30.10 &
+psql -h 127.0.0.1 -p 5433 -U odoo -d odoo_erp -c "SELECT version();"
+```
+
+### 12.5 Roles en Odoo
+
+1. `ventas.usuario` → solo CRM, Ventas, Contactos.
+2. `almacen.operario` → solo Inventario.
+3. `it.admin` → todos los módulos + Configuración técnica.
+4. Ningún usuario no-admin debe ver **Configuración → Técnico**.
+
+### 12.6 Aislamiento VLAN 40
+
+```bash
+# Desde un PC de la VLAN 10 — no debe llegar a VLAN 40
+ping 192.168.40.11
+# Esperado: sin respuesta
+
+# Desde el servidor Debian (VLAN 30) — no debe llegar a VLAN 40
+ping 192.168.40.11
+# Esperado: sin respuesta
+
+# Desde Admin (VLAN 40) — sí debe llegar al servidor
+ping 192.168.30.10
+# Esperado: respuesta OK
+```
+
+### 12.7 Pipeline GitHub Actions
+
+1. Ir a la pestaña **Actions** del repositorio en GitHub.
+2. Verificar que `CI Validator` pasa en verde.
+3. Verificar que `CD Deploy (Self-Hosted)` se lanza automáticamente.
+4. Los pasos `[1/5]` hasta `[5/5]` deben estar en verde.
