@@ -40,3 +40,67 @@ Switch gestionable → Puerto trunk → pfSense (1 sola NIC física)
 | Gestión | Física | Lógica desde switch |
 | Estándar | No estándar | IEEE 802.1Q |
 | Plataforma requerida | VMware Workstation | ESXi / switch gestionable |
+
+---
+
+## Gestión de usuarios — OpenLDAP en Docker vs. usuarios locales Odoo
+
+### Decisión adoptada
+Se integra un contenedor **OpenLDAP** (`osixia/openldap:1.5.0`) dentro del stack Docker
+existente en la VLAN 30 (DMZ), junto a Odoo, PostgreSQL y Nginx.
+
+Los usuarios de cada departamento se definen en LDAP y Odoo los autentica
+a través del módulo de autenticación LDAP nativo (Ajustes → Técnico → LDAP).
+
+### Justificación
+Gestionar los usuarios únicamente dentro de Odoo presenta las siguientes limitaciones:
+
+- Las credenciales quedan acopladas al ERP: si se migra o reinstala Odoo, se pierden o deben recrearse manualmente.
+- No existe un punto centralizado de autenticación reutilizable por otros servicios futuros (VPN, wiki, monitorización).
+- El principio de separación de responsabilidades recomienda que la identidad de los usuarios sea independiente de la aplicación que los consume.
+
+Con OpenLDAP en Docker se consigue:
+
+- **Directorio centralizado**: un único lugar donde crear, modificar o deshabilitar usuarios.
+- **Reutilizable**: cualquier servicio que soporte LDAP (Nginx, Grafana, GitLab, VPN) puede autenticarse contra el mismo directorio.
+- **Base para SSO**: preparado para integrar Keycloak u OAuth2 Proxy en el futuro.
+- **Sin VM adicional**: al correr como contenedor Docker, no consume recursos extra significativos.
+
+### Estructura del directorio LDAP
+
+```
+dc=empresa,dc=local
+ └── ou=users
+       ├── uid=ventas.usuario
+       ├── uid=ventas.jefe
+       ├── uid=rrhh.usuario
+       ├── uid=rrhh.jefe
+       ├── uid=almacen.usuario
+       ├── uid=almacen.jefe
+       ├── uid=conta.contable
+       ├── uid=conta.jefe
+       └── uid=it.admin
+```
+
+### Parámetros de integración Odoo → LDAP
+
+| Parámetro | Valor |
+|---|---|
+| Servidor LDAP | `openldap` (nombre del contenedor) |
+| Puerto | `389` |
+| DN base | `dc=empresa,dc=local` |
+| Filtro de usuario | `uid=%s,ou=users,dc=empresa,dc=local` |
+| Usuario bind | `cn=admin,dc=empresa,dc=local` |
+| Contraseña bind | variable de entorno `LDAP_ADMIN_PASSWORD` |
+
+### Mejora futura — TLS sobre LDAP (LDAPS)
+En producción se habilitaría LDAPS (puerto 636) con certificado TLS para cifrar
+las credenciales en tránsito. En el laboratorio se omite al circular el tráfico
+dentro de la red Docker interna (no expuesto fuera de la VLAN 30).
+
+| Aspecto | Lab actual (LDAP sin TLS) | Producción (LDAPS) |
+|---|---|---|
+| Puerto | 389 | 636 |
+| Cifrado | No (red interna Docker) | TLS/SSL |
+| Certificado | No requerido | CA propia o Let's Encrypt |
+| Exposición | Solo VLAN 30 interna | Controlada por firewall |
