@@ -38,8 +38,8 @@ LDAP_CONTAINER="odoo-ldap"
 
 # Cargar variables del .env
 if [[ -f "$ENV_FILE" ]]; then
-    # shellcheck disable=SC1090
     set -a
+    # shellcheck disable=SC1090
     source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$')
     set +a
     info "Variables cargadas desde $ENV_FILE"
