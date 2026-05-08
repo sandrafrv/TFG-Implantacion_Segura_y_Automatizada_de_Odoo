@@ -35,7 +35,7 @@ services:
       retries: 5
 
     networks:
-      - odoo_net
+      odoo_net:
 
   # ------------------------------------------------------------------
   # SERVICIO 2: Aplicación Web Odoo
@@ -72,10 +72,30 @@ services:
       start_period: 90s
 
     networks:
-      - odoo_net
+      odoo_net:
+      macvlan_vlan30:
+        ipv4_address: 192.168.30.21
 
   # ------------------------------------------------------------------
-  # SERVICIO 3: Proxy Inverso Nginx
+  # SERVICIO 3: OpenLDAP (Directorio de Usuarios)
+  # Centraliza la autenticación de Odoo.
+  # ------------------------------------------------------------------
+  ldap:
+    image: osixia/openldap:1.5.0
+    container_name: odoo-ldap
+    restart: always
+    environment:
+      LDAP_ORGANISATION: "TFG ASIR"
+      LDAP_DOMAIN: "tfg.com"
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+    volumes:
+      - ../ldap_data:/var/lib/ldap
+      - ../ldap_config:/etc/ldap/slapd.d
+    networks:
+      odoo_net:
+
+  # ------------------------------------------------------------------
+  # SERVICIO 4: Proxy Inverso Nginx
   # Es la única puerta de entrada desde el exterior. Recibe las
   # peticiones HTTPS del usuario, las descifra y las reenvía a Odoo.
   # Es el ÚNICO contenedor que abre puertos al Host (Debian).
@@ -103,7 +123,9 @@ services:
       retries: 3
 
     networks:
-      - odoo_net
+      odoo_net:
+      macvlan_vlan30:
+        ipv4_address: 192.168.30.20
 
 # ====================================================================
 # REDES DOCKER
@@ -115,3 +137,5 @@ services:
 networks:
   odoo_net:
     driver: bridge
+  macvlan_vlan30:
+    external: true
