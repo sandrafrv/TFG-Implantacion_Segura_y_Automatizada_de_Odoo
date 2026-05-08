@@ -83,7 +83,15 @@ else
 fi
 
 # Obtiene la última versión disponible del runner y la descarga
-RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+# Usamos || true para que set -e no aborte el script si grep falla por un límite de la API de GitHub
+RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/' || true)
+
+# Si la API falla (ej. por rate limit), usamos una versión fija conocida
+if [ -z "$RUNNER_VERSION" ]; then
+    echo "[AVISO] No se pudo obtener la última versión de la API (posible Rate Limit). Usando versión 2.322.0."
+    RUNNER_VERSION="2.322.0"
+fi
+
 curl -sLO "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz"
 
 echo "  → Versión descargada: v${RUNNER_VERSION} (${RUNNER_ARCH})"

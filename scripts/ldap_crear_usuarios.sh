@@ -44,7 +44,7 @@ fi
 clear
 echo -e "${BOLD}"
 echo "  ╔══════════════════════════════════════════════════╗"
-echo "  ║     Gestión de Usuarios LDAP — TFG ASIR 2025    ║"
+echo "  ║     Gestión de Usuarios LDAP — TFG ASIR 2026    ║"
 echo "  ╚══════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
