@@ -217,6 +217,7 @@ Antes de definir la arquitectura, se evaluó comparativamente con otras solucion
 | **Gestión de Bases de Datos** | Triggers PL/pgSQL con auditoría en formato JSONB, función `func_audit_users()`, tabla `asir_audit_log`, vista `v_audit_resumen` |
 | **Servicios de Red** | Configuración de VLANs (10/30), DHCP en pfSense, NAT/Port Forwarding, DNS interno, redes MACVLAN Docker |
 |**Redes**| Configuracion de VLANs (10/30)|
+|**Arquitectura de la Nube **| Creacion y uso de Dockers, uso del servidor de proxy inverso NGINX |
 | **DevOps** | Scripts Bash para despliegue, backup, restauración, monitorización y CI/CD con GitHub Actions |
 
 ---
