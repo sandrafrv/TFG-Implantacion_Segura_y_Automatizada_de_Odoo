@@ -214,9 +214,9 @@ Antes de definir la arquitectura, se evaluó comparativamente con otras solucion
 | :--- | :--- |
 | **Seguridad y Alta Disponibilidad** | Topología DMZ con pfSense, UFW en host, reglas de firewall, política default-deny, backups automatizados con retención |
 | **Gestión de Bases de Datos** | Triggers PL/pgSQL con auditoría en formato JSONB, función `func_audit_users()`, tabla `asir_audit_log`, vista `v_audit_resumen` |
-| **Servicios de Red** | Cabeceras de seguridad HTTP, DHCP en pfSense, NAT/Port Forwarding, DNS interno, redes MACVLAN Docker |
+| **Servicios de Red** | Cabeceras de seguridad HTTP, DHCP en pfSense, NAT/Port Forwarding, DNS interno |
 | **Redes** | Configuracion de VLANs (10/30), monitorizacion de la red y los paquetes, topologia de red|
-| **Arquitectura de la Nube** | Creacion y uso de Dockers, proxy inverso Nginx con terminación SSL/TLS |
+| **Arquitectura de la Nube** | Creacion y uso de Dockers, proxy inverso Nginx con terminación SSL/TLS, redes MACVLAN Docker |
 | **Administracion de Sistemas Operativos** | Creacion y gestion de servidor LDAP, creacion y uso de scripts bash |
 | **DevOps** | Scripts Bash para despliegue, backup, restauración, monitorización y CI/CD con GitHub Actions |
 
