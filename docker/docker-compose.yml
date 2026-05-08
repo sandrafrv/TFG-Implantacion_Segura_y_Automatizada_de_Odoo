@@ -1,8 +1,8 @@
 # ====================================================================
 # STACK DOCKER: ERP Odoo TFG ASIR
-# DESCRIPCIÓN: Este archivo define los 3 servicios (contenedores) que
-#              forman el sistema ERP: Base de Datos, Aplicación Web y
-#              Proxy Inverso (puerta de entrada desde Internet).
+# DESCRIPCIÓN: Este archivo define los servicios (contenedores) que
+#              forman el sistema ERP: Base de Datos, Aplicación Web,
+#              Proxy Inverso, Directorio LDAP y Gestión LDAP web.
 # USO: Ejecutar desde /opt/erp-odoo con:
 #      docker compose -f docker/docker-compose.yml up -d
 # ====================================================================
@@ -78,7 +78,7 @@ services:
   # SERVICIO 3: Proxy Inverso Nginx
   # Es la única puerta de entrada desde el exterior. Recibe las
   # peticiones HTTPS del usuario, las descifra y las reenvía a Odoo.
-  # Es el ÚNICO contenedor que abre puertos al Host (Debian).
+  # Es el Único contenedor que abre puertos al Host (Debian).
   # ------------------------------------------------------------------
   nginx:
     image: nginx:alpine
@@ -105,13 +105,79 @@ services:
     networks:
       - odoo_net
 
+  # ------------------------------------------------------------------
+  # SERVICIO 4: Directorio LDAP (OpenLDAP)
+  # Gestiona de forma centralizada los usuarios que se autentican
+  # en Odoo. Solo accesible dentro de la red interna Docker (odoo_net).
+  # No expone puertos al host para evitar acceso desde fuera de la VLAN.
+  # ------------------------------------------------------------------
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: openldap
+    restart: always
+
+    environment:
+      - LDAP_ORGANISATION=${LDAP_ORGANISATION:-Mi Empresa}
+      - LDAP_DOMAIN=${LDAP_DOMAIN:-empresa.local}
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD}
+      - LDAP_CONFIG_PASSWORD=${LDAP_CONFIG_PASSWORD}
+      - LDAP_READONLY_USER=false
+      - LDAP_TLS=false
+
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+
+    healthcheck:
+      test: [ "CMD-SHELL", "ldapsearch -x -H ldap://localhost -b '' -s base '(objectClass=*)' namingContexts" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+    networks:
+      - odoo_net
+
+  # ------------------------------------------------------------------
+  # SERVICIO 5: Interfaz web para administrar LDAP (phpLDAPadmin)
+  # Permite gestionar usuarios y grupos LDAP desde el navegador.
+  # SOLO accesible desde VLAN 40 (Admin). No exponer a VLAN 10.
+  # URL: http://<IP-servidor>:8090
+  # ------------------------------------------------------------------
+  phpldapadmin:
+    image: osixia/phpldapadmin:latest
+    container_name: phpldapadmin
+    restart: always
+
+    depends_on:
+      openldap:
+        condition: service_healthy
+
+    environment:
+      - PHPLDAPADMIN_LDAP_HOSTS=openldap
+      - PHPLDAPADMIN_HTTPS=false
+
+    ports:
+      - "8090:80"   # Accesible solo desde VLAN 40 (Admin) via pfSense
+
+    networks:
+      - odoo_net
+
 # ====================================================================
 # REDES DOCKER
 # Se define una red privada bridged interna llamada "odoo_net".
-# Los 3 contenedores la comparten.
-# Ventaja: se comunican por nombre (ej: http://odoo-web:8069) y están
-# completamente aislados del resto de contenedores del servidor.
+# Todos los contenedores la comparten y se comunican por nombre.
+# Ventaja: aislados del resto del host y accesibles solo entre ellos
+# o a través de los puertos explicitamente expuestos.
 # ====================================================================
 networks:
   odoo_net:
     driver: bridge
+
+# ====================================================================
+# VOLÚMENES
+# Persistencia de datos LDAP fuera del ciclo de vida del contenedor.
+# ====================================================================
+volumes:
+  ldap_data:
+  ldap_config:
