@@ -89,3 +89,22 @@ Tratar la infraestructura del servidor como código (IaC), permitiendo que cualq
 - [ ] Desarrollar workflow `deploy.yml` que se active tras un CI exitoso.
 - [ ] Configurar GitHub Secrets y Variables para IPs, credenciales y rutas de red.
 - [ ] Validar pipeline end-to-end: commit local -> push -> validación CI -> despliegue automático en Debian.
+
+---
+
+## Título del Issue: [SecOps] Endurecimiento Avanzado de Salida (Egress Filtering FQDN)
+
+**Descripción (Copiar lo siguiente):**
+
+### 🎯 Objetivo
+Aplicar el principio de mínimo privilegio (Zero Trust) al tráfico de salida del servidor DMZ. En lugar de permitir la salida a Internet a cualquier IP por el puerto 443, se restringirá exclusivamente a los dominios necesarios (Docker Hub, GitHub, repositorios Debian) mediante un Alias FQDN en pfSense, previniendo exfiltración de datos y malware C2.
+
+### ✅ Tareas a realizar
+- [ ] Crear un Alias en pfSense llamado `SERVICIOS_PERMITIDOS_DMZ` de tipo Host(s).
+- [ ] Añadir dominios de Docker Hub (`registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`).
+- [ ] Añadir dominios de GitHub (`github.com`, `api.github.com`).
+- [ ] Añadir repositorios base de OS (`deb.debian.org`).
+- [ ] Modificar las reglas de Firewall de la DMZ (OPT1) que permitían salida HTTP/HTTPS.
+- [ ] Cambiar el "Destination" de `any` a "Single host or alias" -> `SERVICIOS_PERMITIDOS_DMZ`.
+- [ ] Probar un `docker pull` desde el servidor para validar que Docker puede actualizar imágenes.
+- [ ] Probar conexión a una IP bloqueada (`curl -I https://1.1.1.1`) para confirmar que el Egress Filtering funciona y bloquea tráfico no listado.
