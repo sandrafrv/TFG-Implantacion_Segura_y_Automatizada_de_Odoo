@@ -14,7 +14,7 @@
 #   Resto          → Sin acceso
 #
 # USO:
-#   bash scripts/ldap_politica_acceso.sh
+#   bash scripts/ldap/ldap_politica_acceso.sh
 #   (Ejecutar desde /opt/erp-odoo o desde la raíz del proyecto)
 #
 # REQUISITOS:

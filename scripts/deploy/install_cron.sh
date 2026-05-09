@@ -54,17 +54,17 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Comprueba el estado de los 3 contenedores cada 5 minutos.
 # Si alguno está caído, monitor.sh intenta reiniciarlo automáticamente.
 # Los resultados se guardan en /var/log/erp_monitor.log
-*/5 * * * * $CRON_USER $PROJECT_DIR/scripts/monitor.sh >> /var/log/erp_monitor.log 2>&1
+*/5 * * * * $CRON_USER $PROJECT_DIR/scripts/mantenimiento/monitor.sh >> /var/log/erp_monitor.log 2>&1
 
 # --- BACKUP DIARIO ---
 # Ejecuta backup.sh todos los días a las 02:00 AM (servidor parado o con poco tráfico).
 # El backup se guarda en $BACKUP_DIR con nombre backup_FECHA.dump
-0 2 * * * $CRON_USER $PROJECT_DIR/scripts/backup.sh $BACKUP_DIR >> /var/log/erp_backup.log 2>&1
+0 2 * * * $CRON_USER $PROJECT_DIR/scripts/mantenimiento/backup.sh $BACKUP_DIR >> /var/log/erp_backup.log 2>&1
 
 # --- ACTUALIZACIÓN SEMANAL ---
 # Comprueba nuevas versiones de imágenes Docker cada domingo a las 03:00 AM.
 # Solo actualiza si hay versión nueva; si no, no hace nada para esa imagen.
-0 3 * * 0 $CRON_USER $PROJECT_DIR/scripts/update.sh >> /var/log/erp_update.log 2>&1
+0 3 * * 0 $CRON_USER $PROJECT_DIR/scripts/mantenimiento/update.sh >> /var/log/erp_update.log 2>&1
 
 EOF
 

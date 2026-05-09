@@ -4,7 +4,7 @@
 # DESCRIPCIÓN: Asistente interactivo de post-instalación de Odoo.
 #              Configura la compañía, instala módulos, conecta LDAP
 #              y restringe el acceso SOLO a usuarios LDAP.
-# USO: bash scripts/odoo_setup_wizard.sh
+# USO: bash scripts/odoo/odoo_setup_wizard.sh
 # REQUISITO: Base de datos de Odoo recién creada SIN datos demo.
 # ============================================================
 
@@ -215,5 +215,5 @@ echo "  📌  Próximo paso:"
 echo "      1. Reinicia Odoo: docker restart odoo-web"
 echo "      2. Abre el navegador con Ctrl+F5"
 echo "      3. Prueba login con un usuario LDAP (ej: jdoe)"
-echo "      4. Para crear más usuarios LDAP: bash scripts/ldap_crear_usuarios.sh"
+echo "      4. Para crear más usuarios LDAP: bash scripts/ldap/ldap_crear_usuarios.sh"
 echo ""

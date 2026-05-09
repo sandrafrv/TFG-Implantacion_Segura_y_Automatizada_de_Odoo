@@ -137,7 +137,7 @@ opcion_backup() {
     echo -e "${BOLD}  ── Backup de Base de Datos ───────────────────────────────${NC}"
     info "Ejecutando backup.sh..."
     log "INFO" "Lanzando backup.sh"
-    if bash "$SCRIPTS_DIR/backup.sh"; then
+    if bash "$PROJECT_DIR/scripts/mantenimiento/backup.sh"; then
         ok "Backup completado."
     else
         error "El backup falló. Revisa $LOG_FILE para más detalles."
@@ -157,7 +157,7 @@ opcion_restaurar() {
     read -rp "  Introduce el nombre del archivo .dump a restaurar: " dump_file
     if [ -f "/opt/erp-odoo/backups/$dump_file" ]; then
         log "INFO" "Restaurando desde $dump_file"
-        BACKUP_FILE="/opt/erp-odoo/backups/$dump_file" bash "$SCRIPTS_DIR/restore.sh"
+        BACKUP_FILE="/opt/erp-odoo/backups/$dump_file" bash "$PROJECT_DIR/scripts/mantenimiento/restore.sh"
     else
         error "Archivo no encontrado: /opt/erp-odoo/backups/$dump_file"
     fi
@@ -171,7 +171,7 @@ opcion_actualizar() {
     read -rp "  ¿Confirmas? (s/N): " confirm
     if [[ "$confirm" =~ ^[sS]$ ]]; then
         log "INFO" "Lanzando update.sh"
-        bash "$SCRIPTS_DIR/update.sh"
+        bash "$PROJECT_DIR/scripts/mantenimiento/update.sh"
     else
         info "Operación cancelada."
     fi
@@ -203,7 +203,7 @@ opcion_monitor() {
     cabecera
     echo -e "${BOLD}  ── Monitor de Salud ──────────────────────────────────────${NC}"
     log "INFO" "Lanzando monitor.sh"
-    bash "$SCRIPTS_DIR/monitor.sh"
+    bash "$PROJECT_DIR/scripts/mantenimiento/monitor.sh"
     pausa
 }
 

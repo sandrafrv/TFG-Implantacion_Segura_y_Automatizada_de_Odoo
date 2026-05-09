@@ -53,7 +53,7 @@ mkdir -p data/postgres data/odoo_addons data/odoo_web backups certs docker
 # Dar permisos universales a las carpetas montadas para evitar Permission denied (Errno 13)
 # ya que los contenedores usan usuarios no-root internamente (ej. uid 101 para odoo)
 chmod -R 777 data/ backups/
-chmod +x scripts/*.sh
+chmod +x scripts/*/*.sh
 
 # 5. Generar certificados SSL autofirmados
 echo "[4/6] Configurando certificados SSL..."
@@ -68,12 +68,12 @@ fi
 
 # 6. Configuración interactiva del entorno
 echo "[5/6] Configurando entorno (.env)..."
-./scripts/configure.sh
+./scripts/deploy/configure.sh
 
 # 7. Despliegue y Cron
 echo "[6/6] Desplegando Docker e instalando tareas programadas..."
-./scripts/deploy.sh
-./scripts/install_cron.sh
+./scripts/deploy/deploy.sh
+./scripts/deploy/install_cron.sh
 
 echo "=== Instalación completada con éxito ==="
 echo "Accede a Cockpit en: https://[IP_SERVIDOR]:9090"

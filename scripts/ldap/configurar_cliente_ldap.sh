@@ -30,7 +30,7 @@
 #   - El grupo cn=admin puede usar sudo en la máquina (configurable)
 #
 # USO (ejecutar en cada cliente Linux de VLAN 10):
-#   sudo bash scripts/configurar_cliente_ldap.sh
+#   sudo bash scripts/ldap/configurar_cliente_ldap.sh
 #
 # REQUISITOS:
 #   - Máquina Debian 12 / Ubuntu 22.04 o superior
@@ -58,7 +58,7 @@ title() { echo -e "\n${BOLD}${CYAN}$*${NC}"; echo "─────────�
 # ── Verificar que se ejecuta como root ───────────────────────
 if [[ "$EUID" -ne 0 ]]; then
     error "Este script debe ejecutarse como root."
-    error "Usa: sudo bash scripts/configurar_cliente_ldap.sh"
+    error "Usa: sudo bash scripts/ldap/configurar_cliente_ldap.sh"
     exit 1
 fi
 
@@ -165,7 +165,7 @@ fi
 cat > /etc/sssd/sssd.conf << EOF
 # ============================================================
 # Configuración SSSD — TFG ASIR 2025/2026
-# Generado por: scripts/configurar_cliente_ldap.sh
+# Generado por: scripts/ldap/configurar_cliente_ldap.sh
 #
 # SSSD actúa como intermediario entre PAM/NSS y el servidor LDAP.
 # Ventajas sobre libnss-ldap directo:

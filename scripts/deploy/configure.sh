@@ -3,7 +3,7 @@
 # SCRIPT: configure.sh
 # DESCRIPCIÓN: Configura interactivamente las contraseñas del
 #              entorno usando la plantilla .env.example.
-# USO: ./scripts/configure.sh
+# USO: ./scripts/deploy/configure.sh
 # ============================================================
 
 # Rutas

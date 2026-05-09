@@ -33,7 +33,7 @@
 #   11 → Administrador (admin)
 #
 # USO:
-#   ./scripts/odoo_crear_usuarios.sh
+#   ./scripts/odoo/odoo_crear_usuarios.sh
 #   (Ejecutar desde /opt/erp-odoo o desde la raíz del proyecto)
 #
 # REQUISITOS:

@@ -18,7 +18,7 @@
 #   admin        → Acceso total al servidor
 #   dba          → Solo base de datos PostgreSQL
 #
-# USO: bash scripts/ldap_crear_usuarios.sh
+# USO: bash scripts/ldap/ldap_crear_usuarios.sh
 # ============================================================
 
 set -euo pipefail

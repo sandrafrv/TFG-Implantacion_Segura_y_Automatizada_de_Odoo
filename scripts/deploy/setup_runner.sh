@@ -13,8 +13,8 @@
 #   3. Ejecutar como el usuario administrador (NO como root).
 #
 # USO:
-#   chmod +x scripts/setup_runner.sh
-#   ./scripts/setup_runner.sh
+#   chmod +x scripts/deploy/setup_runner.sh
+#   ./scripts/deploy/setup_runner.sh
 #
 # SEGURIDAD: Este script NO almacena el token en ningún archivo.
 #            Se solicita de forma interactiva y solo vive en
