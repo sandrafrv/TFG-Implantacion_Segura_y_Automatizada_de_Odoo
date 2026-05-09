@@ -358,6 +358,23 @@ LDAP_ADMIN_PASSWORD=<contraseña_segura>
 
 ---
 
+## Anexo: Planes de Fases y Pipeline (Histórico)
+
+> *Nota: Este anexo resume los hitos documentados originalmente en `plan_fases_pendientes.md` y `plan_iac_github.md` durante el desarrollo del proyecto.*
+
+### Resumen de Fases
+- **Fase A (VLAN):** Verificación y endurecimiento de la segmentación entre VLAN 10 (LAN) y VLAN 30 (DMZ). Acceso solo a HTTPS (443) y bloqueos explícitos a PostgreSQL y Odoo directo.
+- **Fase B (MACVLAN):** Asignación de IPs físicas de la VLAN30 a los contenedores (Nginx en `.20`, Odoo en `.21`).
+- **Fase C (LDAP):** Despliegue de `odoo-ldap`, creación de usuarios de prueba y configuración del login centralizado en Odoo vía XML-RPC.
+- **Fase D (Headless & Hardening):** Conversión de Debian a `multi-user.target` (sin GUI) y endurecimiento de SSH (claves públicas, restricción de acceso solo a VLAN de administración).
+
+### Infraestructura como Código (IaC) y GitHub Actions
+Se diseñó un pipeline CI/CD completo en GitHub donde el repositorio actúa como **fuente de verdad**:
+- **CI Validator (`ci.yml`):** Ejecuta `shellcheck` en los scripts, valida la sintaxis de `docker-compose.yml` y lint de Markdown.
+- **CD Deploy (`deploy.yml`):** Utiliza un **self-hosted runner** instalado en el servidor Debian para aplicar automáticamente los cambios en producción (MACVLAN, SSH, Docker, Roles).
+
+---
+
 ## Estructura Final del Repositorio
 
 ```

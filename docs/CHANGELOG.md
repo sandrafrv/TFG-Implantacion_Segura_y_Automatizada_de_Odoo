@@ -10,6 +10,16 @@ El formato sigue el estándar [Keep a Changelog](https://keepachangelog.com/es/1
 
 ---
 
+## [v1.5 — 2026-05-09]
+
+### Añadido
+- **Archivado de documentación histórica:** Se movieron los documentos de planificación originales a `docs/archive/` para mantener la raíz de documentación limpia de artefactos de desarrollo.
+- **Historial consolidado:** Se fusionaron los planes pendientes e IaC en `HISTORIAL_IMPLEMENTACION.md`.
+- **Organización de scripts:** Se crearon las subcarpetas `deploy`, `odoo`, `ldap`, y `mantenimiento` dentro de `scripts/` y se indexaron en un nuevo `scripts/README.md`.
+- **Plantillas GitHub Issues:** Actualizadas para reflejar los hitos finales de infraestructura y seguridad.
+
+---
+
 ## [v1.4 — 2026-05-06]
 
 ### Corregido

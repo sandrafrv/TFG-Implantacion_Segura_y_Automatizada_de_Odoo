@@ -1,4 +1,6 @@
-# Plan de Implantación Detallado: Odoo ERP con pfSense y Docker (TFG ASIR)
+# Historial: Plan de Implantación Detallado Original: Odoo ERP con pfSense y Docker (TFG ASIR)
+
+> **Nota Histórica:** Este documento contiene el plan técnico original paso a paso que se siguió durante la fase de desarrollo. Su propósito actual es servir como anexo al `HISTORIAL_IMPLEMENTACION.md`, demostrando las instrucciones exactas y comandos utilizados para desplegar la arquitectura desde cero.
 
 Este documento es la **hoja de ruta técnica principal** del proyecto. Contiene todos los pasos necesarios para desplegar el sistema ERP completo, con los comandos exactos a ejecutar, la justificación de cada decisión técnica y el orden correcto de ejecución. Sigue este plan de principio a fin para reproducir el entorno desde cero.
 

@@ -68,7 +68,7 @@ jobs:
         working-directory: /opt/erp-odoo
         run: |
           echo "Ejecutando script de despliegue..."
-          bash scripts/deploy.sh
+          bash scripts/deploy/deploy.sh
 
       - name: Verificar estado del stack
         working-directory: /opt/erp-odoo

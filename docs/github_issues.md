@@ -1,143 +1,91 @@
 # Plantillas para GitHub Issues (TFG ASIR)
 
-Este documento contiene las tareas del proyecto divididas
-por fases, formateadas con la sintaxis de GitHub.
-Puedes copiar cada bloque y pegarlo en un nuevo **Issue** de GitHub.
+> **¿Para qué sirve este archivo?**
+> Este documento funciona como un banco de **plantillas estandarizadas** para la gestión ágil del proyecto mediante **GitHub Issues**. Cuando estás desarrollando y quieres organizar tu trabajo, puedes crear un "Issue" (incidencia/tarea) en GitHub pegando el contenido de uno de estos bloques. Esto asegura que cada tarea tenga objetivos claros y un checklist de verificación estructurado, facilitando el seguimiento del proyecto y demostrando profesionalidad en el uso de metodologías ágiles (DevOps/GitOps).
 
+A continuación se presentan los Issues actualizados para los hitos finales de implementación del proyecto:
 
 ---
 
-## Título del Issue 1: Fase 1 - Arquitectura y Red Base (pfSense)
+## Título del Issue: [Infra] Verificación de Aislamiento VLAN y Reglas pfSense
 
 **Descripción (Copiar lo siguiente):**
 
 ### 🎯 Objetivo
-
-Desplegar la infraestructura de base que soportará las distintas redes virtuales
-y la configuración vital del firewall perimetral.
+Garantizar y verificar el endurecimiento perimetral mediante segmentación de red. La VLAN 10 (LAN Clientes) no debe tener acceso directo a la DMZ (VLAN 30), salvo a los puertos estrictamente expuestos por el proxy inverso.
 
 ### ✅ Tareas a realizar
-
-- [ ] Descargar ISO de pfSense y crear Máquina Virtual.
-- [ ] Configurar 3 adaptadores de red en la VM pfSense (WAN, LAN Clientes, DMZ).
-- [ ] Ejecutar la instalación básica de pfSense.
-- [ ] Asignar interfaces (VLANs 10 y 30 si se usa Trunk, o interfaces físicas/virtuales directas).
-- [ ] Configurar servidor DHCP en pfSense para la VLAN 10 (LAN Clientes).
-- [ ] Instalar Máquina Virtual de Cliente (Windows 10 o Desktop Linux) en VLAN 10.
-- [ ] Validar que el Cliente obtiene IP por DHCP y tiene salida a Internet.
-
+- [ ] Revisar reglas en pfSense (Firewall → Rules → LAN y DMZ).
+- [ ] Ejecutar prueba de conexión `nc -zv 192.168.30.10 5432` desde VLAN 10 (Debe fallar).
+- [ ] Ejecutar prueba de conexión `nc -zv 192.168.30.10 8069` desde VLAN 10 (Debe fallar).
+- [ ] Ejecutar prueba HTTP `curl -k -I https://192.168.30.10` desde VLAN 10 (Debe devolver 200/302).
+- [ ] Validar que desde la DMZ no hay respuesta de ICMP (ping) hacia la VLAN 10 (Anti-pivoting).
+- [ ] Documentar resultados y capturas en el directorio `screenshots/fase_A_vlan/`.
 
 ---
 
-## Título del Issue 2: Fase 2 - Configuración del Servidor Base (Debian 12 en DMZ)
+## Título del Issue: [Docker] Implementación de Redes MACVLAN
 
 **Descripción (Copiar lo siguiente):**
 
 ### 🎯 Objetivo
-
-Preparar el Servidor Linux sobre el cual correrá el entorno Docker,
-optimizándolo para bajo consumo con gestión web centralizada (Cockpit).
+Asignar IPs físicas de la subred DMZ (`192.168.30.0/24`) directamente a los contenedores expuestos (Nginx y Odoo) para que el firewall pfSense pueda aplicar reglas de granularidad de host individuales.
 
 ### ✅ Tareas a realizar
-
-- [ ] Descargar ISO de Debian 12 Server ("netinst") y crear Máquina Virtual en la DMZ.
-- [ ] Instalar Debian (seleccionar solo sistema base, sin entorno de escritorio).
-- [ ] Configurar IP estática (`192.168.30.10`) editando `/etc/network/interfaces` u otra vía.
-- [ ] Actualizar repositorios y sistema (`apt update && apt upgrade`).
-- [ ] Validar conexión a Internet desde el Servidor Debian.
-- [ ] Instalar e inicializar Cockpit (`sudo apt install cockpit -y` y `sudo systemctl enable --now cockpit.socket`).
-- [ ] Acceder al panel de Cockpit desde el Cliente web en `https://192.168.30.10:9090` y validar conectividad.
-- [ ] Instalar Docker Engine y Docker Compose CLI.
-- [ ] Añadir usuario administrador al grupo `docker`.
-- [ ] Habilitar Docker en el arranque del sistema (`sudo systemctl enable --now docker`).
-- [ ] Implementar CI/CD subiendo el flujo de trabajo (`ci.yml`) a la carpeta `.github/workflows` de este respositorio.
-
+- [ ] Crear red MACVLAN en Docker vinculada a la interfaz física del servidor (ej. `ens18`).
+- [ ] Reescribir sintaxis de `networks` en `docker-compose.yml` para soportar IPs estáticas.
+- [ ] Asignar IP estática a `nginx-proxy` (ej. `192.168.30.20`).
+- [ ] Asignar IP estática a `odoo-web` (ej. `192.168.30.21`).
+- [ ] Mantener PostgreSQL en la red bridge interna (Sin IP MACVLAN) por seguridad.
+- [ ] Ejecutar `docker compose up -d --force-recreate` para aplicar cambios.
+- [ ] Verificar conectividad mediante un contenedor alpine temporal en la misma red MACVLAN.
 
 ---
 
-## Título del Issue 3: Fase 3 - Despliegue de Docker (Odoo, PostgreSQL y Nginx)
+## Título del Issue: [Identidad] Integración de Autenticación Centralizada (LDAP)
 
 **Descripción (Copiar lo siguiente):**
 
 ### 🎯 Objetivo
-Levantar toda la pila del ERP utilizando herramientas de orquestación (Docker Compose), de forma aislada y exponiendo el tráfico a través del proxy inverso en los puertos seguros del Host (80, 443).
+Centralizar la gestión de credenciales del ERP Odoo utilizando un directorio activo OpenLDAP, eliminando la dependencia de contraseñas locales y permitiendo aprovisionamiento corporativo.
 
 ### ✅ Tareas a realizar
-- [ ] Crear estructura de directorios en `/opt/erp-odoo` (data, scripts, certs, config_nginx).
-- [ ] Generar certificados SSL autofirmados con OpenSSL y guardarlos en `/opt/erp-odoo/certs/`.
-- [ ] Crear el archivo `/opt/erp-odoo/config_nginx/odoo_proxy.conf` para rutear HTTP a HTTPS localmente.
-- [ ] Redactar el fichero `docker-compose.yml` final, que levanta a `db`, `odoo` y `nginx`. *(Nota: Odoo no exporta puertos externos; Nginx exporta 80 y 443 al host).*
-- [ ] Ejecutar despliegue con `docker-compose up -d`.
-- [ ] Revisar logs globales (`docker-compose logs -f`) para comprobar salud de los tres contenedores.
-- [ ] Validar localmente (desde el host Debian) que funciona la carga web: `curl -I -k https://127.0.0.1`.
-
+- [ ] Añadir servicio `osixia/openldap` al stack en `docker-compose.yml`.
+- [ ] Crear estructura base de OUs en LDAP (ej. `ou=usuarios,dc=tfg,dc=com`).
+- [ ] Desarrollar script `ldap_crear_usuarios.sh` para alta en lote de empleados.
+- [ ] Configurar el módulo `auth_ldap` en Odoo vía interfaz web apuntando al contenedor.
+- [ ] Probar validación cruzada: hacer login en Odoo con usuario y contraseña del LDAP.
+- [ ] Verificar que el Audit Trigger captura correctamente la creación del perfil derivado en Odoo.
 
 ---
 
-## Título del Issue 4: Fase 4 - Automatización y Scripts DevOps (Bash)
+## Título del Issue: [SecOps] Conversión a Debian Headless y Hardening SSH
 
 **Descripción (Copiar lo siguiente):**
 
 ### 🎯 Objetivo
-Codificar y programar los scripts de mantenimiento y administración del ERP que aseguran la disponibilidad de los datos y la automatización inteligente.
+Reducir la superficie de ataque del servidor en DMZ eliminando componentes innecesarios (Entorno Gráfico) y asegurando el acceso administrativo.
 
 ### ✅ Tareas a realizar
-- [ ] Construir script `deploy.sh` (Despliegue fácil con docker-compose up).
-- [ ] Construir script `update.sh` (Actualización de imágenes y recreación).
-- [ ] Construir script `backup.sh` (Volcado comprimido eficiente usando `pg_dump -F c`).
-- [ ] Construir script `restore.sh` (Restauración limpiando DB previa).
-- [ ] Construir script `monitor.sh` (Chequeo de salud recurrente y alertas si falla un contenedor).
-- [ ] Dar permisos de ejecución a todos los scripts (`chmod +x *.sh`).
-- [ ] Configurar un `CRON` para copias de seguridad de madrugada y monitorización horaria.
-- [ ] Testear simulando un ciclo completo: desplegar, hacer backup, borrar base de datos y restaurar con éxito.
-
+- [ ] Cambiar el target de arranque del sistema operativo a `multi-user.target`.
+- [ ] Purgar paquetes gráficos (`gnome`, `x11`, `xorg`, etc.) y auto-remover dependencias.
+- [ ] Modificar `/etc/ssh/sshd_config` para deshabilitar login por contraseña (`PasswordAuthentication no`).
+- [ ] Modificar `/etc/ssh/sshd_config` para deshabilitar acceso root (`PermitRootLogin no`).
+- [ ] Restringir por UFW el acceso al puerto 22, permitiéndolo únicamente desde IPs de administración de la VLAN 10.
+- [ ] Reiniciar servidor y verificar acceso exclusivo mediante clave pública (SSH Key).
 
 ---
 
-## Título del Issue 5: Fase 5 - Auditoría Avanzada de DB (PostgreSQL)
+## Título del Issue: [DevOps] CI/CD Pipeline con GitHub Actions (IaC)
 
 **Descripción (Copiar lo siguiente):**
 
 ### 🎯 Objetivo
-Configurar el rastreo y auditoría en la propia base de datos usando SQL para registrar cualquier creación de un nuevo usuario en la app.
+Tratar la infraestructura del servidor como código (IaC), permitiendo que cualquier cambio en la arquitectura o en los scripts se valide y se despliegue automáticamente en el servidor DMZ al hacer push a la rama principal.
 
 ### ✅ Tareas a realizar
-- [ ] Conectarse a la BD PostgreSQL (`docker exec -it odoo-db psql -U odoo -d odoo_erp`).
-- [ ] Crear la tabla de registros personalizados `asir_audit_log`.
-- [ ] Crear en PL/pgSQL la función `audit_users_action()`.
-- [ ] Vincular el _Trigger_ a la tabla `res_users` de Odoo (que dispare el evento tras un `INSERT`).
-- [ ] Validar auditoría: crear un usuario aleatorio en Odoo y verificar mediante consulta SQL que la tabla de logs lo documenta correctamente.
-
-
----
-
-## Título del Issue 6: Fase 6 - Seguridad de Capa 2 Local (UFW)
-
-**Descripción (Copiar lo siguiente):**
-
-### 🎯 Objetivo
-Blindar el propio Servidor Debian para que rechace cualquier petición que no pertenezca explícitamente a los servicios alojados y al puerto de administración gráfica.
-
-### ✅ Tareas a realizar
-- [ ] Instalar cortafuegos en Debian si no estuviera: `sudo apt install ufw`.
-- [ ] Configurar UFW para permitir accesos críticos: SSH (22), Cockpit (9090), HTTP (80) y HTTPS (443).
-- [ ] Configurar UFW para denegar el resto por defecto.
-- [ ] Habilitar y comprobar el estado de UFW protegiendo la red sin bloquearse a sí mismo.
-
-
----
-
-## Título del Issue 7: Fase 7 - Integración Exterior y Pruebas Globales
-
-**Descripción (Copiar lo siguiente):**
-
-### 🎯 Objetivo
-Realizar las configuraciones de enrutamiento final que interconectan a los usuarios con la DMZ, simulando todos los accesos con DNS de cara al resultado final del proyecto.
-
-### ✅ Tareas a realizar
-- [ ] Configurar reglas de Firewall en pfSense: Permitir tráfico direccional desde WAN/LAN hacia DMZ a los puertos 80/443 de la IPv4 `192.168.30.10`.
-- [ ] Configurar _Port Forwarding_ en pfSense para atrapar tráfico WAN y derivarlo a Nginx.
-- [ ] Desde el PC Cliente (VLAN 10), añadir entrada en el servidor DNS o en el archivo `hosts` local para asociar `erp.techsolutions.local` a pfSense o a la DMZ (según el enrutamiento interno).
-- [ ] Entrar al ERP vía el navegador web en `https://erp.techsolutions.local` desde el Cliente final.
-- [ ] Revisar si los *Triggers* y auditorías siguen funcionando también desde la capa final web.
-- [ ] Opcional: Exportar logs de acceso de Nginx comprobando los "Access Log" y "Error log" para adjuntarlos a la memoria escrita.
+- [ ] Desarrollar workflow `ci.yml` con linter estático (`shellcheck`, validación YAML, markdownlint).
+- [ ] Instalar y registrar un Self-Hosted Runner de GitHub Actions en el servidor Debian de la DMZ.
+- [ ] Desarrollar workflow `deploy.yml` que se active tras un CI exitoso.
+- [ ] Configurar GitHub Secrets y Variables para IPs, credenciales y rutas de red.
+- [ ] Validar pipeline end-to-end: commit local -> push -> validación CI -> despliegue automático en Debian.
