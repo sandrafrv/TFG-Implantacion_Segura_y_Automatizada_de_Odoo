@@ -108,3 +108,22 @@ Aplicar el principio de mínimo privilegio (Zero Trust) al tráfico de salida de
 - [ ] Cambiar el "Destination" de `any` a "Single host or alias" -> `SERVICIOS_PERMITIDOS_DMZ`.
 - [ ] Probar un `docker pull` desde el servidor para validar que Docker puede actualizar imágenes.
 - [ ] Probar conexión a una IP bloqueada (`curl -I https://1.1.1.1`) para confirmar que el Egress Filtering funciona y bloquea tráfico no listado.
+
+---
+
+## Título del Issue: [SecOps] Securización Extrema del Panel de pfSense (VLAN 40 + LDAP)
+
+**Descripción (Copiar lo siguiente):**
+
+### 🎯 Objetivo
+Evitar que el cortafuegos pueda ser administrado desde la LAN de usuarios (VLAN 10) y restringir el acceso exclusivamente a la red de administración (VLAN 40). Además, implementar autenticación centralizada mediante LDAP para garantizar que solo el usuario `admin` tenga acceso al panel web, bloqueando a otros usuarios de administración como `dba`.
+
+### ✅ Tareas a realizar
+- [ ] Configurar regla en VLAN 40 (OPT2) para permitir tráfico TCP puerto 443 hacia `This Firewall (self)`.
+- [ ] **Importante:** Comprobar que puedes acceder a la interfaz web de pfSense desde una máquina en la VLAN 40.
+- [ ] Desactivar la regla *Anti-Lockout* en la configuración avanzada de pfSense (esto bloqueará el acceso desde la VLAN 10).
+- [ ] Integrar el servidor OpenLDAP de la DMZ (`192.168.30.22`) en `User Manager -> Authentication Servers`.
+- [ ] Crear el grupo `admin` en pfSense y asignarle permisos completos (`WebCfg - All pages`).
+- [ ] Cambiar el método de autenticación por defecto de pfSense al servidor LDAP.
+- [ ] Intentar acceder con el usuario `dba` y verificar que el acceso es **denegado**.
+- [ ] Intentar acceder con el usuario `admin` y verificar que el acceso es **permitido**.
