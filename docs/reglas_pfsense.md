@@ -120,6 +120,28 @@ Tráfico desde servidor DMZ (192.168.30.10)
 [Pos. 10] Cualquier otro tráfico           ──► ❌ BLOQUEADO (deny-all)
 ```
 
+### Endurecimiento Avanzado: Lista Blanca de Salida (Egress Filtering FQDN)
+
+Para evitar exfiltración de datos desde la DMZ pero permitir la actualización de contenedores y el uso de GitHub Actions, se sustituyen las reglas genéricas de salida (Reglas 3 y 4 a `*`) por **Alias de red basados en FQDN** (dominios).
+
+**Paso 1 — Crear Alias en pfSense:**
+Ir a `Firewall → Aliases → IP → + Add`
+- **Name:** `SERVICIOS_PERMITIDOS_DMZ`
+- **Type:** `Host(s)`
+- **IP or FQDN:** 
+  - `registry-1.docker.io`
+  - `auth.docker.io`
+  - `production.cloudflare.docker.com`
+  - `github.com`
+  - `api.github.com`
+  - `deb.debian.org` (para actualizaciones `apt`)
+
+**Paso 2 — Modificar las Reglas 3 y 4 de la DMZ:**
+Editar las reglas que permitían salida HTTPS/HTTP:
+- Cambiar el **Destination** de `any` a `Single host or alias` y escribir `SERVICIOS_PERMITIDOS_DMZ`.
+
+*Nota:* Esto hace que pfSense resuelva esos dominios cada 5 minutos y actualice las IPs permitidas. Si falla el `docker pull`, puede deberse a que Docker Hub ha cambiado de IP o CDN; simplemente revisa los logs del firewall y añade el nuevo dominio al Alias.
+
 ---
 
 ## NAT — Port Forwarding
