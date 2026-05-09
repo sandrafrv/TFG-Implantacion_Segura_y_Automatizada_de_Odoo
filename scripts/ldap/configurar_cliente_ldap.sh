@@ -330,7 +330,7 @@ title "5/6  Configurando NSS (resolución de nombres)"
 #   2. Si no lo encuentra, pregunte a SSSD → LDAP
 
 # Hacer copia de seguridad
-cp /etc/nsswitch.conf /etc/nsswitch.conf.bak.$(date +%Y%m%d)
+cp /etc/nsswitch.conf "/etc/nsswitch.conf.bak.$(date +%Y%m%d)"
 
 # Actualizar las líneas de passwd, group y shadow
 sed -i 's/^passwd:.*/passwd:         files sss/' /etc/nsswitch.conf
