@@ -135,13 +135,15 @@ aniadir_a_grupo() {
     local grupo_dn="cn=${grupo},${GROUPS_OU}"
     local user_dn="uid=${uid_user},${USERS_OU}"
 
-    docker exec -i "$LDAP_CONTAINER" ldapmodify \
-        -x -D "$BIND_DN" -w "$BIND_PASSWORD" <<EOF 2>/dev/null && return 0 || true
+    if docker exec -i "$LDAP_CONTAINER" ldapmodify \
+        -x -D "$BIND_DN" -w "$BIND_PASSWORD" <<EOF 2>/dev/null; then
 dn: ${grupo_dn}
 changetype: modify
 add: member
 member: ${user_dn}
 EOF
+        return 0
+    fi
     warn "No se pudo añadir al grupo '${grupo}'."
 }
 
@@ -227,7 +229,7 @@ for grupo in becarios ventas rrhh almacen tecnico jefe_ventas jefe_rrhh jefe_alm
     MEMBERS=$(docker exec "$LDAP_CONTAINER" ldapsearch \
         -x -D "$BIND_DN" -w "$BIND_PASSWORD" \
         -b "cn=${grupo},${GROUPS_OU}" "(objectClass=groupOfNames)" member 2>/dev/null \
-        | grep "^member:" | grep -v "placeholder" | wc -l || echo "0")
+        | grep "^member:" | grep -c -v "placeholder" || true)
     printf "  %-15s → %s miembro(s)\n" "$grupo" "$MEMBERS"
 done
 
