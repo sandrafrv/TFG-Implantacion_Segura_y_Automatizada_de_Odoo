@@ -206,7 +206,133 @@ docker exec -it odoo_erp psql -U odoo -d odoo_erp -c "SELECT * FROM v_audit_resu
 
 ---
 
-## PASO 7 — Configurar UFW (Firewall del Host)
+## PASO 6 — Control de Acceso por Roles (3 Capas + LDAP)
+
+> 📄 Documentación completa en [`docs/CONTROL_ACCESO.md`](CONTROL_ACCESO.md)
+
+Este paso configura el modelo de seguridad en 3 capas definido en el diagrama IaC:
+
+### 6.1 Actualizar variables de entorno LDAP
+
+```bash
+nano /opt/erp-odoo/docker/.env
+# Añadir (si no están ya):
+#   LDAP_ADMIN_PASSWORD=contraseña_segura_admin
+#   LDAP_READONLY_PASSWORD=contraseña_segura_readonly
+```
+
+### 6.2 Levantar OpenLDAP (IP MACVLAN: 192.168.30.22)
+
+```bash
+docker compose -f /opt/erp-odoo/docker/docker-compose.yml up -d ldap
+
+# Verificar que está activo y accesible
+docker ps | grep openldap
+ldapsearch -H ldap://192.168.30.22 -x -b "dc=tfg,dc=com" "(objectClass=*)" dn
+```
+
+El archivo `ldap/estructura.ldif` se carga automáticamente al primer arranque y crea:
+- `ou=usuarios` — cuentas de empleados
+- `ou=grupos` — grupos departamentales (VLAN 10 y VLAN 40)
+
+### 6.3 Configurar ACLs de LDAP
+
+```bash
+bash /opt/erp-odoo/scripts/ldap_politica_acceso.sh
+```
+
+Configura el modelo de acceso:
+- `cn=admin` → escritura total (solo VLAN 40)
+- `cn=tecnico` (grupo) → solo puede cambiar `userPassword` de empleados
+- `cn=readonly` → lectura total (usado por Odoo para autenticar)
+- Resto → sin acceso
+
+### 6.4 Crear usuarios en LDAP con sus grupos
+
+```bash
+bash /opt/erp-odoo/scripts/ldap_crear_usuarios.sh
+```
+
+El script es interactivo. Para cada usuario solicita: `uid`, nombre, email, contraseña y **grupo departamental**. Los grupos disponibles son:
+- **VLAN 10**: `becarios | ventas | rrhh | almacen | tecnico | jefe_ventas | jefe_rrhh | jefe_almacen`
+- **VLAN 40**: `admin | dba`
+
+### 6.5 Aplicar restricciones de Nginx (Capa C)
+
+```bash
+# Verificar sintaxis de la nueva configuración
+docker exec nginx-proxy nginx -t
+
+# Recargar sin cortar el servicio
+docker exec nginx-proxy nginx -s reload
+```
+
+Nuevas restricciones activas en `config_nginx/odoo_proxy.conf`:
+- `/web/database` → solo VLAN 40
+- `/odoo/action-base_setup` → solo VLAN 40
+- `/web/tests` → bloqueado completamente
+- `/web?debug=` → solo VLAN 40
+
+### 6.6 Crear usuarios en Odoo con roles (Capas A + B)
+
+```bash
+bash /opt/erp-odoo/scripts/odoo_crear_usuarios.sh
+```
+
+Crea los usuarios del ERP con sus grupos asignados automáticamente:
+
+| Usuario | Rol | Módulos visibles |
+|---------|-----|-----------------|
+| `becario@erp.odoo.tfg.com` | Becario | Solo CRM (lectura) |
+| `ventas@erp.odoo.tfg.com` | Ventas | CRM + Ventas + Facturas |
+| `rrhh@erp.odoo.tfg.com` | RRHH | RRHH + Empleados |
+| `almacen@erp.odoo.tfg.com` | Almacén | Inventario + Compras |
+| `tecnico@erp.odoo.tfg.com` | Técnico | Inventario + Soporte |
+| `jefe.ventas@erp.odoo.tfg.com` | Jefe Ventas | Ventas completo + aprobaciones |
+| `jefe.rrhh@erp.odoo.tfg.com` | Jefe RRHH | RRHH completo + aprobaciones |
+| `jefe.almacen@erp.odoo.tfg.com` | Jefe Almacén | Almacén completo + aprobaciones |
+| `api.user@erp.odoo.tfg.com` | API | Solo XML-RPC |
+
+> ⚠️ Las contraseñas se generan aleatoriamente y se muestran **una sola vez** al terminar. Guárdalas inmediatamente.
+
+### 6.7 Configurar inicio de sesión LDAP en los PCs de VLAN 10
+
+> 📄 Documentación completa en [`docs/CONTROL_ACCESO.md`](CONTROL_ACCESO.md) — sección "Inicio de Sesión en el Sistema Operativo"
+
+Este paso configura los **clientes Linux de VLAN 10** para que usen el mismo usuario y contraseña LDAP tanto para entrar al PC como para entrar a Odoo.
+
+**Ejecutar en cada PC cliente Linux de VLAN 10:**
+
+```bash
+# Copiar el script al cliente (si el repositorio no está montado localmente)
+scp /opt/erp-odoo/scripts/configurar_cliente_ldap.sh usuario@192.168.10.x:~/
+
+# Ejecutar como root en el cliente
+sudo bash configurar_cliente_ldap.sh
+```
+
+El script instala y configura automáticamente:
+- **SSSD** — intermediario entre el sistema y el LDAP (con caché offline)
+- **PAM** — intercepta el login del SO y lo valida contra LDAP
+- **NSS** — el sistema puede resolver usuarios LDAP como si fueran locales
+- **pam_mkhomedir** — crea `/home/<uid>` automáticamente en el primer login
+
+Tras la instalación, los usuarios del directorio LDAP pueden iniciar sesión con sus credenciales normales. Si se especifica un grupo durante la instalación, solo ese grupo podrá entrar en ese PC concreto.
+
+**Verificación rápida tras ejecutar el script:**
+
+```bash
+# Debe mostrar los datos del usuario desde LDAP
+getent passwd <uid_del_usuario>
+
+# Resultado esperado (ejemplo):
+# jdoe:x:2001:2000:John Doe:/home/jdoe:/bin/bash
+```
+
+---
+
+## PASO 7 — Aplicar Auditoría SQL (Opcional)
+
 
 ```bash
 sudo apt install ufw -y

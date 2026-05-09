@@ -317,3 +317,69 @@ curl -k -I https://erp.odoo.tfg.com
 - [x] **Verificar el orden** en OPT1: las reglas de bloqueo (B1, B2) deben estar antes de las reglas de permiso. (¡Correcto en las capturas!)
 - [x] Confirmar si la regla `IPv4 *` al final de WAN (Bloquear todo lo demás) está correctamente posicionada como última regla. (¡Detectado como erróneo! Ver aviso arriba).
 - [x] Documentar la IP real del administrador (`192.168.163.140`) en el inventario del proyecto.
+
+---
+
+## Interfaz OPT2 / VLAN 40 — Red de Administración
+
+*Firewall → Interfaces → Assignments → + Añadir OPT2*
+
+La VLAN 40 (`192.168.40.0/24`) es la **red de gestión del servidor**. Solo desde aquí se puede:
+- Conectar por SSH al servidor Debian
+- Acceder a Cockpit (`:9090`)
+- Administrar el panel de base de datos de Odoo (`/web/database`)
+- Gestionar el directorio LDAP con privilegios de administrador
+
+> [!IMPORTANT]
+> Esta VLAN no existe en el diagrama original del TFG pero sí en el diseño IaC actualizado (mayo 2026). Requiere un adaptador de red adicional en la VM pfSense y en las máquinas de administración.
+
+### Configuración de la interfaz OPT2
+
+*Interfaces → OPT2*
+
+| Campo | Valor |
+|-------|-------|
+| IPv4 Configuration | Static IPv4 |
+| IPv4 Address | `192.168.40.1` / `24` |
+| Description | `VLAN_ADMIN` |
+
+**DHCP OPT2** (*Services → DHCP Server → OPT2*):
+
+| Campo | Valor |
+|-------|-------|
+| Range | `192.168.40.10 – 192.168.40.50` |
+| DNS Server | `192.168.40.1` |
+
+### Reglas de Firewall → OPT2 (VLAN 40)
+
+| # | Acción | Protocolo | Origen | Destino | Puerto | Descripción |
+|---|:---:|:---:|:---|:---|:---:|:---|
+| 1 | ✅ Pass | TCP | VLAN 40 | 192.168.30.10 | 22 | SSH al servidor Debian |
+| 2 | ✅ Pass | TCP | VLAN 40 | 192.168.30.10 | 9090 | Cockpit — gestión visual |
+| 3 | ✅ Pass | TCP | VLAN 40 | 192.168.30.20 | 443 | Odoo admin completo (sin restricciones Nginx) |
+| 4 | ✅ Pass | TCP | VLAN 40 | 192.168.30.22 | 389 | LDAP admin (lectura + escritura) |
+| 5 | ✅ Pass | TCP | VLAN 40 | 192.168.30.22 | 636 | LDAPS admin (cifrado) |
+| 6 | ✅ Pass | TCP | VLAN 40 | * | 80, 443 | Actualizaciones internet |
+| 7 | ✅ Pass | UDP | VLAN 40 | * | 53 | DNS resolución |
+| 8 | ❌ Block | * | VLAN 40 | 192.168.10.0/24 | * | Anti-pivoting a VLAN 10 |
+| 9 | ❌ Block | * | VLAN 40 | * | * | Deny all |
+
+### Reglas adicionales VLAN 10 → LDAP
+
+Añadir a las reglas de **Interfaz LAN (VLAN 10)**:
+
+| # | Acción | Protocolo | Origen | Destino | Puerto | Descripción |
+|---|:---:|:---:|:---|:---|:---:|:---|
+| + | ✅ Pass | TCP | LAN subnets | 192.168.30.22 | 389 | LDAP autenticación (cn=readonly) |
+| + | ❌ Block | TCP | LAN subnets | 192.168.30.22 | 636 | LDAPS admin bloqueado desde VLAN 10 |
+
+### Tabla MACVLAN actualizada
+
+Con la incorporación de OpenLDAP, la tabla de IPs MACVLAN queda:
+
+| Contenedor | Red interna (`odoo_net`) | Red MACVLAN (`macvlan_vlan30`) | Acceso |
+|:---|:---|:---|:---|
+| `odoo_erp` (PostgreSQL) | 172.19.0.x | ❌ Sin IP pública | Solo contenedores internos |
+| `odoo-web` (Odoo 17) | 172.19.0.3 | `192.168.30.21` | VLAN 10 + VLAN 40 vía Nginx |
+| `openldap` (LDAP) | 172.19.0.5 | `192.168.30.22` | VLAN 10 (:389 readonly), VLAN 40 (:389/:636 admin) |
+| `nginx-proxy` (Nginx) | 172.19.0.4 | `192.168.30.20` | Todos (80/443) |
