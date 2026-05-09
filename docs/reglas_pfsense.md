@@ -405,3 +405,59 @@ Con la incorporación de OpenLDAP, la tabla de IPs MACVLAN queda:
 | `odoo-web` (Odoo 17) | 172.19.0.3 | `192.168.30.21` | VLAN 10 + VLAN 40 vía Nginx |
 | `openldap` (LDAP) | 172.19.0.5 | `192.168.30.22` | VLAN 10 (:389 readonly), VLAN 40 (:389/:636 admin) |
 | `nginx-proxy` (Nginx) | 172.19.0.4 | `192.168.30.20` | Todos (80/443) |
+
+---
+
+## Securización del Panel de Administración de pfSense
+
+Actualmente, pfSense es accesible desde la VLAN 10 (LAN) gracias a la regla *Anti-Lockout*. Para cumplir con el requerimiento de que **solo se pueda acceder desde la VLAN 40 y únicamente por el usuario admin (no dba)**, debemos aplicar seguridad en dos capas: Red (Firewall) y Aplicación (Autenticación LDAP).
+
+### Capa 1: Restricción por Red (Firewall)
+
+1. **Crear regla de acceso en VLAN 40 (OPT2):**
+   *Firewall → Rules → OPT2*
+   Añade una regla al principio:
+   - **Action:** Pass
+   - **Protocol:** TCP
+   - **Source:** `VLAN_ADMIN subnets` (VLAN 40)
+   - **Destination:** `This Firewall (self)`
+   - **Destination Port:** HTTPS (443)
+
+2. **Deshabilitar acceso desde VLAN 10 (LAN):**
+   *System → Advanced → Admin Access*
+   - Marca la casilla: **Disable webConfigurator anti-lockout rule**.
+   - ⚠️ *Peligro:* Haz esto **solo después** de comprobar que puedes entrar a pfSense desde una IP de la VLAN 40. De lo contrario, te quedarás fuera del cortafuegos.
+
+Con esto, si el usuario `dba` o cualquier otro intenta entrar a `https://192.168.10.1` desde la LAN, el firewall descartará la conexión silenciosamente.
+
+### Capa 2: Restricción por Autenticación (LDAP en pfSense)
+
+Para diferenciar entre el usuario `admin` y `dba` (ambos pertenecen a la VLAN 40), conectaremos pfSense a nuestro servidor OpenLDAP de la DMZ (`192.168.30.22`).
+
+1. **Añadir el servidor LDAP:**
+   *System → User Manager → Authentication Servers → + Add*
+   - **Descriptive name:** `OpenLDAP DMZ`
+   - **Type:** LDAP
+   - **Hostname:** `192.168.30.22`
+   - **Port value:** 389
+   - **Transport:** TCP - Standard
+   - **Base DN:** `dc=tfg,dc=com`
+   - **Authentication containers:** `ou=usuarios,dc=tfg,dc=com`
+   - **Bind credentials:** `cn=admin,dc=tfg,dc=com` / *(tu_contraseña)*
+   - **User naming attribute:** `uid`
+   - **Group naming attribute:** `cn`
+   - **Group member attribute:** `member`
+
+2. **Configurar privilegios del grupo admin:**
+   *System → User Manager → Groups → + Add*
+   - Crea un grupo llamado exactamente **`admin`** (para que coincida con LDAP).
+   - En *Assigned Privileges*, dale el privilegio **WebCfg - All pages** (Administrador total).
+   - No crees el grupo `dba` en pfSense (o créalo pero sin ningún privilegio asignado).
+
+3. **Activar LDAP para el login:**
+   *System → User Manager → Settings*
+   - **Authentication Server:** Selecciona `OpenLDAP DMZ`.
+   - Guarda los cambios.
+
+**Resultado final:** 
+Cualquier persona en la VLAN 40 puede ver la pantalla de login de pfSense. Pero si el usuario `dba` introduce sus credenciales LDAP, pfSense lo validará, verá que no pertenece al grupo con privilegios de `WebCfg` y le denegará el acceso. Solo el usuario `admin` podrá entrar.
