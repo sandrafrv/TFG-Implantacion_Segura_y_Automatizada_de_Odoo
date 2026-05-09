@@ -8,7 +8,7 @@ name: CD Deploy (Self-Hosted)
 #
 # PRE-REQUISITO: El servidor Debian debe estar registrado como
 #                self-hosted runner en este repositorio.
-#                Ver: scripts/setup_runner.sh
+
 # ============================================================
 
 on:

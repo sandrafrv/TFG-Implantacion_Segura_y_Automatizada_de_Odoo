@@ -19,7 +19,7 @@ chmod +x /opt/erp-odoo/scripts/**/*.sh
 |--------|-------------|---------------|
 | `deploy.sh` | Levanta todo el stack Docker (`docker-compose up -d`) y realiza pruebas de salud (`healthchecks`) para asegurar que todo arrancó bien. | Primer despliegue o para levantar el servicio manualmente. |
 | `configure.sh` | Script interactivo para configurar de forma segura el archivo `.env` sin tener que editarlo a mano, evitando errores de sintaxis. | Durante la instalación inicial o cambio de credenciales. |
-| `setup_runner.sh` | Configura e instala el agente de GitHub Actions como servicio systemd para habilitar el CI/CD en el servidor. | Una sola vez, al conectar el servidor con el repositorio de GitHub. |
+
 | `install_cron.sh` | Programa todas las tareas automatizadas del sistema (backups, monitorización, actualizaciones) y la rotación de logs. | Una sola vez, durante la instalación del sistema. |
 | `erp.sh` | **Orquestador Central.** Muestra un menú interactivo en terminal para gestionar todo el proyecto sin memorizar comandos. | Uso general del administrador del sistema. |
 
