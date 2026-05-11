@@ -43,6 +43,7 @@ graph TD
     WAN((Internet / WAN)) -->|DHCP Externo| PFSENSE[pfSense Firewall/Router]
     PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ / Servidor Principal]
     PFSENSE -->|Gateway: 192.168.10.1| LAN_CLI[VLAN 10 - LAN Clientes]
+    PFSENSE -->|Gateway: 192.168.40.1| LAN_ADMIN[VLAN 40 - LAN Administracion (admin/DBA)]
 
     DMZ --> DOCKER_HOST["Servidor Único Debian 12<br>192.168.30.10"]
 
