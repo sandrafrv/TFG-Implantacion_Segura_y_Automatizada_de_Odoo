@@ -40,23 +40,41 @@ La topología divide la red en tres zonas de confianza principales, gestionadas 
 - **LAN Administración (VLAN 40)**: Grupos admin y DBA
 ```mermaid
 graph TD
-    WAN((Internet / WAN)) -->|DHCP Externo| PFSENSE[pfSense Firewall/Router]
-    PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ / Servidor Principal]
-    PFSENSE -->|Gateway: 192.168.10.1| LAN_CLI[VLAN 10 - LAN Clientes]
-    PFSENSE -->|Gateway: 192.168.40.1| LAN_ADMIN["VLAN 40 - LAN Administracion (admin/DBA)"]
+    WLAN(["WLAN"])
+    WLAN --> PFSense["PFSense"]
 
-    DMZ --> DOCKER_HOST["Servidor Único Debian 12<br>192.168.30.10"]
+    PFSense -->|"LAN 10: 192.168.10.0/24\nGW: 192.168.10.1"| LAN10
+    PFSense -->|"LAN 40: 192.168.40.1/24\nGW: 192.168.40.0"| LAN40
+    PFSense -->|"LAN: 192.168.30.0/24\nGW: 192.168.30.1"| LAN30
 
-    subgraph DOCKER_HOST ["Servidor Único Debian 12 (192.168.30.10)"]
-        NGINX_PROXY["Contenedor Nginx<br>MACVLAN: 192.168.30.20<br>(Puertos 80/443)"]
-        ODOO_DOCKER["Contenedor Odoo<br>MACVLAN: 192.168.30.21"]
-        PG_DOCKER["Contenedor PostgreSQL<br>(Solo red interna odoo_net)"]
-        NGINX_PROXY -.->|ProxyPass :8069| ODOO_DOCKER
-        ODOO_DOCKER -.->|SQL :5432| PG_DOCKER
+    subgraph LAN10["LAN 10"]
+        ClienteLinux["Cliente Linux"]
     end
 
-    LAN_CLI --> PC_CLIENTE["Cliente Windows/Linux<br>192.168.10.x"]
-    PC_CLIENTE -.->|Petición HTTPS 443| NGINX_PROXY
+    subgraph LAN40["LAN 40"]
+        AdminDBA["Admin / DBA"]
+    end
+
+    subgraph LAN30["LAN 30"]
+        DMZ["DMZ"]
+    end
+
+    AdminDBA -->|"Gestión usuario"| Odoo
+    AdminDBA -->|"Gestión CronScript"| Odoo
+    ClienteLinux -->|"Entrar Odoo"| Nginx
+
+    subgraph DEBIAN["Debian 12"]
+        Nginx["Nginx\nMCLU: 20\nP: 80/443"]
+        Odoo["Odoo\nMCLU: 21"]
+        LDAP["LDAP\nMCLAN: 22"]
+        PostgreSQL["PostgreSQL\nMCLAN: No\nRed interna\nodoo.net"]
+
+        Nginx -->|"8069"| Odoo
+        Odoo --> LDAP
+        Odoo -->|"SQL 5432"| PostgreSQL
+    end
+
+    DMZ --> Nginx
 ```
 
 ---
