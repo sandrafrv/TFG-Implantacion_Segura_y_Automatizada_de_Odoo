@@ -120,27 +120,32 @@ Tráfico desde servidor DMZ (192.168.30.10)
 [Pos. 10] Cualquier otro tráfico           ──► ❌ BLOQUEADO (deny-all)
 ```
 
-### Endurecimiento Avanzado: Lista Blanca de Salida (Egress Filtering FQDN)
+### Endurecimiento Avanzado: Filtrado de Salida por ASN (pfBlockerNG)
 
-Para evitar exfiltración de datos desde la DMZ pero permitir la actualización de contenedores y el uso de GitHub Actions, se sustituyen las reglas genéricas de salida (Reglas 3 y 4 a `*`) por **Alias de red basados en FQDN** (dominios).
+Para evitar exfiltración de datos desde la DMZ (Zero Trust) pero permitir la actualización de contenedores y el uso de GitHub Actions, inicialmente se planteó un filtrado FQDN. Sin embargo, debido a que GitHub Actions utiliza subdominios dinámicos alojados en la nube de Microsoft Azure (`*.blob.core.windows.net`, `*.actions.githubusercontent.com`), los Alias estáticos nativos de pfSense son incompatibles porque no soportan comodines.
 
-**Paso 1 — Crear Alias en pfSense:**
-Ir a `Firewall → Aliases → IP → + Add`
-- **Name:** `SERVICIOS_PERMITIDOS_DMZ`
-- **Type:** `Host(s)`
-- **IP or FQDN:** 
-  - `registry-1.docker.io`
-  - `auth.docker.io`
-  - `production.cloudflare.docker.com`
-  - `github.com`
-  - `api.github.com`
-  - `deb.debian.org` (para actualizaciones `apt`)
+Como alternativa de nivel empresarial, se implementa **pfBlockerNG** para realizar un filtrado dinámico a nivel de BGP utilizando ASN (Autonomous System Numbers).
 
-**Paso 2 — Modificar las Reglas 3 y 4 de la DMZ:**
-Editar las reglas que permitían salida HTTPS/HTTP:
-- Cambiar el **Destination** de `any` a `Single host or alias` y escribir `SERVICIOS_PERMITIDOS_DMZ`.
+**Paso 1 — Instalar pfBlockerNG:**
+- Ir a `System → Package Manager → Available Packages`.
+- Buscar e instalar `pfBlockerNG`.
 
-*Nota:* Esto hace que pfSense resuelva esos dominios cada 5 minutos y actualice las IPs permitidas. Si falla el `docker pull`, puede deberse a que Docker Hub ha cambiado de IP o CDN; simplemente revisa los logs del firewall y añade el nuevo dominio al Alias.
+**Paso 2 — Crear Alias de ASN en pfBlockerNG:**
+- Ir a `Firewall → pfBlockerNG → IP → IPv4`.
+- Añadir (`+Add`) una nueva lista:
+  - **Name:** `GitHub_Azure_ASN`
+  - **Action:** `Alias Native` (Solo crea la lista de IPs, no la regla automática).
+  - **IPv4 Custom_List:** Añadir los siguientes ASN en formato AS:
+    - `AS36459` (GitHub)
+    - `AS8075` (Microsoft / Azure)
+  - **Save** y luego ir a la pestaña `Update` y hacer un **Force Reload (IP)** para que descargue cientos de bloques CIDR de esas empresas.
+
+**Paso 3 — Modificar las Reglas 3 y 4 de la DMZ:**
+- Editar las reglas que permitían salida HTTPS/HTTP en `Firewall → Rules → OPT1`.
+- Cambiar el **Destination** a `Single host or alias` y escribir el nombre autogenerado del alias: `pfB_GitHub_Azure_ASN`.
+- Para **Docker**, mantener la regla estática que apunte a un alias manual para `registry-1.docker.io`, `auth.docker.io` y `production.cloudflare.docker.com`.
+
+*Nota:* Esto restringe las salidas de la DMZ exclusivamente a los centros de datos de Microsoft y GitHub, bloqueando conexiones hacia IPs de Internet no verificadas y neutralizando cualquier intento de *Command & Control* o exfiltración.
 
 ---
 
