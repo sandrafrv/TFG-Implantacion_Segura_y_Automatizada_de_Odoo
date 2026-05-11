@@ -35,15 +35,15 @@ Este repositorio documenta el diseño e implantación de un entorno productivo c
 La topología divide la red en tres zonas de confianza principales, gestionadas por un firewall pfSense:
 
 - **WAN (Internet):** Acceso externo simulado.
-- **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor **Debian 12 Server** que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL). Gestionado visualmente desde **Cockpit** (`https://192.168.30.10:9090`).
+- **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor **Debian 12 Server** que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL). Gestionado visualmente desde **Cockpit** (`https://192.168.40.10:9090`).
 - **LAN Clientes (VLAN 10 - 192.168.10.0/24):** Equipos internos de la empresa.
-
+- **LAN Administración (VLAN 40)**: Grupos admin y DBA
 ```mermaid
 graph TD
     WAN((Internet / WAN)) -->|DHCP Externo| PFSENSE[pfSense Firewall/Router]
     PFSENSE -->|Gateway: 192.168.30.1| DMZ[VLAN 30 - DMZ / Servidor Principal]
     PFSENSE -->|Gateway: 192.168.10.1| LAN_CLI[VLAN 10 - LAN Clientes]
-    PFSENSE -->|Gateway: 192.168.40.1| LAN_ADMIN[VLAN 40 - LAN Administracion (admin/DBA)"]
+    PFSENSE -->|Gateway: 192.168.40.1| LAN_ADMIN["VLAN 40 - LAN Administracion (admin/DBA)"]
 
     DMZ --> DOCKER_HOST["Servidor Único Debian 12<br>192.168.30.10"]
 
