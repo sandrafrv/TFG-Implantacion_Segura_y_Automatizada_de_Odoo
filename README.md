@@ -42,7 +42,8 @@ La topología divide la red en tres zonas de confianza principales, gestionadas 
 graph TD
     GITHUB(["GITHUB"])
     WLAN(["WLAN"])
-    GITHUB --> PFSense
+    GITHUB --> WLAN
+    WLAN --> PFSense["PFSense"]
     WLAN --> PFSense["PFSense"]
 
     PFSense -->|"LAN 10: 192.168.10.0/24\nGW: 192.168.10.1"| LAN10
