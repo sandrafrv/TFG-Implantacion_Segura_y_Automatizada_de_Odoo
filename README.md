@@ -83,7 +83,7 @@ graph TD
     class ADMIN vlan
     class CLIENT client
     class LDAP,NGINX,ODOO,BBDD dmznode
-|
+
 ```
 
 ---
