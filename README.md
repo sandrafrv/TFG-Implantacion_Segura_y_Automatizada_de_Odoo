@@ -40,54 +40,50 @@ La topología divide la red en tres zonas de confianza principales, gestionadas 
 - **LAN Administración (VLAN 40)**: Grupos admin y DBA
 ```mermaid
 graph TD
-    %% Nodos Externos y Core
-    GITHUB(["GITHUB [cite: 31]"])
-    WLAN(["WLAN [cite: 1]"])
-    
-    subgraph PFSENSE_CORE ["Core Network: pfSense [cite: 2]"]
-        PFS["PFSense: Firewall, DHCP, ACLs [cite: 3]\nRouter [cite: 4]"]
+    GITHUB["☁️ GITHUB"]
+    WLAN["☁️ WLAN"]
+
+    GITHUB -->|"LAN 192.168.40.0/24 · GW: 192.168.40.1"| PFSENSE
+    WLAN --> PFSENSE
+
+    PFSENSE(["🔷 Pfsense\nFirewall · DHCP · ACLs · Router"])
+
+    PFSENSE -->|"VLAN 40 · 192.168.40.0/24"| VLAN40
+    PFSENSE -->|"VLAN 30 · 192.168.30.0/24"| DMZ
+    PFSENSE -->|"VLAN 10 · 192.168.10.0/24"| VLAN10
+
+    subgraph VLAN40["🟧 VLAN 40 — Admin / DBA"]
+        ADMIN["👤 Admin / DBA"]
     end
 
-    %% Conexiones Principales
-    GITHUB --> WLAN
-    WLAN --> PFS
-
-    %% Segmentación de Redes (VLANs)
-    PFS -->|"VLAN 10 [cite: 9]\n192.168.10.0/24 [cite: 25]\nGW: .1 [cite: 26]"| VLAN10
-    PFS -->|"VLAN 40 [cite: 11]\n192.168.40.0/24 [cite: 27]\nGW: .1 [cite: 28]"| VLAN40
-    PFS -->|"VLAN 30 (DMZ) [cite: 10]\n192.168.30.0/24 [cite: 29]\nGW: .1 [cite: 30]"| VLAN30
-
-    %% VLAN 10 - Usuarios
-    subgraph VLAN10 ["VLAN 10: Usuarios"]
-        ClienteLinux["Cliente Linux [cite: 5]\n(Empleados )"]
+    subgraph VLAN10["🟧 VLAN 10 — Cliente Linux"]
+        CLIENT["🖥️ Cliente Linux · Empleados"]
     end
 
-    %% VLAN 40 - Administración
-    subgraph VLAN40 ["VLAN 40: Gestión"]
-        AdminDBA["Admin / DBA "]
+    ADMIN -- "Se loguea" --> NGINX
+    ADMIN -- "Accede a Odoo via nginx" --> NGINX
+    CLIENT -- "Accede a Odoo via nginx" --> NGINX
+
+    subgraph DMZ["🟩 Debian 12 · DMZ — VLAN 30"]
+        LDAP["🐳 DOCKER · LDAP\nMAC_VLAN: 22"]
+        NGINX["🐳 DOCKER · NGINX\nMAC_VLAN: 20"]
+        ODOO["🐳 DOCKER · ODOO\nMAC_VLAN: 21"]
+        BBDD["🐳 DOCKER · PostgreSQL"]
+
+        NGINX -->|"Reverse Proxy"| ODOO
+        ODOO -->|"Consultas"| BBDD
     end
 
-    %% VLAN 30 - Servidores y Docker
-    subgraph VLAN30 ["VLAN 30: DMZ [cite: 8]"]
-        subgraph DEBIAN ["Debian 12 Host [cite: 8]"]
-            subgraph DOCKER_ENV ["Entorno Docker "]
-                NGINX["NGINX [cite: 17]\nMAC_VLAN: 20"]
-                ODOO["ODOO [cite: 18]\nMAC_VLAN: 21"]
-                LDAP["LDAP [cite: 16]\nMAC_VLAN: 22"]
-                POSTGRES["BBDD PostgreSQL [cite: 19]"]
-                
-                %% Relaciones internas Docker
-                NGINX --> ODOO
-                ODOO --> LDAP
-                ODOO --> POSTGRES
-            end
-        end
-    end
+    classDef firewall fill:#BBDEFB,stroke:#1565C0,color:#000
+    classDef vlan fill:#FFE0B2,stroke:#E65100,color:#000
+    classDef dmznode fill:#CE93D8,stroke:#6A1B9A,color:#000
+    classDef client fill:#FFE0B2,stroke:#E65100,color:#000
 
-    %% Flujos de Acceso y Lógica
-    AdminDBA -- "Se loguea [cite: 20]\nAdministra Servidor [cite: 21]" --> DEBIAN
-    AdminDBA -- "Acceso Odoo via Nginx [cite: 23]" --> NGINX
-    ClienteLinux -- "Acceso Odoo via Nginx [cite: 22, 24]" --> NGINX
+    class PFSENSE firewall
+    class ADMIN vlan
+    class CLIENT client
+    class LDAP,NGINX,ODOO,BBDD dmznode
+|
 ```
 
 ---
