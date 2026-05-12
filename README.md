@@ -42,7 +42,7 @@ La topología divide la red en tres zonas de confianza principales, gestionadas 
 graph TD
     GITHUB(["GITHUB"])
     WLAN(["WLAN"])
-    GITHUB --> WLAN --> PFSense
+    GITHUB --> WLAN --> PFSense --> LDAP
     WLAN --> PFSense["PFSense"]
 
     PFSense -->|"LAN 10: 192.168.10.0/24\nGW: 192.168.10.1"| LAN10
@@ -65,6 +65,7 @@ graph TD
     AdminDBA -->|"Gestión CronScript"| Odoo
     ClienteLinux -->|"Entrar Odoo"| Nginx
 
+    subgraph LAN30["LAN 30"]
     subgraph DEBIAN["Debian 12"]
         Nginx["Nginx\nMCLU: 20\nP: 80/443"]
         Odoo["Odoo\nMCLU: 21"]
@@ -74,6 +75,7 @@ graph TD
         Nginx -->|"8069"| Odoo
         Odoo --> LDAP
         Odoo -->|"SQL 5432"| PostgreSQL
+    end
     end
 
     DMZ --> Nginx
