@@ -187,7 +187,6 @@ docker network create \
 | Redes/Seguridad | pfSense (FreeBSD), UFW |
 | Virtualización/Orquestación | Docker Engine, Docker Compose |
 | Sistema Operativo Base | **Debian 12 Server (Bookworm)** con Cockpit |
-| Clientes | Windows 10/11 |
 | Proxy Inverso | Nginx (Alpine Linux) — contenedor Docker con MACVLAN |
 | ERP/CRM | Odoo 17 CE — contenedor Docker con MACVLAN |
 | Base de Datos | PostgreSQL 16 — contenedor Docker (solo red interna) |
@@ -284,4 +283,4 @@ Estas mejoras quedan fuera del alcance del TFG pero se documentan para demostrar
 | **Ansible (IaC)** | Automatizar toda la configuración del servidor Debian con un Playbook de Ansible, eliminando la configuración manual. |
 | **VPN WireGuard en pfSense** | Ocultar el ERP de Internet público, accesible solo desde la VLAN interna o a través de un túnel VPN cifrado. Diseño "Zero Trust". |
 | **Stack de Monitorización** | Sustituir los scripts de log por Prometheus + Grafana o Uptime Kuma con panel gráfico de estado en tiempo real. |
-| **LDAP / Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 como Controlador de Dominio, integrando Odoo con AD. |
+| ** Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 como Controlador de Dominio, integrando Odoo con AD. |
