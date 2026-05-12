@@ -40,8 +40,8 @@ La topología divide la red en tres zonas de confianza principales, gestionadas 
 - **LAN Administración (VLAN 40)**: Grupos admin y DBA
 ```mermaid
 graph TD
-    WLAN(["WLAN"])
     GITHUB(["GITHUB"])
+    WLAN(["WLAN"])
     WLAN --> PFSense["PFSense"]
     GITHUB --> PFSense
 
