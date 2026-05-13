@@ -90,7 +90,7 @@ Se ha diseñado el esquema `asir_audit_log` con los campos: `audit_id` (PK), `ac
 ## 7.- Desarrollo de la aplicación
 
 ### 7.1.- Tecnologías y herramientas utilizadas
-- **Debian 12:** Elegido como sistema operativo host por su altísima estabilidad, ciclo de soporte largo y su nula inclusión de paquetes propietarios intrusivos, siendo el estándar de producción.
+- **Debian 13 (Trixie):** Elegido como sistema operativo host por su altísima estabilidad, ciclo de soporte largo y su nula inclusión de paquetes propietarios intrusivos, siendo el estándar de producción.
 - **Docker & Docker Compose:** Justificados por la modularidad y el aislamiento que aportan. Permiten empaquetar dependencias y levantar toda la infraestructura en segundos.
 - **pfSense:** Escogido por ser un firewall Open Source de grado empresarial robusto para la segmentación de VLANs.
 - **Nginx:** Elegido como proxy inverso por su extremada rapidez (motor asíncrono) y facilidad para terminación SSL.

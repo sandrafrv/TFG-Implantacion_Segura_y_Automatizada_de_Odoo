@@ -1,94 +1,78 @@
 #!/bin/bash
 # ============================================================
 # SCRIPT: deploy.sh
-# DESCRIPCIÓN: Despliega toda la infraestructura de contenedores
-#              Docker por primera vez (o la levanta si estaba parada).
-#              Incluye verificación de salud hasta que Odoo responde.
-# USO: ./deploy.sh
+# DESCRIPCIÓN: Despliega el stack Docker o lo levanta si estaba
+#              parado. Espera a que Odoo esté disponible.
+# USO: sudo bash scripts/deploy/deploy.sh
 # ============================================================
 
-set -e  # El script se detiene inmediatamente si cualquier comando falla
+set -e
 
-# --- VARIABLES ---
 PROJECT_DIR="/opt/erp-odoo"
-MAX_INTENTOS=30
+COMPOSE_FILE="$PROJECT_DIR/docker/docker-compose.yml"
+MAX_INTENTOS=30   # 30 × 10s = 5 minutos máximo
 
-# --- DESPLIEGUE ---
+# --- Comprobaciones previas ---
+echo "[1/4] Comprobaciones previas..."
 
-echo "[1/4] Realizando comprobaciones previas..."
+command -v docker &>/dev/null || { echo "[ERROR] Docker no está instalado."; exit 1; }
+docker info &>/dev/null         || { echo "[ERROR] Docker no está activo o sin permisos."; exit 1; }
 
-# 1. Comprobar si Docker está instalado y activo
-if ! command -v docker &> /dev/null; then
-    echo "Error:  Docker no está instalado."
-    exit 1
-fi
-if ! docker info &> /dev/null; then
-    echo "Error:  El servicio de Docker no está activo o no tienes permisos."
-    exit 1
-fi
-
-# Nos movemos a la raíz del proyecto
 cd "$PROJECT_DIR" || exit 1
 
-# 2. Validar sintaxis del archivo compose
-if ! docker compose -f docker/docker-compose.yml config -q; then
-    echo "Error:  El archivo docker-compose.yml tiene errores de sintaxis."
-    exit 1
-fi
+docker compose -f "$COMPOSE_FILE" config -q \
+    || { echo "[ERROR] docker-compose.yml tiene errores de sintaxis."; exit 1; }
 
-# 3. Comprobar puertos 80 y 443
-# NOTA: ss -tlnp sin root no muestra nombres de proceso, por lo que no podemos
-# filtrar por nombre. En su lugar comprobamos si el contenedor nginx-proxy ya
-# ocupa esos puertos (re-deploy válido) o si los ocupa otro proceso externo.
-# Lógica: si el puerto está en uso Y nginx-proxy NO está corriendo → conflicto real.
-NGINX_RUNNING=$(docker ps --filter "name=nginx-proxy" --filter "status=running" -q)
+# Comprobar si los puertos 80/443 los ocupa algo externo al stack
+NGINX_UP=$(docker ps --filter "name=nginx-proxy" --filter "status=running" -q)
 for PORT in 80 443; do
-    if ss -tlnp | grep -q ":${PORT}\b"; then
-        if [ -z "$NGINX_RUNNING" ]; then
-            echo "Error:  El puerto $PORT está en uso por un proceso externo al stack Docker."
-            exit 1
-        else
-            echo "  [OK] Puerto $PORT en uso por nginx-proxy (stack ya activo, re-deploy válido)."
-        fi
+    if ss -tlnp | grep -q ":${PORT} " && [ -z "$NGINX_UP" ]; then
+        echo "[ERROR] Puerto $PORT en uso por un proceso externo al stack."
+        exit 1
     fi
 done
 
-echo "[2/4] Desplegando infraestructura Docker Compose..."
-docker compose -f docker/docker-compose.yml up -d
+# --- Despliegue ---
+echo "[2/4] Levantando contenedores..."
+docker compose -f "$COMPOSE_FILE" up -d
 
-# --- INICIALIZACIÓN AUTOMÁTICA DE BASE DE DATOS (SI ES NUEVA) ---
-echo "[3/4] Comprobando estado de la base de datos..."
-# Comprobamos directamente en PostgreSQL si la tabla maestra de Odoo existe
-HAS_TABLES=$(docker exec odoo_erp psql -U odoo -d odoo_erp -tAc "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'ir_module_module');" 2>/dev/null || echo "f")
+# --- Inicialización BD (solo si está vacía) ---
+echo "[3/4] Comprobando base de datos..."
+sleep 5  # Dar tiempo a que PostgreSQL arranque
 
-if [ "$HAS_TABLES" = "f" ] || [ "$HAS_TABLES" = "false" ]; then
-    echo "  [!] Base de datos vacía detectada. Inicializando estructura de Odoo (esto puede tardar 1-2 minutos)..."
-    docker exec odoo-web bash -c 'odoo -w "$PASSWORD" -d odoo_erp -i base --stop-after-init --http-port=8070'
-    echo "  [OK] Base de datos inicializada."
+HAS_DB=$(docker exec odoo_erp psql -U odoo -d odoo_erp -tAc \
+    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='ir_module_module');" \
+    2>/dev/null || echo "f")
+
+if [ "$HAS_DB" = "f" ]; then
+    echo "  [!] BD vacía — inicializando Odoo (1-2 min)..."
+    MASTER_PASS=$(grep -E '^ODOO_MASTER_PASSWORD=' "$PROJECT_DIR/docker/.env" \
+        | cut -d= -f2- | tr -d '"')
+    docker exec odoo-web \
+        odoo -c /etc/odoo/odoo.conf \
+             -w "$MASTER_PASS" \
+             -d odoo_erp \
+             -i base \
+             --stop-after-init \
+             --http-port=8070
+    echo "  [OK] BD inicializada."
 else
-    echo "  [OK] La base de datos ya está inicializada."
+    echo "  [OK] BD ya inicializada."
 fi
 
-# --- VERIFICACIÓN DE SALUD ---
-
-echo "[4/4] Esperando a que Odoo esté disponible (máx. 5 minutos)..."
-
-INTENTO=1
-until curl -sf -k https://127.0.0.1/web/health -o /dev/null; do
-    if [ "$INTENTO" -ge "$MAX_INTENTOS" ]; then
-        echo "Error:  Odoo no respondió después de $((MAX_INTENTOS * 10)) segundos. Revisa los logs:"
-        docker compose -f docker/docker-compose.yml logs --tail=30
-        exit 1
+# --- Esperar a Odoo (nginx publica :80/:443 en el host) ---
+echo "[4/4] Esperando a Odoo (máx. $((MAX_INTENTOS * 10))s)..."
+for i in $(seq 1 $MAX_INTENTOS); do
+    if curl -sf -k https://localhost/web/health -o /dev/null 2>/dev/null; then
+        echo ""
+        echo "[OK] Stack operativo en https://erp.odoo.tfg.com"
+        docker compose -f "$COMPOSE_FILE" ps
+        exit 0
     fi
-    echo "  Intento $INTENTO/$MAX_INTENTOS — Odoo aún no está listo, esperando 10s..."
-    INTENTO=$((INTENTO + 1))
+    echo "  Intento $i/$MAX_INTENTOS — esperando 10s..."
     sleep 10
 done
 
-echo ""
-echo "Estado actual de los contenedores:"
-docker compose -f docker/docker-compose.yml ps
-
-echo ""
-echo "[OK] Stack desplegado y Odoo operativo en https:/erp.odoo.local"
-
+echo "[ERROR] Odoo no respondió. Logs:"
+docker compose -f "$COMPOSE_FILE" logs --tail=30
+exit 1

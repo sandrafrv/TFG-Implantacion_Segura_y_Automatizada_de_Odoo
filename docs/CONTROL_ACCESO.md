@@ -13,7 +13,7 @@ Internet / WAN
   ├── VLAN 10 (192.168.10.0/24) ── Usuarios del ERP
   ├── VLAN 40 (192.168.40.0/24) ── Admin + DBA (gestión del servidor)
   └── VLAN 30 (192.168.30.0/24) ── DMZ
-        ├── .10 → Debian 12 Host  (Docker engine, SSH, Cockpit :9090)
+        ├── .10 → Debian 13 Host  (Docker engine, SSH, Cockpit :9090)
         ├── .20 → nginx-proxy     (MACVLAN — puerta de entrada HTTPS)
         ├── .21 → odoo-web        (MACVLAN — aplicación Odoo 17)
         └── .22 → openldap        (MACVLAN — directorio de usuarios)

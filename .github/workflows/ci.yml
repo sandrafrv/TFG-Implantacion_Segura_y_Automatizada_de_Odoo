@@ -63,7 +63,28 @@ jobs:
           # Si detecta un error real, el comando fallará y GitHub marcará el commit como fallido.
           shellcheck scripts/*/*.sh *.sh
 
-      # PASO 6: Validación del Markdown de la documentación
+      # PASO 6: Generar y validar config.xml de pfSense
+      - name: Generar config.xml de pfSense
+        run: |
+          echo "Generando configuración pfSense desde el script..."
+          bash scripts/deploy/generate_pfsense_config.sh
+
+      - name: Validar XML de pfSense (xmllint)
+        run: |
+          sudo apt-get install -y libxml2-utils
+          echo "Validando estructura XML..."
+          xmllint --noout config/pfsense_config.xml
+          echo "[OK] El config.xml de pfSense es válido."
+
+      # Sube el config.xml como artefacto descargable desde GitHub Actions
+      - name: Subir config.xml como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: pfsense-config
+          path: config/pfsense_config.xml
+          retention-days: 30
+
+      # PASO 7: Validación del Markdown de la documentación
       - name: Validar Markdown (Limpieza de sintaxis)
         uses: DavidAnson/markdownlint-cli2-action@v16  # Acción que ejecuta markdownlint
         with:

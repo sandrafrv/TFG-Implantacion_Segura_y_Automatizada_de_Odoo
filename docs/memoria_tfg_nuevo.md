@@ -110,7 +110,7 @@ Internet (WAN)
   ├── VLAN 10 (192.168.10.0/24) ── Usuarios/Empleados del ERP
   ├── VLAN 40 (192.168.40.0/24) ── Administradores y DBA
   └── VLAN 30 / DMZ (192.168.30.0/24) ── Servidores
-        ├── .10 → Debian 12 Host  (Docker engine, SSH :22, Cockpit :9090)
+        ├── .10 → Debian 13 Host  (Docker engine, SSH :22, Cockpit :9090)
         ├── .20 → nginx-proxy     (MACVLAN — puerta de entrada HTTPS 80/443)
         ├── .21 → odoo-web        (MACVLAN — aplicación Odoo 17)
         └── .22 → openldap        (MACVLAN — directorio de usuarios LDAP)
@@ -152,7 +152,7 @@ Se ha diseñado el esquema `asir_audit_log` con los campos: `audit_id` (PK), `ac
 ## 7.- Desarrollo de la aplicación
 
 ### 7.1.- Tecnologías y herramientas utilizadas
-- **Debian 12:** Elegido como sistema operativo host por su altísima estabilidad, ciclo de soporte largo y su nula inclusión de paquetes propietarios intrusivos, siendo el estándar de producción.
+- **Debian 13 (Trixie):** Elegido como sistema operativo host por su altísima estabilidad, ciclo de soporte largo y su nula inclusión de paquetes propietarios intrusivos, siendo el estándar de producción.
 - **Docker & Docker Compose:** Justificados por la modularidad y el aislamiento que aportan. Permiten empaquetar dependencias y levantar toda la infraestructura en segundos. Se usa la red **MACVLAN** para que los contenedores tengan IPs propias visibles desde pfSense.
 - **pfSense:** Escogido por ser un firewall Open Source de grado empresarial robusto. Gestiona cuatro interfaces: WAN, VLAN 10 (Clientes), VLAN 30 (DMZ) y VLAN 40 (Administración).
 - **Nginx:** Elegido como proxy inverso por su extremada rapidez (motor asíncrono) y facilidad para terminación SSL. Además aplica restricciones de acceso por IP/VLAN como primera capa de seguridad.

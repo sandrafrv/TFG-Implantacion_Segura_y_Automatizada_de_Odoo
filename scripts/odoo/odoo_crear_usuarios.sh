@@ -61,7 +61,7 @@ title()   { echo -e "\n${BOLD}${CYAN}$*${NC}"; echo "─────────
 
 # ── Ruta base del proyecto ────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 ENV_FILE="$PROJECT_DIR/docker/.env"
 
 # ── Leer variables del .env ───────────────────────────────────

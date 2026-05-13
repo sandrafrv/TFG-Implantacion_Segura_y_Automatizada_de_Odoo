@@ -1,7 +1,14 @@
 # Historial de Implementación — Cómo se construyó este repositorio
 **TFG ASIR 2025/2026 — Sandra Fradejas Avedillo**
 
-Este documento narra el proceso real de desarrollo del proyecto: decisiones tomadas, problemas encontrados, cómo se resolvieron y en qué orden se construyó todo. Es la historia técnica del repositorio.
+> [!NOTE]
+> Este documento narra el proceso real de desarrollo: decisiones tomadas, problemas encontrados y cómo se resolvieron.
+> Es la historia técnica del repositorio. **No es una guía de instalación.**
+>
+> **→ Guía de instalación desde cero:** [`docs/INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md)
+> **→ Referencia de comandos históricos:** [`docs/PLAN_HISTORICO_DETALLADO.md`](PLAN_HISTORICO_DETALLADO.md)
+
+
 
 ---
 
@@ -23,7 +30,7 @@ Se evaluaron tres ERPs de código abierto antes de comenzar:
 
 ### ¿Qué sistema operativo?
 
-Elegido **Debian 12 (Bookworm)** sobre Ubuntu/Mint porque:
+Elegido **Debian 13 (Trixie)** sobre Ubuntu/Mint porque:
 - Ciclos de soporte más largos
 - Es el sistema de referencia en la documentación oficial de Odoo
 - Sin snaps ni paquetes propietarios
@@ -328,30 +335,31 @@ LDAP_ADMIN_PASSWORD=<contraseña_segura>
 
 ---
 
-## Estado Actual del Repositorio (2026-05-08)
+## Estado Actual del Repositorio (2026-05-13)
 
 ### Infraestructura desplegada
 
 | Componente | Estado | Notas |
 |------------|--------|-------|
-| pfSense | ✅ Activo | Reglas VLAN configuradas y verificadas |
-| Debian 12 | ✅ Activo | Con Docker y Cockpit |
+| pfSense | ✅ Activo | 4 interfaces (WAN/VLAN10/DMZ/VLAN40), reglas verificadas, LDAP auth |
+| Debian 13 | ✅ Activo | Con Docker y Cockpit, IP estática `192.168.30.10` |
 | Docker stack | ✅ 4 contenedores healthy | PostgreSQL, Odoo, LDAP, Nginx |
-| MACVLAN | ✅ Activa | Nginx en .20, Odoo en .21 |
-| LDAP | ✅ Integrado | `odoo-ldap` en `odoo_net` |
+| MACVLAN | ✅ Activa | Nginx en .20, Odoo en .21, LDAP en .22 |
+| LDAP | ✅ Integrado | Auth centralizada para Odoo + PCs VLAN 10 (SSSD+PAM) |
 | DNS interno | ✅ Configurado | `erp.odoo.tfg.com` → `192.168.30.10` |
 | CI/CD | ✅ Operativo | Runner `debian-dmz` activo |
 | Auditoría SQL | ✅ Ejecutada | Trigger en `res_users` |
 | Backups | ✅ Programados | Diario a las 02:00 |
 | UFW | ✅ Activo | Solo 22, 80, 443, 9090 |
+| Control de acceso | ✅ 3 capas activas | Nginx rutas + Odoo tipos + LDAP grupos |
+| VLAN 40 (Admin) | ✅ Configurada | Panel pfSense + SSH + Cockpit solo desde VLAN 40 |
 
-### Pendiente
+### Pendiente para la defensa
 
 | Tarea | Prioridad |
 |-------|-----------|
-| Debian headless (eliminar GUI) | Media |
-| Endurecer SSH (clave pública, no contraseña) | Media |
-| Restringir SSH solo desde VLAN 10 | Media |
+| Debian headless (eliminar GUI) | Alta |
+| SSH por clave pública | Alta |
 | Capturas de pantalla para la memoria | Alta |
 | Redactar memoria del TFG | Alta |
 | Preparar demostración para la defensa | Alta |

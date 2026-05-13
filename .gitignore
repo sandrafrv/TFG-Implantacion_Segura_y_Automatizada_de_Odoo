@@ -12,6 +12,9 @@ docker/.env
 docker/data/
 data/
 
+# Config generado de pfSense (se genera con el script, no commitear)
+config/pfsense_config.xml
+
 # Copias de seguridad locales
 backups/
 
@@ -27,3 +30,5 @@ Thumbs.db
 ISOs/
 
 CLAUDE.md
+
+docs/mas info/*

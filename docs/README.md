@@ -1,0 +1,260 @@
+# Documentación Técnica — TFG ASIR 2025/2026
+
+**Proyecto:** Implantación Segura y Automatizada de Odoo ERP  
+**Autora:** Sandra Fradejas Avedillo  
+**Centro:** IES Cañaveral · Ciclo ASIR
+
+---
+
+## 🗂️ Índice de Documentos
+
+### Guía Principal *(empieza aquí)*
+
+| Archivo | Descripción |
+|:--------|:------------|
+| [`INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md) | **Punto de entrada único.** Describe las 8 fases de instalación desde cero con resumen de cada módulo, orden de arranque y checklist final |
+
+### Guías de Instalación por Módulo
+
+Ubicadas en [`guias/`](guias/):
+
+| Archivo | Contenido |
+|:--------|:----------|
+| [`guias/INSTALACION_RED.md`](guias/INSTALACION_RED.md) | pfSense: VM, interfaces, DHCP, DNS, NAT, reglas de firewall por VLAN, aislamiento VLAN 40, autenticación LDAP en panel |
+| [`guias/INSTALACION_SERVIDOR.md`](guias/INSTALACION_SERVIDOR.md) | Debian 13: IP estática, Docker, Cockpit, MACVLAN, SSL, stack Docker, post-instalación Odoo, módulos, auditoría SQL |
+| [`guias/INSTALACION_LDAP_CICD_HARDENING.md`](guias/INSTALACION_LDAP_CICD_HARDENING.md) | OpenLDAP: ACLs, usuarios, SSSD+PAM en clientes · GitHub Actions: runner, pipeline · Hardening: UFW, SSH por clave, headless |
+
+### Referencia Técnica
+
+| Archivo | Descripción |
+|:--------|:------------|
+| [`CONTROL_ACCESO.md`](CONTROL_ACCESO.md) | Modelo de seguridad en 3 capas: Nginx (rutas por VLAN) + Odoo (tipo de usuario) + LDAP (grupos por rol) |
+| [`reglas_pfsense.md`](reglas_pfsense.md) | Referencia completa de todas las reglas de firewall pfSense, NAT y DNS |
+| [`diagrama_red.md`](diagrama_red.md) | Diagramas Mermaid de la arquitectura: topología, zonas de seguridad, flujo de autenticación, red Docker |
+
+### Historial y Seguimiento
+
+| Archivo | Descripción |
+|:--------|:------------|
+| [`HISTORIAL_IMPLEMENTACION.md`](HISTORIAL_IMPLEMENTACION.md) | Cómo se construyó el proyecto: decisiones técnicas, problemas encontrados y cómo se resolvieron |
+| [`CHANGELOG.md`](CHANGELOG.md) | Registro de cambios por versión (formato Keep a Changelog) |
+
+### Memoria del TFG
+
+| Archivo | Descripción |
+|:--------|:------------|
+| [`memoria_tfg_nuevo.md`](memoria_tfg_nuevo.md) | Memoria oficial del TFG en redacción |
+| [`memoria_tfg_borrador.md`](memoria_tfg_borrador.md) | Borrador anterior de referencia |
+
+---
+
+## 📁 Estructura de Este Directorio
+
+```
+docs/
+├── README.md                       ← Este archivo (índice)
+├── INSTALACION_COMPLETA.md         ← Guía maestra (entrada principal)
+├── CHANGELOG.md                    ← Historial de versiones
+├── CONTROL_ACCESO.md               ← Modelo 3 capas de seguridad
+├── HISTORIAL_IMPLEMENTACION.md     ← Historia del desarrollo
+├── diagrama_red.md                 ← Diagramas de arquitectura
+├── reglas_pfsense.md               ← Referencia de reglas pfSense
+├── memoria_tfg_nuevo.md            ← Memoria del TFG
+├── memoria_tfg_borrador.md         ← Borrador de la memoria
+│
+├── guias/                          ← Sub-guías de instalación
+│   ├── INSTALACION_RED.md          (pfSense + VLAN 40)
+│   ├── INSTALACION_SERVIDOR.md     (Debian + Docker + Odoo)
+│   └── INSTALACION_LDAP_CICD_HARDENING.md (LDAP + CI/CD + Hardening)
+│
+├── archive/                        ← Documentos históricos de planificación
+└── mas_info/                       ← Investigación técnica y comparativa ERP
+```
+
+---
+
+## 🔄 Flujo de Trabajo (GitOps)
+
+```
+Modificación local → git commit + push → CI valida → CD despliega en servidor
+```
+
+> [!IMPORTANT]
+> **Nunca editar scripts ni configs directamente en el servidor.**
+> Cualquier cambio manual queda sobreescrito en el siguiente `git push`.
+
+### Reglas del flujo
+
+| Regla | Detalle |
+|:------|:--------|
+| Rama principal | Solo `main` dispara el CD automático |
+| CI obligatorio | El CD solo se ejecuta si CI (ShellCheck + YAML + Markdown) pasa |
+| Credenciales | `docker/.env` vive en el servidor — **nunca en Git** |
+| Documentación | Los cambios en `docs/` también pasan por Markdownlint |
+
+---
+
+## 🛠️ Tareas de Administración Rápida
+
+```bash
+# Menú interactivo (recomendado para el día a día)
+sudo /opt/erp-odoo/scripts/deploy/erp.sh
+
+# Estado de los contenedores
+docker compose -f /opt/erp-odoo/docker/docker-compose.yml ps
+
+# Backup manual
+bash /opt/erp-odoo/scripts/mantenimiento/backup.sh
+
+# Restaurar backup
+bash /opt/erp-odoo/scripts/mantenimiento/restore.sh /opt/erp-odoo/backups/<archivo>.dump
+
+# Añadir usuario LDAP
+bash /opt/erp-odoo/scripts/ldap/ldap_crear_usuarios.sh
+
+# Configurar PC cliente VLAN 10 para login LDAP
+sudo bash /opt/erp-odoo/scripts/ldap/configurar_cliente_ldap.sh
+```
+
+Referencia completa de scripts: [`../scripts/README.md`](../scripts/README.md)
+
+---
+
+## 📋 Plantillas para GitHub Issues
+
+Copiar el bloque de descripción al crear un Issue en GitHub.
+
+### [Infra] Verificación de Aislamiento VLAN
+
+**Labels:** `infraestructura`, `seguridad`, `pfSense`
+
+**Objetivo:** Verificar que la segmentación entre VLAN 10 (clientes) y VLAN 30 (DMZ) funciona correctamente.
+
+- [ ] `nc -zv 192.168.30.10 5432` desde VLAN 10 → **timeout** ✅
+- [ ] `nc -zv 192.168.30.10 8069` desde VLAN 10 → **timeout** ✅
+- [ ] `nc -zv 192.168.30.10 22` desde VLAN 10 → **timeout** ✅
+- [ ] `curl -k -I https://erp.odoo.tfg.com` desde VLAN 10 → **200** ✅
+- [ ] `ping 192.168.10.x` desde DMZ → **sin respuesta** ✅
+- [ ] Panel pfSense desde VLAN 10 → **no accesible** ✅
+- [ ] Captura → `screenshots/fase_A_vlan/`
+
+---
+
+### [Docker] Red MACVLAN
+
+**Labels:** `docker`, `red`
+
+**Objetivo:** Asignar IPs físicas de la DMZ a los contenedores para que pfSense aplique reglas por host.
+
+- [ ] `nginx-proxy` → IP `192.168.30.20` en MACVLAN
+- [ ] `odoo-web` → IP `192.168.30.21` en MACVLAN
+- [ ] `openldap` → IP `192.168.30.22` en MACVLAN
+- [ ] `odoo_erp` → sin IP MACVLAN (solo red interna)
+- [ ] `docker run --rm --network macvlan_vlan30 alpine wget -qO- https://192.168.30.20` → `<title>Odoo</title>`
+- [ ] Captura de `docker network inspect macvlan_vlan30` → `screenshots/fase_B_macvlan/`
+
+---
+
+### [Identidad] Autenticación Centralizada LDAP
+
+**Labels:** `ldap`, `autenticación`, `seguridad`
+
+**Objetivo:** Una cuenta LDAP permite login en PC Linux y en Odoo.
+
+- [ ] Contenedor OpenLDAP activo con IP `192.168.30.22`
+- [ ] ACLs aplicadas: readonly=lectura, tecnico=contraseñas, admin=escritura
+- [ ] Usuarios creados con `ldap_crear_usuarios.sh`
+- [ ] Módulo `auth_ldap` instalado en Odoo
+- [ ] Login en Odoo con credencial LDAP → OK
+- [ ] `getent passwd <uid>` en PC VLAN 10 → resuelve el usuario
+- [ ] Login en PC VLAN 10 con credencial LDAP → sesión abierta
+- [ ] `cn=readonly` intenta modificar → error 50 (Insufficient access)
+- [ ] Captura → `screenshots/fase_C_ldap/`
+
+---
+
+### [SecOps] Hardening SSH + Headless
+
+**Labels:** `hardening`, `seguridad`, `debian`
+
+**Objetivo:** Reducir superficie de ataque eliminando GUI y asegurando acceso solo por clave SSH.
+
+- [ ] UFW activo: 22/80/443/9090 abiertos, deny-all el resto
+- [ ] Clave SSH copiada al servidor (`ssh-copy-id`)
+- [ ] Login SSH con clave verificado desde VLAN 40
+- [ ] `PasswordAuthentication no` + `PermitRootLogin no` en sshd_config
+- [ ] `systemctl set-default multi-user.target`
+- [ ] Paquetes GNOME + X11 eliminados
+- [ ] Reinicio → arranque en modo texto ✅
+- [ ] Docker + 4 contenedores activos tras reinicio ✅
+- [ ] Odoo accesible `https://erp.odoo.tfg.com` ✅
+- [ ] Captura → `screenshots/fase_D_headless/`
+
+---
+
+### [DevOps] Pipeline CI/CD con GitHub Actions
+
+**Labels:** `ci-cd`, `devops`
+
+**Objetivo:** `git push` → CI valida → CD despliega automáticamente en el servidor.
+
+- [ ] Runner instalado como servicio systemd
+- [ ] Runner visible en GitHub → Idle (verde)
+- [ ] Permisos `.env`: `640`, propietario `root:servidor`
+- [ ] CI: ShellCheck + YAML lint + Markdownlint pasan ✅
+- [ ] CD: `git reset --hard origin/main` + `docker compose pull` + `deploy.sh`
+- [ ] Test end-to-end: commit vacío → push → CI ✅ → CD ✅
+- [ ] Captura → `screenshots/fase_E_cicd/`
+
+---
+
+### [SecOps] Aislamiento VLAN 40 y Panel pfSense
+
+**Labels:** `pfSense`, `seguridad`, `vlan40`
+
+**Objetivo:** Panel pfSense solo accesible desde VLAN 40, autenticado con LDAP.
+
+- [ ] OPT2 (VLAN 40): IP `192.168.40.1/24`, DHCP `40.10–50`
+- [ ] Regla OPT2: `VLAN40 → This Firewall :443 → PASS`
+- [ ] Acceso panel desde VLAN 40: `https://192.168.40.1` → OK
+- [ ] Servidor LDAP configurado en User Manager → Authentication Servers
+- [ ] Grupo `admin` en pfSense con `WebCfg - All pages`
+- [ ] Authentication Server cambiado a `OpenLDAP DMZ`
+- [ ] Anti-Lockout desactivado (System → Advanced → Admin Access)
+- [ ] Login con `dba` → **denegado** ✅
+- [ ] Login con `admin` → **concedido** ✅
+- [ ] Panel desde VLAN 10 → **no accesible** ✅
+
+---
+
+## ⚠️ Archivos que NUNCA van a Git
+
+```bash
+# Verificar antes de cada commit:
+git status
+
+# Los siguientes NUNCA deben aparecer en la lista:
+# docker/.env       → Credenciales reales
+# certs/*.key       → Claves privadas SSL
+# certs/*.crt       → Certificados
+# data/             → Datos persistentes
+# ISOs/             → Imágenes de instalación
+# backups/          → Backups de PostgreSQL
+```
+
+---
+
+## 📷 Nomenclatura de Capturas
+
+```
+screenshots/
+├── fase_A_vlan/       → Reglas pfSense, nc timeout, curl 200
+├── fase_B_macvlan/    → docker network inspect, IPs .20/.21/.22
+├── fase_C_ldap/       → Login LDAP en Odoo, login LDAP en PC
+├── fase_D_headless/   → SSH activo, Cockpit, sin GUI
+└── fase_E_cicd/       → Pipeline GitHub Actions ejecutándose
+```
+
+---
+
+*TFG ASIR 2025/2026 — Sandra Fradejas Avedillo — IES Cañaveral*

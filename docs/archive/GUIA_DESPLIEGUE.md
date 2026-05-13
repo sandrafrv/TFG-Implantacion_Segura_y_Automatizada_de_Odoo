@@ -1,6 +1,23 @@
 # Guía de Despliegue — Implantación Segura y Automatizada de Odoo
 **TFG ASIR 2025/2026 — Sandra Fradejas Avedillo**
 
+> [!IMPORTANT]
+> Este archivo ha sido reemplazado por la **Guía Maestra de Instalación** que incluye sub-guías detalladas por módulo.
+>
+> **→ Ir a la guía actualizada: [`INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md)**
+
+La guía maestra incluye:
+- Índice centralizado con navegación a cada fase
+- Sub-guías detalladas en `docs/guias/` para pfSense, Debian, Docker, Odoo, LDAP, CI/CD y Hardening
+- Checklist de verificación completo
+- Solución de problemas comunes por módulo
+
+---
+
+*El contenido histórico de este archivo se mantiene a continuación como referencia.*
+
+---
+
 Esta guía explica cómo reproducir la infraestructura completa **desde cero**, en el orden correcto. Sigue los pasos en secuencia.
 
 ---

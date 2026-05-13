@@ -21,7 +21,7 @@ Este repositorio documenta el diseño e implantación de un entorno productivo c
 **Características principales:**
 
 - **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/LAN/DMZ) con reglas explícitas de bloqueo anti-pivoting.
-- **Orquestación de Contenedores:** Despliegue de servicios (Nginx, Odoo 17 y PostgreSQL 16) usando Docker y Docker Compose sobre **Debian 12 Server (Bookworm)**.
+- **Orquestación de Contenedores:** Despliegue de servicios (Nginx, Odoo 17 y PostgreSQL 16) usando Docker y Docker Compose sobre **Debian 13 Server (Trixie)**.
 - **Segmentación de Red:** Soporte de VLANs (10, 30) para aislar el tráfico de clientes internos y servicios públicos.
 - **Redes MACVLAN:** Los contenedores Nginx y Odoo-web tienen IPs propias en la VLAN30 (`192.168.30.20` y `192.168.30.21`), visibles directamente por pfSense como hosts independientes.
 - **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante un contenedor Nginx Alpine, con terminación SSL/TLS, limitando el acceso a los puertos 80/443 del host.
@@ -35,7 +35,7 @@ Este repositorio documenta el diseño e implantación de un entorno productivo c
 La topología divide la red en tres zonas de confianza principales, gestionadas por un firewall pfSense:
 
 - **WAN (Internet):** Acceso externo simulado.
-- **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor **Debian 12 Server** que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL). Gestionado visualmente desde **Cockpit** (`https://192.168.40.10:9090`).
+- **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor **Debian 13 Server** que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL). Gestionado visualmente desde **Cockpit** (`https://192.168.40.10:9090`).
 - **LAN Clientes (VLAN 10 - 192.168.10.0/24):** Equipos internos de la empresa.
 - **LAN Administración (VLAN 40)**: Grupos admin y DBA
 ```mermaid
@@ -64,7 +64,7 @@ graph TD
     ADMIN -- "Accede a Odoo via nginx" --> NGINX
     CLIENT -- "Accede a Odoo via nginx" --> NGINX
 
-    subgraph DMZ["🟩 Debian 12 · DMZ — VLAN 30"]
+    subgraph DMZ["🟩 Debian 13 · DMZ — VLAN 30"]
         LDAP["🐳 DOCKER · LDAP\nMAC_VLAN: 22"]
         NGINX["🐳 DOCKER · NGINX\nMAC_VLAN: 20"]
         ODOO["🐳 DOCKER · ODOO\nMAC_VLAN: 21"]
@@ -118,7 +118,7 @@ A continuación, se detalla la hoja de ruta seguida para la ejecución del proye
 
 - Configuración del hipervisor (VMware/VirtualBox).
 - Despliegue de pfSense con sus respectivas interfaces virtuales (Trunk/VLANs).
-- Instalación del S.O. anfitrión único (**Debian 12 Server**) en la DMZ con direccionamiento IP estático e instalación de **Cockpit**.
+- Instalación del S.O. anfitrión único (**Debian 13 Server**) en la DMZ con direccionamiento IP estático e instalación de **Cockpit**.
 
 ### 2. Contenerización Completa (Docker / Nginx / Odoo)
 
@@ -186,7 +186,7 @@ docker network create \
 | :--- | :--- |
 | Redes/Seguridad | pfSense (FreeBSD), UFW |
 | Virtualización/Orquestación | Docker Engine, Docker Compose |
-| Sistema Operativo Base | **Debian 12 Server (Bookworm)** con Cockpit |
+| Sistema Operativo Base | **Debian 13 Server (Trixie)** con Cockpit |
 | Proxy Inverso | Nginx (Alpine Linux) — contenedor Docker con MACVLAN |
 | ERP/CRM | Odoo 17 CE — contenedor Docker con MACVLAN |
 | Base de Datos | PostgreSQL 16 — contenedor Docker (solo red interna) |
@@ -199,12 +199,19 @@ docker network create \
 
 ## 📚 Estructura de este Repositorio
 
-- `/docker/`: Ficheros `docker-compose.yml`, configuración de Odoo (`odoo.conf`) y archivo de variables de entorno (`.env`, excluido de Git).
-- `/scripts/`: Batería DevOps en Bash (`backup.sh`, `restore.sh`, `deploy.sh`, `update.sh`, `monitor.sh`).
-- `/sql/`: Sentencias y *Triggers* de PL/pgSQL para auditoría de base de datos (`audit_triggers.sql`).
-- `/config_nginx/`: Archivos de configuración del *Server Block* del proxy inverso (`odoo_proxy.conf`).
-- `/docs/`: Documentación adicional, plan de implantación detallado, reglas de pfSense y plantillas de GitHub Issues.
-- `/ISOs/`: Directorio destinado a almacenar las imágenes de disco (Debian 12, pfSense, etc.) necesarias para replicar el entorno.
+> **🚀 Instalación desde cero: [`docs/INSTALACION_COMPLETA.md`](docs/INSTALACION_COMPLETA.md)**
+
+| Directorio / Archivo | Descripción |
+|:---------------------|:------------|
+| `/docker/` | `docker-compose.yml`, `odoo.conf` y `.env` (excluido de Git) |
+| `/scripts/` | Scripts Bash por categoría: `deploy/`, `odoo/`, `ldap/`, `mantenimiento/` |
+| `/sql/` | Triggers PL/pgSQL para auditoría de base de datos |
+| `/config_nginx/` | Configuración del proxy inverso Nginx con SSL y cabeceras de seguridad |
+| `/ldap/` | Estructura base del directorio LDAP (`estructura.ldif`) |
+| `/docs/` | Documentación técnica completa |
+| `/docs/guias/` | Sub-guías por módulo: pfSense, Debian, Docker, Odoo, LDAP, CI/CD, Hardening |
+| `/ISOs/` | Imágenes de instalación (Debian 13, pfSense 2.7.x) |
+| `install.sh` | Instalador todo-en-uno |
 
 ---
 

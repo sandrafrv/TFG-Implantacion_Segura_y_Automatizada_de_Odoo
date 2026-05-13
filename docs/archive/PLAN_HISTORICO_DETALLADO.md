@@ -1,8 +1,17 @@
-# Historial: Plan de Implantación Detallado Original: Odoo ERP con pfSense y Docker (TFG ASIR)
+# Plan de Implantación Detallado — Referencia Histórica
 
-> **Nota Histórica:** Este documento contiene el plan técnico original paso a paso que se siguió durante la fase de desarrollo. Su propósito actual es servir como anexo al `HISTORIAL_IMPLEMENTACION.md`, demostrando las instrucciones exactas y comandos utilizados para desplegar la arquitectura desde cero.
+**TFG ASIR 2025/2026 — Sandra Fradejas Avedillo**
 
-Este documento es la **hoja de ruta técnica principal** del proyecto. Contiene todos los pasos necesarios para desplegar el sistema ERP completo, con los comandos exactos a ejecutar, la justificación de cada decisión técnica y el orden correcto de ejecución. Sigue este plan de principio a fin para reproducir el entorno desde cero.
+> [!NOTE]
+> **Documento histórico.** Este archivo documenta el plan técnico original con los comandos y decisiones tomadas durante el desarrollo.
+> Sirve como **anexo técnico** al historial de implementación.
+>
+> **→ Para instalar desde cero, usa la guía actual:** [`docs/INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md)
+> **→ Para entender por qué se tomaron las decisiones:** [`docs/HISTORIAL_IMPLEMENTACION.md`](HISTORIAL_IMPLEMENTACION.md)
+
+---
+
+Este documento es el plan técnico original con todos los pasos de despliegue, los comandos exactos, la justificación de cada decisión técnica y el orden de ejecución seguido durante el proyecto.
 
 ---
 
@@ -744,11 +753,28 @@ Preparar un entorno real (o virtual) saneado y un guion para la demostración en
 
 Una vez desplegado todo el sistema, el orden correcto de arranque ante un reinicio es:
 
-1. **Encender la VM de pfSense** → esperar a que las interfaces de red estén activas
-2. **Encender la VM de Debian** → Docker arranca automáticamente y levanta los tres contenedores
-3. **Verificar desde el cliente** → abrir `https://erp.odoo.tfg.com` y comprobar acceso al ERP
-4. **Acceder a Cockpit** → `https://192.168.30.10:9090` para monitorizar el estado del servidor
+1. **Encender la VM de pfSense** → esperar a que las interfaces de red estén activas (~1 min)
+2. **Encender la VM de Debian** → Docker arranca automáticamente (restart: always)
+3. **Esperar ~3 min** → Odoo inicializa si es el primer arranque
+4. **Verificar desde el cliente** → `https://erp.odoo.tfg.com` → pantalla de login Odoo
+5. **Acceder a Cockpit** → `https://192.168.30.10:9090` → panel de administración
 
-El sistema es autosuficiente: los contenedores Docker tienen `restart: always`, por lo que si el servidor se reinicia o un contenedor falla, se recuperan solos. El script `monitor.sh` ejecutado por cron cada 5 minutos proporciona una capa adicional de supervisión activa.
+> 📌 **Dominio de acceso:** `https://erp.odoo.tfg.com` resuelto por pfSense DNS Resolver → `192.168.30.10`
 
-> 📌 **Dominio de acceso final:** `https://erp.odoo.tfg.com` — resuelto internamente por pfSense DNS Resolver con Host Override hacia `192.168.30.10`.
+---
+
+## Estado Final del Proyecto
+
+| Componente | Estado | Notas |
+|:-----------|:-------|:------|
+| pfSense | ✅ | 4 interfaces, reglas VLAN 10/30/40, LDAP auth |
+| Debian 12 | ✅ | IP estática, Docker, Cockpit |
+| Docker stack | ✅ | 4 contenedores healthy |
+| Red MACVLAN | ✅ | Nginx .20, Odoo .21, LDAP .22 |
+| LDAP | ✅ | Auth centralizada Odoo + PCs VLAN 10 |
+| CI/CD | ✅ | Runner activo, pipeline CI + CD |
+| Auditoría SQL | ✅ | Trigger en `res_users` |
+| Backups | ✅ | Cron diario 02:00 |
+| UFW | ✅ | Solo 22/80/443/9090 |
+
+**→ Guía de instalación actualizada:** [`docs/INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md)

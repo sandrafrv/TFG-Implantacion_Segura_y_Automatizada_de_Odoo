@@ -1,0 +1,340 @@
+# Guía del Servidor — Debian + Docker + Odoo
+
+**← Volver a:** [`docs/INSTALACION_COMPLETA.md`](../INSTALACION_COMPLETA.md)
+**← Fase anterior:** [`guias/INSTALACION_RED.md`](INSTALACION_RED.md)
+
+---
+
+## PARTE 1 — Debian 13: Preparación del Servidor
+
+### 1.1 Crear la VM Debian en VirtualBox
+
+| Campo | Valor |
+|:------|:------|
+| Nombre | `Debian-Servidor-TFG` |
+| Tipo | Linux → Debian (64-bit) |
+| RAM | **4096 MB** mínimo |
+| CPU | **2 cores** mínimo |
+| Disco | **40 GB** (VDI, dinámico) |
+| Adaptador de red | **Red Interna** → `DMZ_30` |
+
+### 1.2 Instalar Debian 13
+
+1. Arrancar con ISO de Debian 13 → **Graphical Install**
+2. Idioma: Español | País: España | Teclado: Español
+3. Hostname: `debian-erp` | Domain: `tfg.com`
+4. Crear usuario `root` y usuario normal (ej. `servidor`)
+5. Particionado: **Utilizar disco completo** (guiado)
+6. Software: ✅ `GNOME` + ✅ `SSH server` + ✅ `standard system utilities`
+
+> GNOME se instalará ahora para facilitar el diagnóstico. Se eliminará en la fase de Hardening.
+> Debian 13 (Trixie) usa systemd-networkd por defecto — la configuración de IP estática
+> puede hacerse también con `nmcli` o `nmtui` si la ISO incluye Network Manager.
+
+### 1.3 Configurar IP Estática
+
+```bash
+sudo nano /etc/network/interfaces
+```
+
+```
+auto ens18
+iface ens18 inet static
+    address 192.168.30.10
+    netmask 255.255.255.0
+    gateway 192.168.30.1
+    dns-nameservers 192.168.30.1
+```
+
+> El nombre de la interfaz puede variar. Compruébalo con `ip link show` (`ens18`, `eth0`, `enp0s3`...).
+
+```bash
+sudo systemctl restart networking
+ip addr show   # Debe mostrar: inet 192.168.30.10/24
+ping -c 3 192.168.30.1   # Gateway pfSense responde
+```
+
+### 1.4 Actualizar e Instalar Dependencias Base
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git curl wget openssl ca-certificates gnupg lsb-release net-tools ldap-utils
+```
+
+### 1.5 Instalar Docker
+
+> [!NOTE]
+> En Debian 13 (Trixie) el paquete `docker.io` puede no estar en los repos oficiales todavía.
+> Se recomienda instalar desde el repositorio oficial de Docker:
+
+```bash
+# Instalar dependencias necesarias
+sudo apt install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+
+# Agregar clave GPG oficial de Docker
+sudo curl -fsSL https://download.docker.com/linux/debian/gpg \
+  -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Añadir el repositorio oficial de Docker (Trixie)
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+  https://download.docker.com/linux/debian \
+  trixie stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Instalar Docker Engine + Compose
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+sudo systemctl enable docker && sudo systemctl start docker
+sudo usermod -aG docker $USER
+newgrp docker   # Aplicar sin cerrar sesión
+docker --version && docker compose version
+docker run --rm hello-world   # Prueba rápida
+```
+
+### 1.6 Instalar Cockpit
+
+```bash
+sudo apt install -y cockpit
+sudo systemctl enable cockpit.socket && sudo systemctl start cockpit.socket
+```
+
+Acceder desde VLAN 40: `https://192.168.30.10:9090`
+
+### 1.7 Clonar el Repositorio
+
+```bash
+sudo git clone \
+    https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git \
+    /opt/erp-odoo
+sudo chown -R $USER:$USER /opt/erp-odoo
+cd /opt/erp-odoo
+```
+
+### 1.8 Crear el Archivo `.env` con Credenciales
+
+```bash
+cp .env.example docker/.env
+nano docker/.env   # Editar con contraseñas reales
+chmod 600 docker/.env
+```
+
+El `.env` debe quedar así (con contraseñas **reales**, no los ejemplos):
+
+```bash
+POSTGRES_USER=odoo
+POSTGRES_PASSWORD=<contraseña_segura_postgres>
+POSTGRES_DB=odoo_erp
+ODOO_MASTER_PASSWORD=<contraseña_maestra_odoo>
+LDAP_ADMIN_PASSWORD=<contraseña_admin_ldap>
+LDAP_READONLY_PASSWORD=<contraseña_readonly_ldap>
+LDAP_DOMAIN=tfg.com
+LDAP_BASE_DN=dc=tfg,dc=com
+LDAP_ORG=TechSolutions SL
+```
+
+> [!CAUTION]
+> **Nunca hagas `git add docker/.env`**. Está en `.gitignore`, pero verifica siempre con `git status` antes de hacer commit.
+
+### 1.9 Alternativa: Instalador Todo-en-Uno
+
+Los pasos 1.4 a 1.8 se pueden automatizar con:
+
+```bash
+cd /opt/erp-odoo
+chmod +x install.sh
+sudo ./install.sh
+```
+
+El instalador hace: dependencias → Cockpit → Docker → estructura de dirs → SSL → `.env` interactivo → deploy → cron.
+
+---
+
+## PARTE 2 — Stack Docker: PostgreSQL + Odoo + LDAP + Nginx
+
+### 2.1 Arquitectura de Contenedores
+
+```
+Red interna Docker: odoo_net (bridge)
+  odoo_erp (PostgreSQL) ← odoo-web (Odoo) ← nginx-proxy (Nginx)
+  openldap  ─────────────────────────────────────────────────────
+
+Redes MACVLAN (IPs físicas en DMZ):
+  nginx-proxy → 192.168.30.20
+  odoo-web    → 192.168.30.21
+  openldap    → 192.168.30.22
+  odoo_erp    → sin IP MACVLAN (solo red interna, por seguridad)
+```
+
+### 2.2 Crear la Red MACVLAN
+
+```bash
+# Detectar la interfaz de red activa
+ip link show   # Buscar ens18 o la interfaz conectada a la DMZ
+
+# Crear la red MACVLAN (una sola vez, persiste en Docker)
+docker network create \
+  --driver macvlan \
+  --subnet=192.168.30.0/24 \
+  --gateway=192.168.30.1 \
+  --opt parent=ens18 \
+  macvlan_vlan30
+
+docker network ls | grep macvlan   # Verificar
+```
+
+> [!WARNING]
+> **Limitación del kernel Linux con macvlan:** el host Debian **no puede hacer ping** a las IPs MACVLAN de sus propios contenedores. Para verificar, usa un contenedor temporal:
+> ```bash
+> docker run --rm --network macvlan_vlan30 alpine \
+>   wget -qO- --no-check-certificate https://192.168.30.20 | head -5
+> ```
+
+### 2.3 Generar Certificados SSL
+
+Si no usaste `install.sh`:
+
+```bash
+sudo mkdir -p /opt/erp-odoo/certs
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /opt/erp-odoo/certs/erp.key \
+    -out    /opt/erp-odoo/certs/erp.crt \
+    -subj "/C=ES/ST=Madrid/L=Madrid/O=TechSolutions/CN=erp.odoo.tfg.com"
+ls /opt/erp-odoo/certs/   # → erp.crt  erp.key
+```
+
+### 2.4 Levantar el Stack Docker
+
+```bash
+cd /opt/erp-odoo
+docker compose -f docker/docker-compose.yml up -d
+
+# Seguir el arranque en tiempo real (Ctrl+C para salir)
+docker compose -f docker/docker-compose.yml logs -f
+```
+
+> ⏱️ El **primer arranque de Odoo puede tardar 2–5 minutos** mientras inicializa la base de datos PostgreSQL. Es normal.
+
+### 2.5 Verificar Estado de Contenedores
+
+```bash
+docker compose -f docker/docker-compose.yml ps
+```
+
+Resultado esperado (todos `Up (healthy)`):
+```
+NAME          IMAGE                  STATUS
+odoo_erp      postgres:16            Up (healthy)
+odoo-web      odoo:17                Up (healthy)
+openldap      osixia/openldap:1.5.0  Up (healthy)
+nginx-proxy   nginx:alpine           Up (healthy)
+```
+
+### 2.6 Solución de Problemas Comunes
+
+| Error | Causa | Solución |
+|:------|:------|:---------|
+| `password authentication failed` | `.env` con contraseñas incorrectas o datos de BD anterior | `docker compose down` → borrar `data/postgres-data/` → recrear `.env` → `docker compose up -d` |
+| Nginx en bucle de reinicios | Certificados con nombre incorrecto | Verificar `grep ssl_certificate config_nginx/*.conf` y regenerar con ese nombre |
+| `dubious ownership` en git | `/opt/erp-odoo` creado por root, runner usa otro usuario | `git config --global --add safe.directory /opt/erp-odoo` |
+| Puerto 80/443 en uso | Contenedor nginx en estado corrupto | `docker compose down --remove-orphans && docker compose up -d --force-recreate` |
+
+### 2.7 Instalar Cron de Mantenimiento
+
+```bash
+bash /opt/erp-odoo/scripts/deploy/install_cron.sh
+cat /etc/cron.d/erp-odoo   # Verificar 3 tareas instaladas
+```
+
+| Tarea | Horario | Script |
+|:------|:--------|:-------|
+| Backup PostgreSQL | Diario 02:00 | `mantenimiento/backup.sh` |
+| Monitor de salud | Cada 15 min | `mantenimiento/monitor.sh` |
+| Actualizar imágenes | Domingo 03:00 | `mantenimiento/update.sh` |
+
+---
+
+## PARTE 3 — Post-instalación de Odoo
+
+### 3.1 Asistente de Configuración
+
+```bash
+bash /opt/erp-odoo/scripts/odoo/odoo_setup_wizard.sh
+```
+
+El asistente realiza 4 pasos:
+
+1. **Renombrar empresa** → "My Company" → "TechSolutions S.L." (UPDATE en BD)
+2. **Instalar módulos** → CRM, Ventas, RRHH, Inventario, `auth_ldap` (obligatorio)
+3. **Configurar LDAP** → detecta IP del contenedor OpenLDAP, configura `cn=readonly`
+4. **Restricción** (opcional) → elimina contraseñas locales (solo admin conserva la suya)
+
+> ⏱️ La instalación de módulos puede tardar 2–5 minutos.
+
+### 3.2 Crear Usuarios Odoo con Roles
+
+```bash
+bash /opt/erp-odoo/scripts/odoo/odoo_crear_usuarios.sh
+```
+
+| Usuario | Rol | Módulos visibles | Tipo Odoo |
+|:--------|:----|:----------------|:----------|
+| `becario@erp.odoo.tfg.com` | Becario | Solo CRM (lectura) | Interno |
+| `ventas@erp.odoo.tfg.com` | Ventas | CRM + Ventas + Facturas | Interno |
+| `rrhh@erp.odoo.tfg.com` | RRHH | RRHH + Empleados | Interno |
+| `almacen@erp.odoo.tfg.com` | Almacén | Inventario + Compras | Interno |
+| `tecnico@erp.odoo.tfg.com` | Técnico | Inventario + Soporte | Interno |
+| `jefe.ventas@erp.odoo.tfg.com` | Jefe Ventas | Ventas completo + aprobaciones | Interno |
+| `jefe.rrhh@erp.odoo.tfg.com` | Jefe RRHH | RRHH completo + aprobaciones | Interno |
+| `jefe.almacen@erp.odoo.tfg.com` | Jefe Almacén | Almacén completo + aprobaciones | Interno |
+| `api.user@erp.odoo.tfg.com` | API | Solo XML-RPC | Interno |
+| `dba@erp.odoo.tfg.com` | DBA | Sin UI (solo BD) | Interno |
+
+> [!WARNING]
+> Las contraseñas se generan aleatoriamente y se muestran **una sola vez**. Guárdalas inmediatamente.
+
+### 3.3 Auditoría SQL en PostgreSQL *(Opcional)*
+
+```bash
+# Aplicar triggers de auditoría
+docker exec -i odoo_erp psql -U odoo -d odoo_erp \
+    < /opt/erp-odoo/sql/audit_triggers.sql
+
+# Verificar que funciona
+docker exec -it odoo_erp psql -U odoo -d odoo_erp \
+    -c "SELECT * FROM v_audit_resumen;"
+```
+
+El script crea:
+- **Tabla** `asir_audit_log` — snapshot JSONB de cada usuario creado
+- **Trigger** `trg_audit_new_odoo_user` en `res_users`
+- **Vista** `v_audit_resumen` para consultas rápidas
+
+### 3.4 Verificación Completa del Servidor
+
+```bash
+# Contenedores activos
+docker compose -f docker/docker-compose.yml ps
+
+# Odoo responde
+curl -k -I https://erp.odoo.tfg.com   # → HTTP/2 200
+
+# PostgreSQL bloqueado desde fuera (verificar desde cliente VLAN 10)
+nc -zv 192.168.30.10 5432             # → Timeout ✅
+
+# Empresa renombrada
+docker exec -it odoo_erp psql -U odoo -d odoo_erp \
+    -c "SELECT name FROM res_company WHERE id=1;"
+# → TechSolutions S.L. ✅
+
+# Módulo auth_ldap instalado
+docker exec -it odoo_erp psql -U odoo -d odoo_erp \
+    -c "SELECT name, state FROM ir_module_module WHERE name='auth_ldap';"
+# → auth_ldap | installed ✅
+```
+
+---
+
+**→ Siguiente:** [`guias/INSTALACION_LDAP_CICD_HARDENING.md`](INSTALACION_LDAP_CICD_HARDENING.md) — LDAP + CI/CD + Hardening

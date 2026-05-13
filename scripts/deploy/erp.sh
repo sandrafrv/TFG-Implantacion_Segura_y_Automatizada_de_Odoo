@@ -157,7 +157,7 @@ opcion_restaurar() {
     read -rp "  Introduce el nombre del archivo .dump a restaurar: " dump_file
     if [ -f "/opt/erp-odoo/backups/$dump_file" ]; then
         log "INFO" "Restaurando desde $dump_file"
-        BACKUP_FILE="/opt/erp-odoo/backups/$dump_file" bash "$PROJECT_DIR/scripts/mantenimiento/restore.sh"
+        bash "$PROJECT_DIR/scripts/mantenimiento/restore.sh" "/opt/erp-odoo/backups/$dump_file"
     else
         error "Archivo no encontrado: /opt/erp-odoo/backups/$dump_file"
     fi
