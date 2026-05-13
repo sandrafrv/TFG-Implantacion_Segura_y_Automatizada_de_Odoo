@@ -288,7 +288,8 @@ El proyecto ha demostrado con éxito que es posible implementar un sistema compl
 A nivel técnico, se ha conseguido aislar la carga de trabajo en una red DMZ, separar la administración del sistema en una VLAN dedicada (VLAN 40) previniendo que usuarios internos o atacantes externos alcancen los servicios de gestión, y unificar las credenciales de los empleados en un único directorio LDAP.
 
 A nivel metodológico, la inversión de tiempo en planificar la infraestructura como código (Docker + MACVLAN) y automatizar el ciclo de vida (Bash/Cron) ha reducido drásticamente los errores de despliegue en comparación con una instalación manual.
-*(Añade aquí tu propia reflexión personal sobre lo que más te ha costado o lo que más has aprendido, por ejemplo, la gestión de IPs con MACVLAN, la configuración de las ACLs de LDAP o el orden correcto de las reglas de pfSense).*
+
+Uno de los mayores desafíos técnicos ha sido la implementación de un filtrado de salida estricto (*Egress Filtering*) para la DMZ. Se intentó implementar filtrado de salida basado en ASN mediante pfBlockerNG-devel, configurando los sistemas autónomos AS36459 (GitHub) y AS8075 (Microsoft/Azure). Sin embargo, la solución requiere un token de API externo de IPinfo.io para resolver los rangos CIDR de cada ASN, lo que introduce una dependencia de un servicio de terceros. Por ello, se ha decidido posponer esta medida como una mejora futura para una fase de producción real, manteniendo provisionalmente una regla de salida permisiva por puerto 443 pero documentando la viabilidad técnica del bloqueo por ASN.
 
 ---
 
@@ -296,7 +297,7 @@ A nivel metodológico, la inversión de tiempo en planificar la infraestructura 
 - **Integración de Active Directory (Samba 4):** Para permitir que los equipos Windows se unan al dominio y utilicen las cuentas de red para el inicio de sesión del SO. OpenLDAP estándar no permite el login nativo en Windows; Samba 4 AD DC ofrece compatibilidad completa con Active Directory, Kerberos y DNS.
 - **Monitorización Avanzada:** Despliegue de un stack de Prometheus y Grafana para extraer métricas en tiempo real del uso de CPU/RAM de los contenedores y los tiempos de consulta de PostgreSQL.
 - **Alta Disponibilidad de BD:** Creación de un clúster *Master-Slave* de PostgreSQL para garantizar continuidad de negocio ante el fallo crítico del servidor.
-- **Egress Filtering FQDN en pfSense:** Sustitución de las reglas genéricas de salida HTTP/HTTPS de la DMZ por alias de red basados en FQDN (docker.io, github.com, deb.debian.org) para evitar exfiltración de datos.
+- **Filtrado Avanzado con pfBlockerNG:** Implementación definitiva del filtrado por ASN una vez se disponga de las claves de API necesarias, eliminando por completo la regla permisiva del puerto 443.
 
 ---
 

@@ -102,7 +102,7 @@ Aplicar el principio de mínimo privilegio (Zero Trust) al tráfico de salida de
 ### ✅ Tareas a realizar
 - [ ] Crear un Alias en pfSense llamado `SERVICIOS_PERMITIDOS_DMZ` de tipo Host(s).
 - [ ] Añadir dominios de Docker Hub (`registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`).
-- [ ] Añadir dominios de GitHub (`github.com`, `api.github.com`).
+- [ ] Añadir dominios de GitHub (`github.com`, `api.github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com`).
 - [ ] Añadir repositorios base de OS (`deb.debian.org`).
 - [ ] Modificar las reglas de Firewall de la DMZ (OPT1) que permitían salida HTTP/HTTPS.
 - [ ] Cambiar el "Destination" de `any` a "Single host or alias" -> `SERVICIOS_PERMITIDOS_DMZ`.

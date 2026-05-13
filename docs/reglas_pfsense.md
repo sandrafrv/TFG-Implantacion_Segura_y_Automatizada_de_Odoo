@@ -120,32 +120,16 @@ Tráfico desde servidor DMZ (192.168.30.10)
 [Pos. 10] Cualquier otro tráfico           ──► ❌ BLOQUEADO (deny-all)
 ```
 
-### Endurecimiento Avanzado: Filtrado de Salida por ASN (pfBlockerNG)
+### Conclusión Técnica sobre Endurecimiento Saliente (Egress Filtering)
 
-Para evitar exfiltración de datos desde la DMZ (Zero Trust) pero permitir la actualización de contenedores y el uso de GitHub Actions, inicialmente se planteó un filtrado FQDN. Sin embargo, debido a que GitHub Actions utiliza subdominios dinámicos alojados en la nube de Microsoft Azure (`*.blob.core.windows.net`, `*.actions.githubusercontent.com`), los Alias estáticos nativos de pfSense son incompatibles porque no soportan comodines.
+Durante la fase de endurecimiento de la red DMZ, se evaluó la restricción del tráfico de salida hacia Internet bajo una política de "Mínimo Privilegio" (Zero Trust). Los resultados y decisiones tomadas se detallan a continuación:
 
-Como alternativa de nivel empresarial, se implementa **pfBlockerNG** para realizar un filtrado dinámico a nivel de BGP utilizando ASN (Autonomous System Numbers).
+1. **Limitación de FQDN:** El filtrado basado en dominios estáticos (FQDN) en pfSense resultó insuficiente para servicios de CI/CD como GitHub Actions, debido al uso de subdominios dinámicos y CDNs de baja latencia (`*.actions.githubusercontent.com`, `*.blob.core.windows.net`).
+2. **Evaluación de pfBlockerNG (ASN):** Se intentó implementar filtrado de salida basado en ASN mediante pfBlockerNG-devel, configurando los sistemas autónomos AS36459 (GitHub) y AS8075 (Microsoft/Azure). 
+3. **Dependencia de Terceros:** La solución requiere un token de API externo de `IPinfo.io` para resolver los rangos CIDR de cada ASN de forma dinámica, lo que introduce una dependencia de un servicio de terceros no gestionado localmente.
+4. **Decisión Final:** Por motivos de estabilidad y autonomía de la infraestructura, se pospone la integración de ASN como mejora futura, manteniendo provisionalmente una regla de salida permisiva por el puerto **TCP 443 (HTTPS)** hacia `Any`. Esto garantiza el funcionamiento del despliegue automatizado mientras se mantiene el bloqueo absoluto de todos los demás protocolos y puertos no esenciales.
 
-**Paso 1 — Instalar pfBlockerNG:**
-- Ir a `System → Package Manager → Available Packages`.
-- Buscar e instalar `pfBlockerNG`.
-
-**Paso 2 — Crear Alias de ASN en pfBlockerNG:**
-- Ir a `Firewall → pfBlockerNG → IP → IPv4`.
-- Añadir (`+Add`) una nueva lista:
-  - **Name:** `GitHub_Azure_ASN`
-  - **Action:** `Alias Native` (Solo crea la lista de IPs, no la regla automática).
-  - **IPv4 Custom_List:** Añadir los siguientes ASN en formato AS:
-    - `AS36459` (GitHub)
-    - `AS8075` (Microsoft / Azure)
-  - **Save** y luego ir a la pestaña `Update` y hacer un **Force Reload (IP)** para que descargue cientos de bloques CIDR de esas empresas.
-
-**Paso 3 — Modificar las Reglas 3 y 4 de la DMZ:**
-- Editar las reglas que permitían salida HTTPS/HTTP en `Firewall → Rules → OPT1`.
-- Cambiar el **Destination** a `Single host or alias` y escribir el nombre autogenerado del alias: `pfB_GitHub_Azure_ASN`.
-- Para **Docker**, mantener la regla estática que apunte a un alias manual para `registry-1.docker.io`, `auth.docker.io` y `production.cloudflare.docker.com`.
-
-*Nota:* Esto restringe las salidas de la DMZ exclusivamente a los centros de datos de Microsoft y GitHub, bloqueando conexiones hacia IPs de Internet no verificadas y neutralizando cualquier intento de *Command & Control* o exfiltración.
+*Nota:* Esta decisión técnica ha sido documentada para su defensa en la memoria del TFG, destacando el equilibrio necesario entre seguridad extrema y operatividad del servicio.
 
 ---
 
