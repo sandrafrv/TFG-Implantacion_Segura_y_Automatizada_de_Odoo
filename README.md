@@ -40,41 +40,50 @@ La topología divide la red en tres zonas de confianza principales, gestionadas 
 - **LAN Administración (VLAN 40)**: Grupos admin y DBA
 ```mermaid
 graph TD
-    WLAN(["WLAN"])
-    WLAN --> PFSense["PFSense"]
+    GITHUB["☁️ GITHUB"]
+    WLAN["☁️ WLAN"]
 
-    PFSense -->|"LAN 10: 192.168.10.0/24\nGW: 192.168.10.1"| LAN10
-    PFSense -->|"LAN 40: 192.168.40.1/24\nGW: 192.168.40.0"| LAN40
-    PFSense -->|"LAN: 192.168.30.0/24\nGW: 192.168.30.1"| LAN30
+    GITHUB -->|"LAN 192.168.40.0/24 · GW: 192.168.40.1"| PFSENSE
+    WLAN --> PFSENSE
 
-    subgraph LAN10["LAN 10"]
-        ClienteLinux["Cliente Linux"]
+    PFSENSE(["🔷 Pfsense\nFirewall · DHCP · ACLs · Router"])
+
+    PFSENSE -->|"VLAN 40 · 192.168.40.0/24"| VLAN40
+    PFSENSE -->|"VLAN 30 · 192.168.30.0/24"| DMZ
+    PFSENSE -->|"VLAN 10 · 192.168.10.0/24"| VLAN10
+
+    subgraph VLAN40["🟧 VLAN 40 — Admin / DBA"]
+        ADMIN["👤 Admin / DBA"]
     end
 
-    subgraph LAN40["LAN 40"]
-        AdminDBA["Admin / DBA"]
+    subgraph VLAN10["🟧 VLAN 10 — Cliente Linux"]
+        CLIENT["🖥️ Cliente Linux · Empleados"]
     end
 
-    subgraph LAN30["LAN 30"]
-        DMZ["DMZ"]
+    ADMIN -- "Se loguea" --> NGINX
+    ADMIN -- "Accede a Odoo via nginx" --> NGINX
+    CLIENT -- "Accede a Odoo via nginx" --> NGINX
+
+    subgraph DMZ["🟩 Debian 12 · DMZ — VLAN 30"]
+        LDAP["🐳 DOCKER · LDAP\nMAC_VLAN: 22"]
+        NGINX["🐳 DOCKER · NGINX\nMAC_VLAN: 20"]
+        ODOO["🐳 DOCKER · ODOO\nMAC_VLAN: 21"]
+        BBDD["🐳 DOCKER · PostgreSQL"]
+
+        NGINX -->|"Reverse Proxy"| ODOO
+        ODOO -->|"Consultas"| BBDD
     end
 
-    AdminDBA -->|"Gestión usuario"| Odoo
-    AdminDBA -->|"Gestión CronScript"| Odoo
-    ClienteLinux -->|"Entrar Odoo"| Nginx
+    classDef firewall fill:#BBDEFB,stroke:#1565C0,color:#000
+    classDef vlan fill:#FFE0B2,stroke:#E65100,color:#000
+    classDef dmznode fill:#CE93D8,stroke:#6A1B9A,color:#000
+    classDef client fill:#FFE0B2,stroke:#E65100,color:#000
 
-    subgraph DEBIAN["Debian 12"]
-        Nginx["Nginx\nMCLU: 20\nP: 80/443"]
-        Odoo["Odoo\nMCLU: 21"]
-        LDAP["LDAP\nMCLAN: 22"]
-        PostgreSQL["PostgreSQL\nMCLAN: No\nRed interna\nodoo.net"]
+    class PFSENSE firewall
+    class ADMIN vlan
+    class CLIENT client
+    class LDAP,NGINX,ODOO,BBDD dmznode
 
-        Nginx -->|"8069"| Odoo
-        Odoo --> LDAP
-        Odoo -->|"SQL 5432"| PostgreSQL
-    end
-
-    DMZ --> Nginx
 ```
 
 ---
@@ -178,7 +187,6 @@ docker network create \
 | Redes/Seguridad | pfSense (FreeBSD), UFW |
 | Virtualización/Orquestación | Docker Engine, Docker Compose |
 | Sistema Operativo Base | **Debian 12 Server (Bookworm)** con Cockpit |
-| Clientes | Windows 10/11 |
 | Proxy Inverso | Nginx (Alpine Linux) — contenedor Docker con MACVLAN |
 | ERP/CRM | Odoo 17 CE — contenedor Docker con MACVLAN |
 | Base de Datos | PostgreSQL 16 — contenedor Docker (solo red interna) |
@@ -275,4 +283,4 @@ Estas mejoras quedan fuera del alcance del TFG pero se documentan para demostrar
 | **Ansible (IaC)** | Automatizar toda la configuración del servidor Debian con un Playbook de Ansible, eliminando la configuración manual. |
 | **VPN WireGuard en pfSense** | Ocultar el ERP de Internet público, accesible solo desde la VLAN interna o a través de un túnel VPN cifrado. Diseño "Zero Trust". |
 | **Stack de Monitorización** | Sustituir los scripts de log por Prometheus + Grafana o Uptime Kuma con panel gráfico de estado en tiempo real. |
-| **LDAP / Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 como Controlador de Dominio, integrando Odoo con AD. |
+| ** Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 como Controlador de Dominio, integrando Odoo con AD. |
