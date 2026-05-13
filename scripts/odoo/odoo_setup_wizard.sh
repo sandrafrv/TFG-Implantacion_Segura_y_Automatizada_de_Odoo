@@ -29,6 +29,7 @@ DB_NAME="odoo_erp"
 LDAP_IP="192.168.30.22"   # IP MACVLAN fija del contenedor openldap
 
 # Cargar .env si existe
+# shellcheck source=/dev/null
 [[ -f "$ENV_FILE" ]] && { set -a; source <(grep -vE '^\s*#|^\s*$' "$ENV_FILE"); set +a; }
 LDAP_ADMIN_PASSWORD="${LDAP_ADMIN_PASSWORD:-}"
 
@@ -43,9 +44,12 @@ echo -e "${NC}"
 # ── Comprobar contenedores activos ───────────────────────────
 title "COMPROBACIONES"
 for cont in "$ODOO_CONT" "$DB_CONT" "openldap"; do
-    docker ps --format '{{.Names}}' | grep -q "^${cont}$" \
-        && ok "Contenedor '$cont' activo." \
-        || { error "Contenedor '$cont' no está en ejecución."; exit 1; }
+    if docker ps --format '{{.Names}}' | grep -q "^${cont}$"; then
+        ok "Contenedor '$cont' activo."
+    else
+        error "Contenedor '$cont' no está en ejecución."
+        exit 1
+    fi
 done
 
 # ════════════════════════════════════════════════════════════

@@ -23,10 +23,18 @@ for cont in "${CONTENEDORES[@]}"; do
         log "[OK]     $cont — en línea"
     else
         log "[ALERTA] $cont — caído o unhealthy. Reiniciando..."
-        docker start "$cont" 2>/dev/null && log "[OK]     $cont reiniciado." \
-            || log "[CRÍTICO] No se pudo reiniciar $cont."
+        if docker start "$cont" 2>/dev/null; then
+            log "[OK]     $cont reiniciado."
+        else
+            log "[CRÍTICO] No se pudo reiniciar $cont."
+        fi
         ALERTAS=$((ALERTAS + 1))
     fi
 done
 
-[ "$ALERTAS" -eq 0 ] && log "=== Todo OK ===" || { log "=== $ALERTAS alertas ==="; exit 1; }
+if [ "$ALERTAS" -eq 0 ]; then
+    log "=== Todo OK ==="
+else
+    log "=== $ALERTAS alertas ==="
+    exit 1
+fi

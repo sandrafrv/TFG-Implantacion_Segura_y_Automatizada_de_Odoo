@@ -24,6 +24,7 @@ DMZ_IP="192.168.30.1"
 DMZ_SUBNET="24"
 SERVER_IP="192.168.30.10"
 NGINX_IP="192.168.30.20"
+# shellcheck disable=SC2034
 ODOO_IP="192.168.30.21"
 LDAP_IP="192.168.30.22"
 
@@ -41,6 +42,7 @@ DNS_TARGET="$SERVER_IP"
 
 # ── Contraseña admin (hash bcrypt de "pfsense") ──
 # IMPORTANTE: Cambiar en el primer login
+# shellcheck disable=SC2016
 ADMIN_HASH='$2b$10$XnBAqMBPIZoGweMJsHLx9OFXzO/UMMBNkSYUFODjWsXsgYyMoGxIy'
 
 # ── Archivo de salida ──
@@ -52,6 +54,7 @@ echo "=== Generador de config.xml para pfSense ==="
 echo "Archivo de salida: $OUTPUT_FILE"
 
 # ── Timestamp ──
+# shellcheck disable=SC2034
 TS=$(date +%s)
 
 cat > "$OUTPUT_FILE" << 'XMLEOF'
@@ -61,8 +64,10 @@ cat > "$OUTPUT_FILE" << 'XMLEOF'
   <lastchange></lastchange>
 XMLEOF
 
+
+{
 # ── System ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
   <system>
     <optimization>normal</optimization>
     <hostname>${HOSTNAME}</hostname>
@@ -101,7 +106,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
 XMLEOF
 
 # ── Interfaces ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
   <interfaces>
     <wan>
       <enable/>
@@ -141,7 +146,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
 XMLEOF
 
 # ── DHCP ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
   <dhcpd>
     <lan>
       <enable/>
@@ -164,7 +169,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
 XMLEOF
 
 # ── DNS Resolver ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
   <unbound>
     <enable>on</enable>
     <dnssec/>
@@ -180,7 +185,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
 XMLEOF
 
 # ── NAT Port Forward ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
   <nat>
     <outbound>
       <mode>automatic</mode>
@@ -245,7 +250,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
 XMLEOF
 
 # ── Aliases (para reglas más limpias) ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
   <aliases>
     <alias>
       <name>Servidor_Debian</name>
@@ -281,7 +286,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
 XMLEOF
 
 # ── Firewall Rules ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
   <filter>
     <!-- ===================== WAN ===================== -->
     <!-- WAN Pos.3: HTTP publico -->
@@ -661,9 +666,10 @@ cat >> "$OUTPUT_FILE" << XMLEOF
 XMLEOF
 
 # ── Cerrar XML ──
-cat >> "$OUTPUT_FILE" << 'XMLEOF'
+cat << 'XMLEOF'
 </pfsense>
 XMLEOF
+} >> "$OUTPUT_FILE"
 
 echo ""
 echo "[OK] Archivo generado: $OUTPUT_FILE"
