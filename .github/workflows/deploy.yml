@@ -6,9 +6,11 @@ name: CD Deploy (Self-Hosted)
 #              despliega el stack Odoo+PostgreSQL+Nginx en el
 #              servidor Debian de la DMZ de forma automática.
 #
+#              Si algún contenedor no está corriendo al llegar
+#              al paso de verificación, los levanta automáticamente.
+#
 # PRE-REQUISITO: El servidor Debian debe estar registrado como
 #                self-hosted runner en este repositorio.
-
 # ============================================================
 
 on:
@@ -70,10 +72,69 @@ jobs:
           echo "Ejecutando script de despliegue..."
           bash scripts/deploy/deploy.sh
 
-      - name: Verificar estado del stack
+      # --------------------------------------------------------
+      # NUEVO: Verificar contenedores y levantarlos si no corren
+      # --------------------------------------------------------
+      - name: Verificar contenedores y levantar si están caídos
         working-directory: /opt/erp-odoo
         run: |
-          echo "Estado final de los contenedores:"
+          echo "============================================="
+          echo " Comprobando estado de los contenedores..."
+          echo "============================================="
+
+          COMPOSE_FILE="docker/docker-compose.yml"
+          CONTENEDORES=("odoo_erp" "odoo-web" "nginx-proxy")
+          ALGUNO_CAIDO=false
+
+          for CONTENEDOR in "${CONTENEDORES[@]}"; do
+            STATUS=$(docker inspect --format='{{.State.Status}}' "$CONTENEDOR" 2>/dev/null || echo "no_existe")
+
+            if [ "$STATUS" = "running" ]; then
+              echo "  [OK]     $CONTENEDOR → running"
+            elif [ "$STATUS" = "no_existe" ]; then
+              echo "  [FALTA]  $CONTENEDOR → no existe"
+              ALGUNO_CAIDO=true
+            else
+              echo "  [CAÍDO]  $CONTENEDOR → $STATUS"
+              ALGUNO_CAIDO=true
+            fi
+          done
+
+          if [ "$ALGUNO_CAIDO" = "true" ]; then
+            echo ""
+            echo "  Contenedores caídos o ausentes detectados."
+            echo "  Levantando stack completo con docker compose up..."
+            docker compose -f "$COMPOSE_FILE" up -d
+            echo ""
+            echo "  Esperando 15 segundos para que los servicios arranquen..."
+            sleep 15
+
+            echo ""
+            echo "  Segunda verificación tras el arranque:"
+            for CONTENEDOR in "${CONTENEDORES[@]}"; do
+              STATUS=$(docker inspect --format='{{.State.Status}}' "$CONTENEDOR" 2>/dev/null || echo "no_existe")
+              if [ "$STATUS" = "running" ]; then
+                echo "  [OK]     $CONTENEDOR → running"
+              else
+                echo "  [ERROR]  $CONTENEDOR → $STATUS  ← revisar logs"
+              fi
+            done
+          else
+            echo ""
+            echo "  Todos los contenedores están corriendo. No se necesita acción."
+          fi
+
+      - name: Estado final del stack
+        working-directory: /opt/erp-odoo
+        run: |
+          echo "============================================="
+          echo " Estado final de los contenedores:"
+          echo "============================================="
           docker compose -f docker/docker-compose.yml ps
           echo ""
-          echo "[OK] Despliegue completado con éxito."
+          echo "  Health check de Odoo:"
+          curl -sk https://localhost/web/health 2>/dev/null \
+            && echo "  [OK] Odoo responde correctamente" \
+            || echo "  [AVISO] Odoo aún no responde (puede necesitar más tiempo)"
+          echo ""
+          echo "[OK] Despliegue completado."
