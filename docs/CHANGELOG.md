@@ -11,6 +11,143 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 - Hardening final: Debian headless + SSH por clave pública
 - Capturas de pantalla para la memoria del TFG
+- Redacción final de la memoria del TFG
+- Pruebas de integración end-to-end con las 3 VMs levantadas
+
+---
+
+## [v1.7 — 2026-05-15]
+
+### Añadido
+
+- **Infraestructura como Código con Vagrant** (`Vagrantfile`):
+  Define y orquesta las 3 VMs del proyecto (pfSense, Odoo+Nginx, PostgreSQL).
+  Configura redes (VLAN 10, 30 y 40) con IPs estáticas y asignación de recursos (RAM/CPU).
+
+- **Script de aprovisionamiento VM2** (`vagrant/provision_debian.sh`):
+  Aprovisiona la VM de Odoo/Nginx (VLAN 30). Clona el repositorio, instala Docker CE, Nginx,
+  certificados SSL autofirmados, crea la red macvlan y despliega el `docker-compose.yml`.
+
+- **Script de aprovisionamiento VM1** (`vagrant/provision_pfsense.sh`):
+  Aprovisiona pfSense aplicando el `config.xml` autogenerado si existe, o informa los pasos
+  manuales necesarios.
+
+- **Script de aprovisionamiento VM3** (`vagrant/provision_postgres.sh`):
+  Aprovisiona el servidor de base de datos PostgreSQL 16 nativo en VLAN 40.
+
+- **Documentación del aprovisionamiento PostgreSQL** (`vagrant/Explicacion_provision_postgres.md`):
+  Explica el proceso y la lógica del script de aprovisionamiento de la VM3.
+
+- **README de la carpeta vagrant/** (`vagrant/README.md`):
+  Índice y descripción de los 3 scripts de aprovisionamiento. Explica el orden de ejecución,
+  configuración necesaria y troubleshooting.
+
+- **Nuevo script de backup PostgreSQL remoto** (`scripts/mantenimiento/backup_postgres.sh`):
+  Utiliza `pg_dump` conectando remotamente a la VM de base de datos (`192.168.40.10`).
+  Genera volcado comprimido con marca de tiempo y aplica retención de 7 días.
+
+- **Extras LDAP** (`extras/ldap/README.md`, `extras/ldap/estructura.ldif`):
+  Documentación sobre por qué se descartó LDAP en esta versión y cómo retomarlo.
+  Backup de la estructura de usuarios y grupos LDAP.
+
+- **README de la carpeta sql/** (`sql/README.md`):
+  Explica el propósito de `audit_triggers.sql`, cómo ejecutarlo, y que apunta a la BD
+  en `192.168.40.10`.
+
+- **README de deprecación en scripts/ldap/** (`scripts/ldap/README.md`):
+  Aviso claro de que estos scripts ya no forman parte del despliegue activo.
+  Referéncia a `extras/ldap/` para quien quiera retomar la integración.
+
+- **README de la carpeta ldap/** (`ldap/README.md`):
+  Aviso de que es material legacy y que el contenido activo está en `extras/ldap/`.
+
+### Modificado
+
+- **`docker/docker-compose.yml`**: Eliminado el servicio `db` (PostgreSQL local) y el servicio
+  `ldap` (OpenLDAP). Ahora solo corren `odoo-web` y `nginx-proxy`.
+
+- **`docker/odoo.conf`**: Cambiado `db_host` de `localhost` a `192.168.40.10` (VM3 PostgreSQL).
+
+- **`scripts/deploy/deploy.sh`**: Actualizado para verificar primero la conectividad con la
+  base de datos externa antes de levantar contenedores.
+
+- **`scripts/deploy/configure.sh`**: Ajustado para referenciar `.env` en la raíz del
+  repositorio en lugar de dentro de `docker/`.
+
+- **`scripts/deploy/erp.sh`**: Eliminada la opción del menú para ver logs del contenedor
+  PostgreSQL local. Sustituida por instrucciones de cómo ver los logs en la VM `db-server`.
+
+- **`scripts/deploy/install_cron.sh`**: Crea `/etc/backup_odoo.env` (chmod 600) con
+  credenciales de BD. Cron de backup ahora ejecuta cada 4 horas apuntando a BD externa.
+
+- **`scripts/mantenimiento/restore.sh`**: Restaura en BD externa (`192.168.40.10`) usando
+  credenciales cargadas desde `/etc/backup_odoo.env`.
+
+- **`scripts/mantenimiento/monitor.sh`**: Retirados `odoo_erp` y `openldap` de la lista
+  de contenedores monitorizados. Solo monitoriza `odoo-web` y `nginx-proxy`.
+
+- **`scripts/README.md`**: Añadido `backup_postgres.sh` al índice. Marcada la carpeta
+  `scripts/ldap/` como deprecada.
+
+- **`.env.example`**: Eliminadas todas las variables relacionadas con LDAP.
+
+- **`.github/workflows/ci.yml`**: Añadida validación ShellCheck para scripts de `vagrant/`.
+
+- **`.github/workflows/deploy.yml`**: Actualizada lista de contenedores a verificar
+  (eliminando PostgreSQL y LDAP).
+
+- **`config/logrotate.d/erp-odoo`**: Añadida rotación del nuevo log `/var/log/backup_odoo.log`.
+
+- **`README.md`**: Reescrito con la nueva arquitectura 3 VMs, diagrama Mermaid actualizado,
+  tabla IPs/VLANs, sección Docker con solo 2 contenedores, sección backups, inicio rápido Vagrant.
+
+- **`CLAUDE.md`**: Actualizado con arquitectura actual, comandos por VM, advertencias
+  de BD externa y LDAP retirado.
+
+- **`docs/diagrama_red.md`**: Reescrito con la nueva topología de 3 VMs y 3 VLANs.
+
+- **`docs/CONTROL_ACCESO.md`**: LDAP movido a sección "mejora futura". Autenticación
+  actualizada a modelo nativo de Odoo.
+
+- **`docs/HISTORIAL_IMPLEMENTACION.md`**: Añadida Fase 6 completa con Vagrant + PostgreSQL
+  externo + retirada de LDAP.
+
+- **`docs/INSTALACION_COMPLETA.md`**: Flujo de instalación actualizado con `vagrant up`
+  como punto de entrada principal.
+
+- **`docs/reglas_pfsense.md`**: Añadidas reglas inter-VLAN 30→40 para PostgreSQL.
+  Eliminadas reglas de LDAP.
+
+- **`docs/guias/INSTALACION_SERVIDOR.md`**: Alternativa `vagrant up` documentada.
+
+- **`docs/guias/INSTALACION_RED.md`**: Reescrita con nueva topología 3 VMs y VLAN 40.
+
+- **`docs/guias/INSTALACION_LDAP_CICD_HARDENING.md`**: Sección LDAP convertida a
+  "no activo en esta versión, ver `extras/ldap/`".
+
+- **`docs/mas_info/informe_erp.md`**: Sección de arquitectura técnica actualizada.
+
+### Eliminado
+
+- Servicio `db` (PostgreSQL) del `docker-compose.yml` — movido a VM3 nativa.
+- Servicio `ldap` (OpenLDAP) del `docker-compose.yml` — movido a `extras/ldap/`.
+- Variables LDAP del `.env.example`.
+- Monitoreo de contenedores `odoo_erp` y `openldap` del script `monitor.sh`.
+
+### Seguridad
+
+- PostgreSQL ahora está en VLAN 40 aislada, inaccesible desde Internet y VLAN 10.
+- Credenciales de backup almacenadas en `/etc/backup_odoo.env` con permisos 600.
+- Superficie de ataque reducida al eliminar contenedor LDAP y PostgreSQL de Docker.
+
+---
+
+## [Sin publicar — pre-v1.7]
+
+### En progreso
+
+- Hardening final: Debian headless + SSH por clave pública
+- Capturas de pantalla para la memoria del TFG
 - Redacción de la memoria del TFG
 
 ### Añadido
@@ -21,16 +158,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
   reglas de firewall del proyecto. Importable vía **Diagnostics → Backup/Restore**.
 - **Integración CI para pfSense** (`.github/workflows/ci.yml`):
   El pipeline ahora genera el `config.xml`, lo valida con `xmllint` y lo sube como **artefacto
-  descargable** desde GitHub Actions (retención 30 días). Permite obtener una configuración
-  validada sin ejecutar nada localmente.
+  descargable** desde GitHub Actions (retención 30 días).
 
 ### Modificado
 
 - **Sistema operativo del servidor:** Cambiado de **Debian 12 (Bookworm)** a **Debian 13 (Trixie)**.
-  - La instalación de Docker cambia de `docker.io` (paquete Debian) al repositorio oficial de Docker CE (`docker-ce`, `containerd.io`, `docker-compose-plugin`).
-  - La codename del repositorio de Docker pasa de `bookworm` a `trixie`.
-  - Configuración de red compatible: `systemd-networkd` (por defecto en Trixie) o `NetworkManager` (`nmcli`/`nmtui`).
-  - El resto de la infraestructura (pfSense, Docker stack, LDAP, Nginx) **no cambia**.
 
 ---
 
@@ -38,41 +170,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ### Añadido
 
-- **Guía maestra de instalación desde cero** (`docs/INSTALACION_COMPLETA.md`):
-  Punto de entrada único que documenta las 8 fases de instalación con secciones de resumen,
-  comandos clave, checklist de verificación final y orden de arranque.
-
-- **Sub-guías por módulo** en `docs/guias/`:
-  - `01_PFSENSE_INSTALACION.md` — VM, interfaces, DHCP, DNS, NAT, todas las reglas de firewall, LDAP auth en panel
-  - `02_DEBIAN_PREPARACION.md` — IP estática, Docker, Cockpit, clonación del repo, `.env`
-  - `03_DOCKER_STACK.md` — Red MACVLAN, SSL, `docker compose up`, troubleshooting
-  - `04_ODOO_CONFIGURACION.md` — Post-instalación, módulos, conexión LDAP, usuarios por rol, auditoría SQL
-  - `05_LDAP_INSTALACION.md` — Estructura LDAP, ACLs, usuarios, SSSD+PAM en clientes Linux
-  - `07_CICD_GITHUB.md` — Self-hosted runner, pipeline CI/CD, permisos `.env`
-  - `08_HARDENING_FINAL.md` — UFW, SSH con claves, headless, checklist final
-
-- **`docs/diagrama_red.md`** completamente reescrito con:
-  - Diagrama Mermaid actualizado con VLAN 40, MACVLAN e IPs reales
-  - Tabla de direccionamiento IP completa
-  - Diagrama de zonas de seguridad y anti-pivoting
-  - Flujo de autenticación de un empleado
-  - Esquema de la red Docker interna
-
-- **`docs/GESTION_REPOSITORIO.md`** actualizado con:
-  - Árbol de estructura real del repositorio
-  - Flujo GitOps con reglas claras
-  - Tabla de cuándo actualizar cada documento
-  - Nomenclatura para capturas de pantalla
-
-- **`docs/github_issues.md`** ampliado con:
-  - Issue para control de acceso por roles (3 capas)
-  - Issue para securización del panel pfSense con LDAP
-  - Referencias a los nuevos documentos en cada plantilla
-  - Separación clara de labels sugeridos
+- **Guía maestra de instalación desde cero** (`docs/INSTALACION_COMPLETA.md`)
+- **Sub-guías por módulo** en `docs/guias/`
+- **`docs/diagrama_red.md`** completamente reescrito con diagrama Mermaid actualizado
+- **`docs/GESTION_REPOSITORIO.md`** actualizado con estructura real del repositorio
+- **`docs/github_issues.md`** ampliado con nuevas plantillas
 
 ### Modificado
 
-- `docs/GUIA_DESPLIEGUE.md` — Añadido redirect prominente a `INSTALACION_COMPLETA.md`
+- `docs/GUIA_DESPLIEGUE.md` — Añadido redirect a `INSTALACION_COMPLETA.md`
 
 ---
 
@@ -80,22 +186,13 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ### Añadido
 
-- **Archivado de documentación histórica:** Documentos de planificación original
-  movidos a `docs/archive/` para mantener la raíz limpia.
-- **Historial consolidado:** Planes pendientes e IaC fusionados en `HISTORIAL_IMPLEMENTACION.md`.
-- **Organización de scripts:** Subcarpetas `deploy/`, `odoo/`, `ldap/`, `mantenimiento/`
-  creadas en `scripts/` e indexadas en `scripts/README.md`.
-- **Plantillas GitHub Issues** actualizadas para los hitos finales de infraestructura.
-- **VLAN 40 (red de administración):** Configurada en pfSense (OPT2, `192.168.40.1/24`).
-  Reglas: panel pfSense + SSH + Cockpit + LDAP admin + Odoo admin, sin acceso a VLAN 10.
-- **LDAP como autenticador del panel pfSense:** Solo el grupo `admin` tiene privilegio
-  `WebCfg - All pages`. El usuario `dba` es rechazado.
-- **SSSD + PAM en clientes VLAN 10:** Script `configurar_cliente_ldap.sh` —
-  login en PC Linux con credencial LDAP centralizada.
-- **ACLs LDAP:** Script `ldap_politica_acceso.sh` — modelo de mínimo privilegio.
-  Técnico solo puede cambiar contraseñas; readonly solo puede leer.
-- **Control de acceso en 3 capas:** Nginx (rutas por VLAN) + Odoo tipo usuario + Odoo grupos por rol.
-  Documentado en `CONTROL_ACCESO.md`.
+- Archivado de documentación histórica en `docs/archive/`
+- Historial consolidado en `HISTORIAL_IMPLEMENTACION.md`
+- Organización de scripts en subcarpetas `deploy/`, `odoo/`, `ldap/`, `mantenimiento/`
+- VLAN 40 (red de administración): `192.168.40.1/24`
+- LDAP como autenticador del panel pfSense
+- SSSD + PAM en clientes VLAN 10
+- Control de acceso en 3 capas documentado en `CONTROL_ACCESO.md`
 
 ---
 
@@ -104,25 +201,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 ### Corregido
 
 - **Pipeline CD — base de datos Odoo no inicializada:**
-  El job `Desplegar Stack en Servidor Debian` fallaba de forma repetida (5+ ejecuciones).
-
-  **Causa raíz:** El archivo `.env` no existía en el servidor. Sin variables de entorno,
-  Odoo no podía conectarse a PostgreSQL y la base de datos quedaba sin inicializar.
-  Error en cascada:
-  ```
-  ERROR: relation "ir_module_module" does not exist
-  KeyError: 'ir.http'
-  GET /web/health HTTP/1.1" 500
-  ```
-
-  **Solución:**
-  1. `docker compose down`
-  2. `sudo rm -rf postgres-data/pgdata` y `sudo rm -rf odoo-data/filestore`
-  3. Recrear `.env` con credenciales correctas
-  4. `docker compose up -d` → primer healthcheck 200 OK a las 18:08:12 UTC ✅
-
-  **Prevención:** El `.env` debe crearse manualmente durante la instalación inicial
-  (ver `.env.example` y `docs/guias/02_DEBIAN_PREPARACION.md`).
+  Sin `.env`, Odoo no podía conectarse a PostgreSQL. Causa: `.env` no existía en el servidor.
+  Solución: recrear `.env` y purgar volumen de datos PostgreSQL.
 
 ---
 
@@ -130,29 +210,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ### Añadido
 
-- **Pipeline CI/CD completamente operativo** en el servidor Debian de la DMZ:
-  - Runner `debian` instalado como servicio systemd en `/opt/actions-runner`
-  - Versión del agente: `2.334.0` (SHA256 verificado)
-  - Servicio: `actions.runner.sandrafrv-...debian.service` (enabled en systemd)
-  - Stack Docker desplegado automáticamente tras push a `main`
-  - 4 contenedores (`odoo_erp`, `odoo-web`, `openldap`, `nginx-proxy`) en estado `healthy`
+- Pipeline CI/CD completamente operativo en servidor Debian
+- Runner `debian` instalado como servicio systemd
+- 4 contenedores en estado `healthy` tras primer despliegue exitoso
 
 ### Corregido
 
-- **`deploy.sh` — comprobación de puertos 80/443:**
-  `ss -tlnp` sin root no muestra el proceso propietario. El script fallaba
-  aunque los puertos fueran del propio `nginx-proxy`.
-  **Solución:** Comprobar con `docker ps` si `nginx-proxy` está corriendo antes de
-  considerar que hay un conflicto real de puertos.
-
-- **`deploy.sh` — permisos de `.env`:**
-  `.env` con permisos `600` (solo root) — el runner como usuario `server` no podía leerlo.
-  **Solución:** `sudo chown root:server docker/.env && sudo chmod 640 docker/.env`
-
-- **`deploy.yml` — `dubious ownership` en git:**
-  `/opt/erp-odoo` creado por `root` pero el runner corre como `server`.
-  **Solución:** `git config --global --add safe.directory /opt/erp-odoo`
-  + `sudo chown -R server:server /opt/erp-odoo`
+- `deploy.sh` — comprobación de puertos 80/443 con `docker ps` en lugar de `ss -tlnp`
+- `deploy.sh` — permisos de `.env`: `chown root:server` + `chmod 640`
+- `deploy.yml` — `dubious ownership` en git resuelto
 
 ---
 
@@ -160,15 +226,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ### Añadido
 
-- **Auditoría PL/pgSQL ejecutada y validada en producción:**
-  - Tabla `asir_audit_log` con campo JSONB `row_data`
-  - Vista `v_audit_resumen` con `login` y `name` extraídos del JSONB
-  - Validación: creación de usuario en Odoo → `audit_id=1, CREACION_USUARIO, res_users, id=8` ✅
+- Auditoría PL/pgSQL ejecutada y validada en producción:
+  tabla `asir_audit_log`, vista `v_audit_resumen`, trigger `trg_audit_new_odoo_user`
 
 ### Corregido
 
-- Nombre del contenedor PostgreSQL: `odoo-db` → `odoo_erp` (real en `docker-compose.yml`).
-  Corregido en `backup.sh`, `restore.sh`, `monitor.sh` y documentación.
+- Nombre del contenedor PostgreSQL: `odoo-db` → `odoo_erp` en todos los scripts
 
 ---
 
@@ -176,24 +239,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ### Añadido
 
-- `install.sh` — Instalador todo-en-uno (dependencias + Docker + Cockpit + SSL + cron)
-- `.env.example` + `scripts/deploy/configure.sh` — Plantilla pública y configurador interactivo
-- `scripts/deploy/erp.sh` — Orquestador central con menú interactivo
+- `install.sh` — Instalador todo-en-uno
+- `.env.example` + `scripts/deploy/configure.sh`
+- `scripts/deploy/erp.sh` — Orquestador central interactivo
 - `config/logrotate.d/erp-odoo` — Rotación semanal de logs
-- `scripts/deploy/install_cron.sh` — Instalador de tareas cron automatizadas
+- `scripts/deploy/install_cron.sh` — Instalador de tareas cron
 
 ### Modificado
 
-- `docker/docker-compose.yml` — Healthchecks nativos para PostgreSQL, Odoo y Nginx.
-  `depends_on` con condición `service_healthy`. Rutas de volúmenes corregidas a `../`.
-- `docker/odoo.conf` — `longpolling_port` → `gevent_port` (deprecado en Odoo 17)
-- `config_nginx/odoo_proxy.conf` — Rutas de certificados SSL sincronizadas con `install.sh`
-
-### Corregido
-
-- `Permission denied` en `/var/lib/odoo/.local` → rutas de volúmenes relativas corregidas
-- Bucle de reinicio en Nginx → nombres de certificados SSL sincronizados
-- Error de inicialización de Odoo → primer arranque con `docker compose run --rm`
+- `docker/docker-compose.yml` — Healthchecks nativos + `depends_on` con `service_healthy`
+- `docker/odoo.conf` — `longpolling_port` → `gevent_port`
+- `config_nginx/odoo_proxy.conf` — Rutas SSL sincronizadas
 
 ---
 
@@ -201,19 +257,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ### Añadido
 
-- `docker/docker-compose.yml` — Stack inicial: `odoo_erp` (PostgreSQL 16), `odoo-web` (Odoo 17 CE),
-  `nginx-proxy` (Nginx Alpine). Red bridge `odoo_net`. Solo Nginx expone puertos.
-- `docker/odoo.conf` — `proxy_mode = True`, `workers = 2`, `gevent_port = 8072`, `limit_time_real = 1200`
-- `config_nginx/odoo_proxy.conf` — Proxy inverso HTTPS con TLSv1.2/1.3, HSTS, X-Frame-Options,
-  timeouts 720s y bloque `/longpolling/` para WebSocket
-- `scripts/deploy/deploy.sh` — Despliegue con espera de healthcheck
-- `scripts/mantenimiento/backup.sh` — `pg_dump -F c` con retención 7 días
-- `scripts/mantenimiento/restore.sh` — Restauración limpia con borrado previo de BD
-- `scripts/mantenimiento/update.sh` — `docker compose pull` + `image prune`
-- `scripts/mantenimiento/monitor.sh` — Chequeo de contenedores con auto-reinicio
-- `sql/audit_triggers.sql` — Tabla `asir_audit_log`, función `func_audit_users()`,
-  trigger `trg_audit_new_odoo_user` en `res_users`
+- `docker/docker-compose.yml` — Stack inicial: PostgreSQL 16, Odoo 17 CE, Nginx Alpine
+- `docker/odoo.conf` — `proxy_mode`, `workers`, `gevent_port`
+- `config_nginx/odoo_proxy.conf` — Proxy inverso HTTPS con TLSv1.2/1.3
+- `scripts/deploy/deploy.sh` — Despliegue con healthcheck
+- `scripts/mantenimiento/backup.sh` — `pg_dump -F c`
+- `scripts/mantenimiento/restore.sh` — Restauración limpia
+- `scripts/mantenimiento/update.sh` — `docker compose pull` + prune
+- `scripts/mantenimiento/monitor.sh` — Chequeo de contenedores
+- `sql/audit_triggers.sql` — Tabla, función y trigger de auditoría
 - `.github/workflows/ci.yml` — CI: ShellCheck + YAML lint + Markdownlint
 - `docs/reglas_pfsense.md` — Documentación de reglas pfSense
-- `docs/github_issues.md` — Plantillas de GitHub Issues
 - `CLAUDE.md` — Skill de documentación para el asistente IA
