@@ -9,7 +9,7 @@
 > [!TIP]
 > **¿Quieres automatizar?** El script `scripts/deploy/generate_pfsense_config.sh` genera un
 > `config.xml` completo con todas las interfaces, DHCP, DNS, NAT y reglas de firewall documentadas
-> a continuación. Impórtalo en **Diagnostics → Backup/Restore** y salta a la [sección 10](#10-autenticación-ldap-en-el-panel-pfsense).
+> a continuación. Impórtalo en **Diagnostics → Backup/Restore** y salta a la [sección 11](#11-aislamiento-del-panel-pfsense--orden-seguro-anti-lockout).
 > También disponible como artefacto descargable en el pipeline CI de GitHub Actions.
 
 ---
@@ -33,7 +33,7 @@
 | Adaptador 1 | **NAT** | `vtnet0` → **WAN** | Internet |
 | Adaptador 2 | **Red Interna** → `LAN_10` | `vtnet1` → **LAN** | VLAN 10 clientes (192.168.10.0/24) |
 | Adaptador 3 | **Red Interna** → `DMZ_30` | `vtnet2` → **OPT1** | VLAN 30 DMZ (192.168.30.0/24) |
-| Adaptador 4 | **Red Interna** → `ADMIN_40` | `vtnet3` → **OPT2** | VLAN 40 admin (192.168.40.0/24) |
+| Adaptador 4 | **Red Interna** → `ADMIN_40` | `vtnet3` → **OPT2** | VLAN 40 admin+BD (192.168.40.0/24) |
 
 > [!NOTE]
 > Las otras VMs deben usar los **mismos nombres** de red interna (`LAN_10`, `DMZ_30`, `ADMIN_40`) para que estén en la misma red virtual.
@@ -83,7 +83,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 
 ---
 
-## 5. Configurar Interfaz OPT2 (VLAN 40 — Administración)
+## 5. Configurar Interfaz OPT2 (VLAN 40 — Administración + BD)
 
 *Interfaces → Assignments → añadir `vtnet3` → Guardar*
 
@@ -92,7 +92,7 @@ Ir a *Interfaces → OPT2*:
 | Campo | Valor |
 |:------|:------|
 | Enable | ✅ |
-| Description | `VLAN_ADMIN` |
+| Description | `VLAN_ADMIN_BD` |
 | IPv4 Configuration Type | Static IPv4 |
 | IPv4 Address | `192.168.40.1 / 24` |
 
@@ -133,8 +133,8 @@ Ir a *Interfaces → OPT2*:
 |:------|:------|
 | Host | `erp.odoo` |
 | Domain | `tfg.com` |
-| IP Address | `192.168.30.10` |
-| Description | `Servidor Odoo ERP — DMZ` |
+| IP Address | `192.168.30.20` |
+| Description | `nginx-proxy Odoo ERP — DMZ MACVLAN` |
 
 **Save** → **Apply Changes**
 
@@ -148,8 +148,8 @@ Ir a *Interfaces → OPT2*:
 
 | Interfaz | Proto | Puerto entrada | Redirige a | Puerto destino |
 |:---:|:---:|:---:|:---|:---:|
-| WAN | TCP | 80 | `192.168.30.10` | 80 |
-| WAN | TCP | 443 | `192.168.30.10` | 443 |
+| WAN | TCP | 80 | `192.168.30.20` | 80 |
+| WAN | TCP | 443 | `192.168.30.20` | 443 |
 
 ### Forzar DNS interno (interceptar consultas externas)
 
@@ -158,7 +158,7 @@ Ir a *Interfaces → OPT2*:
 | LAN | TCP/UDP | `192.168.10.0/24` | Any | 53 | `192.168.10.1` |
 | OPT2 | TCP/UDP | `192.168.40.0/24` | Any | 53 | `192.168.40.1` |
 
-> **Por qué es necesario:** Clientes Linux con `systemd-resolved` pueden ignorar el DNS del DHCP y consultar a 8.8.8.8. Esta regla intercepta cualquier consulta DNS y la redirige a pfSense, garantizando que `erp.odoo.tfg.com` resuelva siempre a `192.168.30.10`.
+> **Por qué es necesario:** Clientes Linux con `systemd-resolved` pueden ignorar el DNS del DHCP y consultar a 8.8.8.8. Esta regla intercepta cualquier consulta DNS y la redirige a pfSense, garantizando que `erp.odoo.tfg.com` resuelva siempre a `192.168.30.20`.
 
 ### NAT Outbound — *Firewall → NAT → Outbound → Modo: Automatic*
 
@@ -191,17 +191,18 @@ Con modo automático, pfSense aplica NAT a todas las subnets internas automátic
 
 | # | Acción | Proto | Origen | Destino | Puerto | Descripción |
 |:-:|:------:|:-----:|:-------|:--------|:------:|:------------|
-| 1 | ❌ Block | * | LAN | `192.168.40.0/24` | * | **Bloquear VLAN Admin** ← ¡primero! |
+| 1 | ❌ Block | * | LAN | `192.168.40.0/24` | * | **Bloquear VLAN Admin+BD** ← ¡primero! |
 | 2 | ❌ Block | * | LAN | `192.168.30.10` | 22 | Bloquear SSH al servidor |
 | 3 | ❌ Block | * | LAN | `192.168.30.10` | 9090 | Bloquear Cockpit |
-| 4 | ❌ Block | * | LAN | `192.168.30.22` | 636 | Bloquear LDAPS admin |
-| 5 | ❌ Block | * | LAN | `192.168.30.0/24` | 5432 | Bloquear PostgreSQL |
-| 6 | ~~Pass~~ | * | LAN subnets | * | * | ~~Default allow~~ *(desactivar)* |
-| 7 | ✅ Pass | TCP | LAN subnets | `192.168.30.10` | 80 | Odoo HTTP vía Nginx |
-| 8 | ✅ Pass | TCP | LAN subnets | `192.168.30.10` | 443 | Odoo HTTPS vía Nginx |
-| 9 | ✅ Pass | TCP | LAN subnets | `192.168.30.22` | 389 | LDAP auth readonly |
-| 10 | ✅ Pass | * | LAN subnets | * | * | Navegación Internet |
-| 11 | ❌ Block | * | * | * | * | **Deny all** ← ¡último! |
+| 4 | ❌ Block | * | LAN | `192.168.30.0/24` | 5432 | Bloquear PostgreSQL |
+| 5 | ~~Pass~~ | * | LAN subnets | * | * | ~~Default allow~~ *(desactivar)* |
+| 6 | ✅ Pass | TCP | LAN subnets | `192.168.30.20` | 80 | Odoo HTTP vía Nginx (MACVLAN) |
+| 7 | ✅ Pass | TCP | LAN subnets | `192.168.30.20` | 443 | Odoo HTTPS vía Nginx (MACVLAN) |
+| 8 | ✅ Pass | * | LAN subnets | * | * | Navegación Internet |
+| 9 | ❌ Block | * | * | * | * | **Deny all** ← ¡último! |
+
+> **LDAP eliminado:** no hay reglas de acceso a `192.168.30.22`.
+> Si se despliega LDAP como componente opcional (`extras/ldap/`), añadir regla antes del Deny all.
 
 ### OPT1 (DMZ / VLAN 30)
 
@@ -209,53 +210,53 @@ Con modo automático, pfSense aplica NAT a todas las subnets internas automátic
 |:-:|:------:|:-----:|:-------|:--------|:------:|:------------|
 | 1 | ❌ Block | * | DMZ | `192.168.10.0/24` | * | **Anti-pivoting a VLAN 10** ← ¡primero! |
 | 2 | ❌ Block | * | DMZ | `192.168.10.1` | * | DMZ no accede a pfSense LAN |
-| 3 | ❌ Block | * | DMZ | `192.168.40.0/24` | * | **Anti-pivoting a VLAN Admin** |
-| 4 | ✅ Pass | TCP | DMZ | * | 80 | Actualizaciones HTTP |
-| 5 | ✅ Pass | TCP | DMZ | * | 443 | Actualizaciones HTTPS |
-| 6 | ✅ Pass | UDP | DMZ | * | 53 | DNS resolución |
-| 7 | ❌ Block | * | * | * | * | **Deny all** ← ¡último! |
+| 3 | ✅ Pass | TCP | `192.168.30.21` | `192.168.40.10` | 5432 | **Odoo → PostgreSQL externo** |
+| 4 | ❌ Block | * | DMZ | `192.168.40.0/24` | * | **Anti-pivoting a VLAN Admin+BD** |
+| 5 | ✅ Pass | TCP | DMZ | * | 80 | Actualizaciones HTTP |
+| 6 | ✅ Pass | TCP | DMZ | * | 443 | Actualizaciones HTTPS |
+| 7 | ✅ Pass | UDP | DMZ | * | 53 | DNS resolución |
+| 8 | ❌ Block | * | * | * | * | **Deny all** ← ¡último! |
 
-### OPT2 (VLAN 40 — Admin)
+> La regla 3 (Odoo→PostgreSQL) debe ir **antes** del bloqueo general a VLAN 40 (regla 4).
+
+### OPT2 (VLAN 40 — Admin + BD)
 
 | # | Acción | Proto | Origen | Destino | Puerto | Descripción |
 |:-:|:------:|:-----:|:-------|:--------|:------:|:------------|
 | 1 | ✅ Pass | TCP | VLAN 40 | `This Firewall` | 443 | **Panel pfSense** ← exclusivo |
 | 2 | ✅ Pass | TCP | VLAN 40 | `192.168.30.10` | 22 | SSH al servidor Debian |
-| 3 | ✅ Pass | TCP | VLAN 40 | `192.168.30.10` | 9090 | Cockpit |
+| 3 | ✅ Pass | TCP | VLAN 40 | `192.168.30.10` | 9090 | Cockpit — gestión visual |
 | 4 | ✅ Pass | TCP | VLAN 40 | `192.168.30.20` | 443 | Nginx/Odoo admin completo |
-| 5 | ✅ Pass | TCP | VLAN 40 | `192.168.30.22` | 389 | LDAP admin |
-| 6 | ✅ Pass | TCP | VLAN 40 | `192.168.30.22` | 636 | LDAPS admin (cifrado) |
-| 7 | ✅ Pass | TCP/UDP | VLAN 40 | * | 80, 443, 53 | Internet + DNS |
-| 8 | ❌ Block | * | VLAN 40 | `192.168.10.0/24` | * | Anti-pivoting a VLAN 10 |
-| 9 | ❌ Block | * | VLAN 40 | * | * | **Deny all** ← ¡último! |
+| 5 | ✅ Pass | TCP | VLAN 40 | `192.168.40.10` | 5432 | **Acceso DBA directo a PostgreSQL** |
+| 6 | ✅ Pass | TCP/UDP | VLAN 40 | * | 80, 443, 53 | Internet + DNS |
+| 7 | ❌ Block | * | VLAN 40 | `192.168.10.0/24` | * | Anti-pivoting a VLAN 10 |
+| 8 | ❌ Block | * | VLAN 40 | * | * | **Deny all** ← ¡último! |
+
+> **LDAP eliminado:** las reglas de acceso a `192.168.30.22:389/636` han sido retiradas.
+> Si se despliega LDAP como componente opcional, añadir antes del Deny all según `extras/ldap/README.md`.
 
 ---
 
-## 10. Autenticación LDAP en el Panel pfSense
+## 10. Autenticación LDAP en el Panel pfSense (Opcional)
 
-> Realizar este paso **después** de que el contenedor OpenLDAP esté activo (Fase LDAP).
+> [!NOTE]
+> **Esta sección es opcional.** LDAP no está en el despliegue principal.
+> Solo aplicar si has desplegado OpenLDAP siguiendo `extras/ldap/README.md`.
+> El despliegue principal usa cuentas locales de pfSense.
 
-*System → User Manager → Authentication Servers → + Add*:
+Si decides habilitar LDAP en pfSense: *System → User Manager → Authentication Servers → + Add*
 
 | Campo | Valor |
 |:------|:------|
 | Descriptive name | `OpenLDAP DMZ` |
 | Type | LDAP |
-| Hostname or IP address | `192.168.30.22` |
+| Hostname or IP | `192.168.30.22` (VM LDAP opcional) |
 | Port value | `389` |
-| Transport | TCP - Standard |
 | Base DN | `dc=tfg,dc=com` |
 | Authentication containers | `ou=usuarios,dc=tfg,dc=com` |
-| Bind credentials — User DN | `cn=admin,dc=tfg,dc=com` |
-| Bind credentials — Password | `<LDAP_ADMIN_PASSWORD>` |
 | User naming attribute | `uid` |
-| Group naming attribute | `cn` |
-| Group member attribute | `member` |
 
-*System → User Manager → Groups → + Add*:
-- Nombre: `admin` → Privilegios: **WebCfg - All pages**
-
-*System → User Manager → Settings → Authentication Server*: `OpenLDAP DMZ` → **Save**
+Recuerda añadir también las reglas de firewall correspondientes (ver `extras/ldap/README.md`).
 
 ---
 
@@ -270,7 +271,7 @@ Con modo automático, pfSense aplica NAT a todas las subnets internas automátic
 **Desde el PC actual (aún en VLAN 10):**
 
 1. *Interfaces → Assignments* → añadir `vtnet3` como OPT2
-2. *Interfaces → OPT2* → habilitar, descripción `VLAN_ADMIN`, IP `192.168.40.1/24` → Save
+2. *Interfaces → OPT2* → habilitar, descripción `VLAN_ADMIN_BD`, IP `192.168.40.1/24` → Save
 3. *Services → DHCP Server → OPT2* → habilitar, rango `192.168.40.10–50` → Save
 4. *Firewall → Rules → OPT2* → añadir regla temporal: Pass, Any, OPT2 subnets → Any → Save
 
@@ -308,7 +309,7 @@ curl -k https://192.168.10.1       # → Sin respuesta ✅
    ├─ WAN  → IP externa (DHCP/NAT de VirtualBox)
    ├─ LAN  → 192.168.10.1/24  (VLAN 10 clientes)
    ├─ OPT1 → 192.168.30.1/24  (VLAN 30 DMZ)
-   └─ OPT2 → 192.168.40.1/24  (VLAN 40 admin)
+   └─ OPT2 → 192.168.40.1/24  (VLAN 40 admin+BD)
 
 ✅ DHCP
    ├─ LAN  → 192.168.10.100–200, DNS 192.168.10.1
@@ -316,19 +317,19 @@ curl -k https://192.168.10.1       # → Sin respuesta ✅
 
 ✅ Firewall Rules (bloqueos ANTES que permisos)
    ├─ WAN  → solo 80/443 + deny all
-   ├─ LAN  → bloqueos admin primero + Odoo/Internet + deny all
-   ├─ OPT1 → anti-pivoting primero + salida mínima + deny all
-   └─ OPT2 → panel pfSense + SSH/Cockpit/LDAP + deny all
+   ├─ LAN  → bloqueos admin+BD primero + Odoo(MACVLAN.20)/Internet + deny all
+   ├─ OPT1 → anti-pivoting + Odoo→PG(:5432, regla explícita) + salida mínima + deny all
+   └─ OPT2 → panel pfSense + SSH/Cockpit/psql(→PG) + deny all (sin reglas LDAP)
 
 ✅ NAT Port Forward
-   ├─ WAN:80  → 192.168.30.10:80
-   ├─ WAN:443 → 192.168.30.10:443
+   ├─ WAN:80  → 192.168.30.20:80
+   ├─ WAN:443 → 192.168.30.20:443
    ├─ LAN DNS:53  → 192.168.10.1
    └─ OPT2 DNS:53 → 192.168.40.1
 
-✅ DNS Resolver — Host Override: erp.odoo.tfg.com → 192.168.30.10
-✅ LDAP auth en pfSense (grupo admin con WebCfg - All pages)
+✅ DNS Resolver — Host Override: erp.odoo.tfg.com → 192.168.30.20
 ✅ Anti-Lockout desactivado (tras confirmar acceso desde VLAN 40)
+ℹ️  LDAP en pfSense: no configurado — opcional (ver extras/ldap/)
 ```
 
 ---
