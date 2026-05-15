@@ -9,6 +9,14 @@ echo "=========================================="
 echo " Instalando PostgreSQL 16..."
 echo "=========================================="
 apt-get update -qq
+
+# --- Configurar teclado en español ---
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y keyboard-configuration console-setup --no-install-recommends
+sed -i 's/XKBLAYOUT=.*/XKBLAYOUT="es"/' /etc/default/keyboard
+dpkg-reconfigure -f noninteractive keyboard-configuration
+invoke-rc.d keyboard-setup.sh restart || true
+
 apt-get install -y postgresql-16 postgresql-client-16
 # Arrancar y habilitar el servicio
 systemctl enable --now postgresql

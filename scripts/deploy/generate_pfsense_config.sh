@@ -198,7 +198,7 @@ cat << XMLEOF
         <network>wanip</network>
         <port>80</port>
       </destination>
-      <target>${SERVER_IP}</target>
+      <target>${NGINX_IP}</target>
       <local-port>80</local-port>
       <associated-rule-id>pass</associated-rule-id>
     </rule>
@@ -211,7 +211,7 @@ cat << XMLEOF
         <network>wanip</network>
         <port>443</port>
       </destination>
-      <target>${SERVER_IP}</target>
+      <target>${NGINX_IP}</target>
       <local-port>443</local-port>
       <associated-rule-id>pass</associated-rule-id>
     </rule>
@@ -376,7 +376,7 @@ cat << XMLEOF
       <interface>lan</interface>
       <source><network>lan</network></source>
       <destination>
-        <address>${SERVER_IP}</address>
+        <address>${NGINX_IP}</address>
         <port>80</port>
       </destination>
       <descr><![CDATA[Odoo HTTP via Nginx]]></descr>
@@ -389,7 +389,7 @@ cat << XMLEOF
       <interface>lan</interface>
       <source><network>lan</network></source>
       <destination>
-        <address>${SERVER_IP}</address>
+        <address>${NGINX_IP}</address>
         <port>443</port>
       </destination>
       <descr><![CDATA[Odoo HTTPS via Nginx]]></descr>
@@ -415,6 +415,21 @@ cat << XMLEOF
     </rule>
 
     <!-- ===================== OPT1 / DMZ (VLAN 30) ===================== -->
+    <!-- DMZ Pos.0: Odoo -> PostgreSQL -->
+    <rule>
+      <type>pass</type>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <interface>opt1</interface>
+      <source>
+        <address>${ODOO_IP}</address>
+      </source>
+      <destination>
+        <address>192.168.40.10</address>
+        <port>5432</port>
+      </destination>
+      <descr><![CDATA[Odoo a PostgreSQL (Admin VLAN)]]></descr>
+    </rule>
     <!-- DMZ Pos.1: Anti-pivoting a VLAN 10 -->
     <rule>
       <type>block</type>

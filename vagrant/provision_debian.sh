@@ -18,8 +18,17 @@ echo " Provisioning servidor Odoo + Nginx..."
 echo " POSTGRES_HOST: $POSTGRES_HOST"
 echo "=========================================="
 
-# --- Dependencias del sistema ---
+# --- Dependencias del sistema y Teclado Español ---
+export DEBIAN_FRONTEND=noninteractive
+
 apt-get update -qq
+
+# Configurar teclado en español
+apt-get install -y keyboard-configuration console-setup --no-install-recommends
+sed -i 's/XKBLAYOUT=.*/XKBLAYOUT="es"/' /etc/default/keyboard
+dpkg-reconfigure -f noninteractive keyboard-configuration
+invoke-rc.d keyboard-setup.sh restart || true
+
 apt-get install -y \
     git curl ca-certificates \
     docker.io docker-compose-v2 \
