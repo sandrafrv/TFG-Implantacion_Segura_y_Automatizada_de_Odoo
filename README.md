@@ -43,35 +43,35 @@ graph TD
     GITHUB["☁️ GITHUB"]
     WLAN["☁️ WLAN"]
 
-    GITHUB -->|"LAN 192.168.40.0/24 · GW: 192.168.40.1"| PFSENSE
+    GITHUB -.->PFSENSE
     WLAN --> PFSENSE
 
-    PFSENSE(["🔷 Pfsense\nFirewall · DHCP · ACLs · Router"])
+    PFSENSE(["Pfsense\nFirewall · DHCP "])
 
-    PFSENSE -->|"VLAN 40 · 192.168.40.0/24"| VLAN40
-    PFSENSE -->|"VLAN 30 · 192.168.30.0/24"| DMZ
-    PFSENSE -->|"VLAN 10 · 192.168.10.0/24"| VLAN10
+    PFSENSE -->|" 192.168.40.0/24"| VLAN40
+    PFSENSE -->|" 192.168.30.0/24"| DMZ
+    PFSENSE -->|"192.168.10.0/24"| VLAN10
 
-    subgraph VLAN40["🟧 VLAN 40 — Admin / DBA"]
-        ADMIN["👤 Admin / DBA"]
+    subgraph VLAN40["VLAN 40 — Administración"]
+        ADMIN["🖥️Administrador"]
+        DBA["🖥️DBA"]
+   end
+
+    subgraph VLAN10["VLAN 10 — Clientes"]
+        CLIENT["💻 Empleados"]
+        CLIENT["🖥️ Empleados"]
     end
 
-    subgraph VLAN10["🟧 VLAN 10 — Cliente Linux"]
-        CLIENT["🖥️ Cliente Linux · Empleados"]
-    end
 
-    ADMIN -- "Se loguea" --> NGINX
-    ADMIN -- "Accede a Odoo via nginx" --> NGINX
-    CLIENT -- "Accede a Odoo via nginx" --> NGINX
+    subgraph DMZ["VLAN 30 DMZ"]
+        subgraph Debian [" Server Debian 13 "]
+                NGINX["DOCKER · NGINX\nMAC_VLAN: 20"]
+                ODOO[" DOCKER · ODOO\nMAC_VLAN: 21"]
+                BBDD[" DOCKER · PostgreSQL"]
 
-    subgraph DMZ["🟩 Debian 13 · DMZ — VLAN 30"]
-        LDAP["🐳 DOCKER · LDAP\nMAC_VLAN: 22"]
-        NGINX["🐳 DOCKER · NGINX\nMAC_VLAN: 20"]
-        ODOO["🐳 DOCKER · ODOO\nMAC_VLAN: 21"]
-        BBDD["🐳 DOCKER · PostgreSQL"]
-
-        NGINX -->|"Reverse Proxy"| ODOO
-        ODOO -->|"Consultas"| BBDD
+                NGINX -->|"Reverse Proxy"| ODOO
+                ODOO -->|"Consultas"| BBDD
+        end
     end
 
     classDef firewall fill:#BBDEFB,stroke:#1565C0,color:#000
@@ -80,7 +80,7 @@ graph TD
     classDef client fill:#FFE0B2,stroke:#E65100,color:#000
 
     class PFSENSE firewall
-    class ADMIN vlan
+    class ADMIN,Debian,DBA vlan
     class CLIENT client
     class LDAP,NGINX,ODOO,BBDD dmznode
 
@@ -290,4 +290,4 @@ Estas mejoras quedan fuera del alcance del TFG pero se documentan para demostrar
 | **Ansible (IaC)** | Automatizar toda la configuración del servidor Debian con un Playbook de Ansible, eliminando la configuración manual. |
 | **VPN WireGuard en pfSense** | Ocultar el ERP de Internet público, accesible solo desde la VLAN interna o a través de un túnel VPN cifrado. Diseño "Zero Trust". |
 | **Stack de Monitorización** | Sustituir los scripts de log por Prometheus + Grafana o Uptime Kuma con panel gráfico de estado en tiempo real. |
-| ** Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 como Controlador de Dominio, integrando Odoo con AD. |
+| **Ldap / Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 y LDAP como Controlador de Dominio, integrando Odoo con AD. |
