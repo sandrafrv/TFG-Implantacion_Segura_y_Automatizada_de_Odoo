@@ -10,6 +10,6 @@ X	PASO 1C — Mover la carpeta ldap/
 
 X	PASO 2 - Separar PostgreSQL en VM propia (VLAN 40)
 
-X	PASO 2A - modificar docker/docker-compose.yml para que Odoo apunte a BDD externa 
-X	PASO 2B - Crear vagrant/provision_postgres.sh (para la VM de BDD)
+SI	PASO 2A - modificar docker/docker-compose.yml para que Odoo apunte a BDD externa 
+SI	PASO 2B - Crear vagrant/provision_postgres.sh (para la VM de BDD)
 X	PASO 2C -  Reglas en pfSense
