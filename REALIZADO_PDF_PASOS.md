@@ -5,7 +5,10 @@ REHALIZADO
 X	PASO 1 - Quitar LDAP del proyecto
 
 SI	PASO 1A — docker/docker-compose.yml — eliminar el bloque completo de LDAP
+
 SI	PASO 1B — .env.example — eliminar las variables de LDAP
+
+
 X	PASO 1C — Mover la carpeta ldap/
 
 X	PASO 2 - Separar PostgreSQL en VM propia (VLAN 40)
