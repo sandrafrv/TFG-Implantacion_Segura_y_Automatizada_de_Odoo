@@ -73,3 +73,4 @@ NO --------- PASO 7A - Crear scripts/mantenimiento/backup_postgres.sh [Falta dar
 NO --------- PASO 7B - Instalar el cron en el servidor
 
 
+NO  PASO 8 — Veri cación nal completa
