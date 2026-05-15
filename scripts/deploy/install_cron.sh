@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 # SCRIPT: install_cron.sh
-# DESCRIPCIÓN: Instala las tareas cron de mantenimiento del ERP.
+# DESCRIPCION: Instala las tareas cron de mantenimiento del ERP.
 # USO: sudo bash scripts/deploy/install_cron.sh
 # ============================================================
 
@@ -11,23 +11,35 @@ set -e
 
 PROJECT_DIR="/opt/erp-odoo"
 CRON_FILE="/etc/cron.d/erp-odoo"
+ENV_FILE="/etc/backup_odoo.env"
+
+# --- Crear fichero de entorno seguro para backups ---
+if [ ! -f "$ENV_FILE" ]; then
+    POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-changeme_db}"
+    bash -c "echo 'POSTGRES_PASSWORD=${POSTGRES_PASSWORD}' > $ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    chown root:root "$ENV_FILE"
+    echo "[OK] Fichero $ENV_FILE creado (protegido con chmod 600)."
+else
+    echo "[OK] Fichero $ENV_FILE ya existe (no sobreescrito)."
+fi
 
 echo "Instalando tareas cron en $CRON_FILE..."
 
-cat > "$CRON_FILE" << EOF
-# ERP Odoo — Tareas automáticas (instalado $(date '+%Y-%m-%d'))
+cat > "$CRON_FILE" << CRONEOF
+# ERP Odoo - Tareas automaticas (instalado $(date '+%Y-%m-%d'))
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # Monitor cada 15 min
 */15 * * * * root $PROJECT_DIR/scripts/mantenimiento/monitor.sh >> /var/log/erp_monitor.log 2>&1
 
-# Backup diario a las 02:00
-0 2 * * * root $PROJECT_DIR/scripts/mantenimiento/backup.sh >> /var/log/erp_backup.log 2>&1
+# Backup PostgreSQL externo cada 4 horas (BD en VLAN 40 - 192.168.40.10)
+0 */4 * * * root . $ENV_FILE && bash $PROJECT_DIR/scripts/mantenimiento/backup_postgres.sh
 
-# Actualización semanal (domingos 03:00)
+# Actualizacion semanal (domingos 03:00)
 0 3 * * 0 root $PROJECT_DIR/scripts/mantenimiento/update.sh >> /var/log/erp_update.log 2>&1
-EOF
+CRONEOF
 
 chmod 644 "$CRON_FILE"
 chown root:root "$CRON_FILE"
@@ -41,8 +53,9 @@ fi
 
 echo ""
 echo "[OK] Cron instalado:"
-echo "  - Cada 15 min  → monitor.sh"
-echo "  - 02:00 diario → backup.sh"
-echo "  - 03:00 domingo → update.sh"
+echo "  - Cada 15 min   -> monitor.sh"
+echo "  - Cada 4 horas  -> backup_postgres.sh (BD externa VLAN 40)"
+echo "  - 03:00 domingo -> update.sh"
 echo ""
 cat "$CRON_FILE"
+

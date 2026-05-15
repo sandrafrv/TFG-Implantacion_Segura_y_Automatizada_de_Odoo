@@ -1,15 +1,16 @@
 # ====================================================================
 # STACK DOCKER: ERP Odoo TFG ASIR
-# DESCRIPCIÓN: Este archivo define los 4 servicios (contenedores) que
+# DESCRIPCIÓN: Este archivo define los 3 servicios (contenedores) que
 #              forman el sistema ERP:
-#                1. odoo_erp    → PostgreSQL 16 (BD interna, sin IP pública)
-#                2. odoo-web    → Odoo 17 CE    (MACVLAN 192.168.30.21)
-#                3. nginx-proxy → Nginx Alpine  (MACVLAN 192.168.30.20)
+#                1. odoo-web    → Odoo 17 CE    (MACVLAN 192.168.30.21)
+#                2. nginx-proxy → Nginx Alpine  (MACVLAN 192.168.30.20)
+#
+#              La base de datos PostgreSQL 16 reside en una VM separada
+#              (VLAN 40 — 192.168.40.10) gestionada por pfSense.
 #
 # Control de acceso:
 #   VLAN 10 (Usuarios)  → accede a Odoo vía nginx (.20)
-#   VLAN 40 (Admin/DBA) → accede a gestión del servidor + panel BD
-#   LDAP (.22)          → gestiona usuarios/grupos de VLAN 10
+#   VLAN 40 (Admin/DBA) → accede a gestión del servidor + PostgreSQL
 #
 # USO: Ejecutar desde /opt/erp-odoo con:
 #      docker compose -f docker/docker-compose.yml up -d
@@ -86,7 +87,7 @@ services:
         ipv4_address: 192.168.30.21
 
   # ------------------------------------------------------------------
-  # SERVICIO 4: Proxy Inverso Nginx
+  # SERVICIO 2: Proxy Inverso Nginx
   # Es la única puerta de entrada desde el exterior. Recibe las
   # peticiones HTTPS del usuario, las descifra y las reenvía a Odoo.
   # Es el ÚNICO contenedor que abre puertos al Host (Debian).

@@ -3,6 +3,7 @@
 # SCRIPT: deploy.sh
 # DESCRIPCIÓN: Despliega el stack Docker o lo levanta si estaba
 #              parado. Espera a que Odoo esté disponible.
+#              PostgreSQL reside en VM externa (VLAN 40 — 192.168.40.10).
 # USO: sudo bash scripts/deploy/deploy.sh
 # ============================================================
 
@@ -10,6 +11,7 @@ set -e
 
 PROJECT_DIR="/opt/erp-odoo"
 COMPOSE_FILE="$PROJECT_DIR/docker/docker-compose.yml"
+POSTGRES_HOST="192.168.40.10"
 MAX_INTENTOS=30   # 30 × 10s = 5 minutos máximo
 
 # --- Comprobaciones previas ---
@@ -32,21 +34,44 @@ for PORT in 80 443; do
     fi
 done
 
+# Comprobar acceso a PostgreSQL externo
+echo "  Verificando conectividad con PostgreSQL ($POSTGRES_HOST:5432)..."
+if command -v pg_isready &>/dev/null; then
+    pg_isready -h "$POSTGRES_HOST" -p 5432 -U odoo -t 10 \
+        && echo "  [OK] PostgreSQL accesible en $POSTGRES_HOST:5432" \
+        || echo "  [AVISO] PostgreSQL no responde aún (puede tardar en arrancar la VM)"
+else
+    # Fallback si pg_isready no está instalado
+    timeout 5 bash -c "</dev/tcp/$POSTGRES_HOST/5432" 2>/dev/null \
+        && echo "  [OK] Puerto 5432 accesible en $POSTGRES_HOST" \
+        || echo "  [AVISO] Puerto 5432 en $POSTGRES_HOST no accesible aún"
+fi
+
 # --- Despliegue ---
 echo "[2/4] Levantando contenedores..."
 docker compose -f "$COMPOSE_FILE" up -d
 
-# --- Inicialización BD (solo si está vacía) ---
+# --- Inicialización BD (solo si es el primer despliegue) ---
 echo "[3/4] Comprobando base de datos..."
-sleep 5  # Dar tiempo a que PostgreSQL arranque
+sleep 5  # Dar tiempo a que Odoo arranque y contacte con la BD externa
 
-HAS_DB=$(docker exec odoo_erp psql -U odoo -d odoo_erp -tAc \
-    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='ir_module_module');" \
-    2>/dev/null || echo "f")
+# Verificar si Odoo puede conectar con la BD externa
+HAS_DB=$(docker exec odoo-web \
+    python3 -c "
+import psycopg2, os
+try:
+    c = psycopg2.connect(host='${POSTGRES_HOST}', user='odoo', dbname='odoo_erp',
+                         password=os.environ.get('PASSWORD',''))
+    cur = c.cursor()
+    cur.execute(\"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='ir_module_module');\")
+    print('t' if cur.fetchone()[0] else 'f')
+except Exception:
+    print('f')
+" 2>/dev/null || echo "f")
 
 if [ "$HAS_DB" = "f" ]; then
     echo "  [!] BD vacía — inicializando Odoo (1-2 min)..."
-    MASTER_PASS=$(grep -E '^ODOO_MASTER_PASSWORD=' "$PROJECT_DIR/docker/.env" \
+    MASTER_PASS=$(grep -E '^ODOO_MASTER_PASSWORD=' "$PROJECT_DIR/.env" \
         | cut -d= -f2- | tr -d '"')
     docker exec odoo-web \
         odoo -c /etc/odoo/odoo.conf \

@@ -62,6 +62,8 @@ jobs:
           # shellcheck analiza cada archivo .sh y reporta los avisos y errores encontrados.
           # Si detecta un error real, el comando fallará y GitHub marcará el commit como fallido.
           shellcheck scripts/*/*.sh *.sh
+          echo "Analizando scripts de provisioning Vagrant..."
+          shellcheck vagrant/*.sh
 
       # PASO 6: Generar y validar config.xml de pfSense
       - name: Generar config.xml de pfSense

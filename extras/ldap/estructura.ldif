@@ -1,0 +1,138 @@
+## Estructura LDAP — TechSolutions SL (TFG ASIR 2025/2026)
+##
+## Este fichero se carga automáticamente al iniciar el contenedor
+## openldap (osixia/openldap) la primera vez, creando:
+##
+##   Árbol:  dc=tfg,dc=com
+##   OUs:    ou=usuarios   → cuentas de personas
+##           ou=grupos     → grupos departamentales
+##           ou=servicios  → cuentas de servicio (readonly, api)
+##
+## Grupos y sus VLANs:
+##   VLAN 10 (Usuarios ERP):
+##     cn=becarios    → acceso solo lectura, nunca pueden eliminar
+##     cn=ventas      → CRM, Ventas, Contactos
+##     cn=rrhh        → RRHH, Empleados, Nóminas
+##     cn=almacen     → Inventario, Compras
+##     cn=tecnico     → Inventario, Soporte + puede cambiar contraseñas LDAP
+##     cn=jefe_ventas → Ventas con aprobaciones
+##     cn=jefe_rrhh   → RRHH con aprobaciones
+##     cn=jefe_almacen→ Almacén con aprobaciones
+##
+##   VLAN 40 (Gestión del servidor):
+##     cn=admin       → acceso total: servidor, BD, Odoo, LDAP
+##     cn=dba         → solo base de datos (PostgreSQL)
+##
+## ─────────────────────────────────────────────────────────────
+
+# ── Unidad Organizativa: Usuarios ────────────────────────────
+dn: ou=usuarios,dc=tfg,dc=com
+objectClass: organizationalUnit
+objectClass: top
+ou: usuarios
+description: Cuentas personales de los trabajadores de TechSolutions SL
+
+# ── Unidad Organizativa: Grupos ───────────────────────────────
+dn: ou=grupos,dc=tfg,dc=com
+objectClass: organizationalUnit
+objectClass: top
+ou: grupos
+description: Grupos departamentales para control de acceso
+
+# ── Unidad Organizativa: Servicios ───────────────────────────
+dn: ou=servicios,dc=tfg,dc=com
+objectClass: organizationalUnit
+objectClass: top
+ou: servicios
+description: Cuentas de servicio sin acceso interactivo
+
+# ══════════════════════════════════════════════════════════════
+# GRUPOS — VLAN 10 (Usuarios internos del ERP)
+# ══════════════════════════════════════════════════════════════
+
+# Becarios: acceso de solo lectura, sin permisos de eliminación
+dn: cn=becarios,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: becarios
+description: Becarios - acceso solo lectura en Odoo, no pueden eliminar registros
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com
+
+# Ventas: CRM, pipeline de ventas, contactos y facturas de clientes
+dn: cn=ventas,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: ventas
+description: Equipo de Ventas - CRM, pipeline, contactos, facturas
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com
+
+# RRHH: gestión de empleados, contratos y nóminas
+dn: cn=rrhh,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: rrhh
+description: Recursos Humanos - empleados, contratos, nominas
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com
+
+# Almacén: inventario, recepciones y pedidos de compra
+dn: cn=almacen,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: almacen
+description: Almacen - inventario, recepciones, pedidos de compra
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com
+
+# Técnico: inventario + soporte técnico + permiso para cambiar contraseñas LDAP
+# NOTA: Las ACLs en ldap_politica_acceso.sh le dan write sobre userPassword
+dn: cn=tecnico,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: tecnico
+description: Tecnico - soporte, inventario, puede gestionar contrasenas LDAP de usuarios VLAN10
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com
+
+# Jefe de Ventas: permisos de manager en el módulo de ventas
+dn: cn=jefe_ventas,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: jefe_ventas
+description: Jefe de Ventas - aprobaciones y gestion completa del equipo de ventas
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com
+
+# Jefe de RRHH: permisos de manager en el módulo de RRHH
+dn: cn=jefe_rrhh,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: jefe_rrhh
+description: Jefe de RRHH - aprobaciones y gestion completa de recursos humanos
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com
+
+# Jefe de Almacén: permisos de manager en el módulo de inventario
+dn: cn=jefe_almacen,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: jefe_almacen
+description: Jefe de Almacen - aprobaciones y gestion completa de inventario y compras
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com
+
+# ══════════════════════════════════════════════════════════════
+# GRUPOS — VLAN 40 (Gestión del servidor)
+# ══════════════════════════════════════════════════════════════
+
+# Admin: acceso total al servidor, BD, Odoo y LDAP
+# Solo accesible desde VLAN 40 (192.168.40.0/24)
+dn: cn=admin,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: admin
+description: Administradores del sistema - acceso total desde VLAN 40
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com
+
+# DBA: acceso solo a PostgreSQL y gestión de backups
+# Solo accesible desde VLAN 40 (192.168.40.0/24)
+dn: cn=dba,ou=grupos,dc=tfg,dc=com
+objectClass: groupOfNames
+objectClass: top
+cn: dba
+description: DBAs - gestion de base de datos PostgreSQL, sin acceso a Odoo UI
+member: cn=placeholder,ou=grupos,dc=tfg,dc=com

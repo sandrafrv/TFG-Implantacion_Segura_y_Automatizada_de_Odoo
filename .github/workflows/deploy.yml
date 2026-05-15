@@ -3,8 +3,9 @@ name: CD Deploy (Self-Hosted)
 # ============================================================
 # GITHUB ACTION: CD Deploy
 # DESCRIPCIÓN: Descarga las imágenes Docker más recientes y
-#              despliega el stack Odoo+PostgreSQL+Nginx en el
-#              servidor Debian de la DMZ de forma automática.
+#              despliega el stack Odoo+Nginx en el servidor
+#              Debian de la DMZ de forma automática.
+#              PostgreSQL reside en VM separada (VLAN 40).
 #
 #              Si algún contenedor no está corriendo al llegar
 #              al paso de verificación, los levanta automáticamente.
@@ -83,7 +84,8 @@ jobs:
           echo "============================================="
 
           COMPOSE_FILE="docker/docker-compose.yml"
-          CONTENEDORES=("odoo_erp" "odoo-web" "nginx-proxy")
+          # odoo_erp ya NO es un contenedor local; PostgreSQL vive en VM externa (192.168.40.10)
+          CONTENEDORES=("odoo-web" "nginx-proxy")
           ALGUNO_CAIDO=false
 
           for CONTENEDOR in "${CONTENEDORES[@]}"; do
