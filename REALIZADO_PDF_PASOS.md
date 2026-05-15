@@ -1,5 +1,10 @@
 REHALIZADO 
 ----------------------------------------------
+Acabar PDF
+Comprobar que todo lo del PDF funciona
+Hacer que los scripts los ejecute el GitHub
+GitHub compruebe si estan ejecutando o si se han ejecutado
+----------------------------------------------
 4. PASO A PASO
 
 
