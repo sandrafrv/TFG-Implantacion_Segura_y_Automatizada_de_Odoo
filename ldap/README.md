@@ -1,36 +1,36 @@
-# ldap/ — Estructura LDAP (Legacy)
+# LDAP — Material Legacy
 
-> ⚠️ **Esta carpeta es material legacy.** Contiene la estructura base del directorio LDAP de cuando el servicio OpenLDAP formaba parte del `docker-compose.yml`.
->
-> **LDAP no está activo** en la arquitectura actual. Fue descartado del despliegue principal en Mayo 2026.
+> ⚠️ **Esta carpeta es material de referencia histórica. LDAP no forma parte del despliegue activo del proyecto.**
 
 ---
 
-## Contenido
+## ¿Por qué no se usa LDAP?
 
-### `estructura.ldif`
-Archivo LDIF con la estructura de usuarios y grupos que se usaba con OpenLDAP:
-- Unidades Organizativas: `ou=People` y `ou=Groups`
-- Usuarios de ejemplo: empleados de TechSolutions S.L.
-- Grupos: `grp_ventas`, `grp_admin`, `grp_rrhh`
+LDAP fue descartado del despliegue principal por las siguientes razones:
+
+1. **Reducción de superficie de ataque:** Eliminar OpenLDAP elimina un servicio adicional expuesto en la DMZ (puertos `:389` y `:636`).
+2. **Complejidad de mantenimiento:** La integración LDAP en Odoo requiere mantener dos sistemas de usuarios sincronizados.
+3. **Alcance del TFG:** El objetivo principal es la seguridad perimetral y la automatización, no la gestión centralizada de identidades.
+4. **Alternativa más simple:** Odoo gestiona sus propios usuarios internamente con control de roles suficiente para el caso de uso.
 
 ---
 
-## Relación con otros archivos
+## Contenido de esta carpeta
 
 | Archivo | Descripción |
-|---|---|
-| `extras/ldap/estructura.ldif` | Copia actualizada del mismo LDIF |
-| `extras/ldap/README.md` | Plan para retomar LDAP en el futuro |
-| `scripts/ldap/` | Scripts de configuración LDAP (desactivados) |
+|:--------|:------------|
+| `estructura.ldif` | Estructura base del directorio LDAP: unidades organizativas (`ou=usuarios`, `ou=grupos`), usuarios de ejemplo y grupos (`admin`, `tecnico`, `readonly`). Equivalente al archivo en `extras/ldap/`. |
 
 ---
 
-## ¿Por qué se descartó LDAP?
+## Dónde está el material LDAP completo
 
-- Complejidad añadida al despliegue sin beneficio directo para el TFG
-- Superficie de ataque mayor con un contenedor más expuesto
-- La autenticación nativa de Odoo cubre los requisitos del proyecto
-- Se priorizaron la segmentación de red y la separación de la BD como mejoras más significativas
+Todo el material de LDAP como **mejora futura** está en:
 
-Ver `extras/ldap/README.md` para el plan de integración futura.
+- [`extras/ldap/`](../extras/ldap/) — `estructura.ldif` + `README.md` con pasos de implementación
+- [`scripts/ldap/`](../scripts/ldap/) — Scripts de aprovisionamiento (`configurar_cliente_ldap.sh`, `ldap_crear_usuarios.sh`, `ldap_politica_acceso.sh`) marcados como desactivados
+- [`docs/CONTROL_ACCESO.md`](../docs/CONTROL_ACCESO.md) — Sección sobre LDAP como mejora futura
+
+---
+
+> Si en el futuro se quiere retomar la implementación de LDAP, el punto de partida es `extras/ldap/README.md`.
