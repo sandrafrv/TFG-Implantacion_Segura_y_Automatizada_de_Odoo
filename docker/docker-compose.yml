@@ -4,8 +4,7 @@
 #              forman el sistema ERP:
 #                1. odoo_erp    → PostgreSQL 16 (BD interna, sin IP pública)
 #                2. odoo-web    → Odoo 17 CE    (MACVLAN 192.168.30.21)
-#                3. openldap    → OpenLDAP 1.5  (MACVLAN 192.168.30.22)
-#                4. nginx-proxy → Nginx Alpine  (MACVLAN 192.168.30.20)
+#                3. nginx-proxy → Nginx Alpine  (MACVLAN 192.168.30.20)
 #
 # Control de acceso:
 #   VLAN 10 (Usuarios)  → accede a Odoo vía nginx (.20)
@@ -84,41 +83,6 @@ services:
       odoo_net:
       macvlan_vlan30:
         ipv4_address: 192.168.30.21
-
-  # ------------------------------------------------------------------
-  # SERVICIO 3: OpenLDAP (Directorio de Usuarios)
-  # Centraliza la autenticación de VLAN 10 (usuarios internos).
-  #
-  # IPs asignadas:
-  #   - Red interna (odoo_net): comunicación con Odoo y Nginx
-  #   - MACVLAN (192.168.30.22): visible directamente desde pfSense
-  #
-  # Grupos gestionados:
-  #   VLAN 10 → becarios, ventas, rrhh, almacen, tecnico, jefes
-  #   VLAN 40 → admin, dba  (acceso al servidor, no al ERP)
-  # ------------------------------------------------------------------
-  ldap:
-    image: osixia/openldap:1.5.0
-    container_name: openldap
-    restart: always
-    environment:
-      LDAP_ORGANISATION: "TechSolutions SL"
-      LDAP_DOMAIN: "tfg.com"
-      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
-      # Usuario de solo lectura para que Odoo y PAM autentiquen
-      # sin exponer las credenciales del administrador LDAP
-      LDAP_READONLY_USER: "true"
-      LDAP_READONLY_USER_USERNAME: "readonly"
-      LDAP_READONLY_USER_PASSWORD: ${LDAP_READONLY_PASSWORD}
-    volumes:
-      - ../ldap_data:/var/lib/ldap
-      - ../ldap_config:/etc/ldap/slapd.d
-      # LDIF de arranque: crea las OUs y grupos automáticamente
-      - ../ldap/estructura.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/estructura.ldif:ro
-    networks:
-      odoo_net:
-      macvlan_vlan30:
-        ipv4_address: 192.168.30.22
 
   # ------------------------------------------------------------------
   # SERVICIO 4: Proxy Inverso Nginx
