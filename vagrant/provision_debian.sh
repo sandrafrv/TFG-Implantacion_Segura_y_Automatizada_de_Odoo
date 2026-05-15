@@ -51,7 +51,7 @@ ENVEOF
 # --- Crear directorios necesarios ---
 mkdir -p addons odoo-data odoo_sessions backups/postgres certs
 chmod -R 777 odoo-data/ odoo_sessions/ backups/
-chmod +x scripts/deploy/*.sh scripts/mantenimiento/*.sh
+find scripts/ -name "*.sh" -exec chmod +x {} +
 
 # --- Crear red MACVLAN para VLAN 30 ---
 IFACE=$(ip route | awk '/default/ {print $5; exit}')

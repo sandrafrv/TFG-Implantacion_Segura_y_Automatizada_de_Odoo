@@ -8,7 +8,7 @@
 # ============================================================
 
 LOG_FILE="/var/log/erp_monitor.log"
-CONTENEDORES=("odoo_erp" "openldap" "odoo-web" "nginx-proxy")
+CONTENEDORES=("odoo-web" "nginx-proxy")
 ALERTAS=0
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }

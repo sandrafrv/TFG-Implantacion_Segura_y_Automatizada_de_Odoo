@@ -185,15 +185,16 @@ opcion_logs() {
     echo "  ¿De qué contenedor quieres ver los logs?"
     echo "  1) nginx-proxy"
     echo "  2) odoo-web"
-    echo "  3) odoo_erp (PostgreSQL)"
-    echo "  4) Todos (últimas 50 líneas)"
+    echo "  3) Todos (últimas 50 líneas)"
+    echo ""
+    echo -e "  ${CYAN}[i]${NC}  PostgreSQL reside en la VM db-server (VLAN 40 — 192.168.40.10)."
+    echo -e "       Para sus logs: ssh admin@192.168.40.10 'journalctl -u postgresql -f'"
     echo ""
     read -rp "  Opción: " log_op
     case $log_op in
         1) docker logs nginx-proxy --tail 50 -f ;;
         2) docker logs odoo-web --tail 50 -f ;;
-        3) docker logs odoo_erp --tail 50 -f ;;
-        4) docker compose -f "$COMPOSE_FILE" logs --tail 50 -f ;;
+        3) docker compose -f "$COMPOSE_FILE" logs --tail 50 -f ;;
         *) warn "Opción no válida." ;;
     esac
     pausa

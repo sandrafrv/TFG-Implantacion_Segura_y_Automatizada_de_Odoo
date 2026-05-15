@@ -10,7 +10,7 @@ set -euo pipefail
 
 PROJECT_DIR="/opt/erp-odoo"
 ENV_TEMPLATE="$PROJECT_DIR/.env.example"
-ENV_FILE="$PROJECT_DIR/docker/.env"
+ENV_FILE="$PROJECT_DIR/.env"
 
 [ ! -f "$ENV_TEMPLATE" ] && { echo "[ERROR] No existe $ENV_TEMPLATE"; exit 1; }
 

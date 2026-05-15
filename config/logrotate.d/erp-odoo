@@ -1,4 +1,4 @@
-/var/log/erp_*.log {
+/var/log/erp_*.log /var/log/erp-odoo/*.log /var/log/backup_odoo.log {
     weekly
     rotate 4
     compress
