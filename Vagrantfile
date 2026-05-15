@@ -21,15 +21,15 @@ Vagrant.configure("2") do |config|
   # VMnet2 → VLAN 40: admin     (192.168.40.x)
   # --------------------------------------------------------
   config.vm.define "pfsense" do |pf|
-    pf.vm.box              = "ksklareski/pfsense-ce"
+    pf.vm.box              = "dlee35/pfsense"
     pf.vm.box_check_update = false
     pf.vm.hostname         = "pfsense-tfg"
 
-    pf.vm.network "public_network",  bridge: "VMnet0"
+    pf.vm.network "public_network",  bridge: "VMnet0", auto_config: false
     pf.vm.network "private_network", ip: "192.168.10.1",
-      vmware__vmnet: "VMnet1"
+      vmware__vmnet: "VMnet1", auto_config: false
     pf.vm.network "private_network", ip: "192.168.40.1",
-      vmware__vmnet: "VMnet2"
+      vmware__vmnet: "VMnet2", auto_config: false
 
     pf.vm.provider "vmware_desktop" do |v|
       v.vmx["displayName"] = "TFG-pfSense"
