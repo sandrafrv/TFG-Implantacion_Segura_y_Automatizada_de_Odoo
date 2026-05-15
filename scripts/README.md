@@ -3,22 +3,18 @@
 **TFG ASIR 2025/2026 — TechSolutions S.L.**
 
 > [!IMPORTANT]
-> Todos los scripts están diseñados para ejecutarse **únicamente en el servidor Debian** (`192.168.30.10`).
+> Todos los scripts están diseñados para ejecutarse **únicamente en el servidor Debian** (`vm-odoo`, `192.168.30.10`).
 > **No ejecutar en PCs cliente, en pfSense ni en Windows/macOS localmente.**
+
+> [!NOTE]
+> PostgreSQL reside en la **VM externa `vm-postgres`** (`192.168.40.10`, VLAN 40). Los scripts de backup y restore se conectan a esa IP. No usar `localhost` ni ningún contenedor `db`.
 
 ---
 
 ## Dar Permisos de Ejecución (Primera Vez)
 
 ```bash
-# Dar permisos a todos los scripts del proyecto de una sola vez
-find /opt/erp-odoo/scripts -name "*.sh" -exec chmod +x {} \;
-
-# O individualmente:
-chmod +x /opt/erp-odoo/scripts/deploy/*.sh
-chmod +x /opt/erp-odoo/scripts/odoo/*.sh
-chmod +x /opt/erp-odoo/scripts/ldap/*.sh
-chmod +x /opt/erp-odoo/scripts/mantenimiento/*.sh
+find /opt/odoo/scripts -name "*.sh" -exec chmod +x {} \;
 ```
 
 ---
@@ -29,28 +25,30 @@ Scripts para el ciclo de vida del stack: instalación, configuración y arranque
 
 | Script | Descripción | Cuándo usarlo |
 |:-------|:------------|:--------------|
-| `erp.sh` | **Orquestador central.** Menú interactivo para gestionar todo el proyecto sin memorizar comandos | Administración diaria |
-| `deploy.sh` | Levanta el stack Docker (`docker compose up -d`) y espera confirmación de healthcheck de Odoo | Primer despliegue o arranque manual |
-| `configure.sh` | Configurador interactivo del archivo `docker/.env` (pide contraseñas con eco desactivado) | Instalación inicial o cambio de credenciales |
-| `install_cron.sh` | Instala las 3 tareas cron del sistema (backup, monitor, update) y aplica logrotate | Una sola vez, en la instalación inicial |
-| `generate_pfsense_config.sh` | Genera `config/pfsense_config.xml` con todas las interfaces, DHCP, DNS, NAT y reglas de firewall del proyecto. El CI lo valida y lo sube como artefacto descargable | Instalación inicial de pfSense o reimplantación |
+| `erp.sh` | **Orquestador central.** Menú interactivo para gestionar el proyecto | Administración diaria |
+| `deploy.sh` | Verifica conectividad con la BD externa (`192.168.40.10:5432`) y luego levanta el stack Docker | Primer despliegue o arranque manual |
+| `configure.sh` | Configurador del archivo `.env` en la raíz del proyecto | Instalación inicial o cambio de credenciales |
+| `install_cron.sh` | Crea `/etc/backup_odoo.env` (permisos 600), instala cron de backup cada 4h y aplica logrotate | Una sola vez, en la instalación inicial |
+| `generate_pfsense_config.sh` | Genera `config.xml` con interfaces, DHCP, NAT y reglas de firewall para pfSense | Instalación inicial de pfSense |
 
 ```bash
-# Menú interactivo (opción recomendada para el día a día)
-sudo /opt/erp-odoo/scripts/deploy/erp.sh
+# Menú interactivo
+bash scripts/deploy/erp.sh
 
-# Levantar el stack manualmente
-bash /opt/erp-odoo/scripts/deploy/deploy.sh
+# Desplegar (verifica BD antes de levantar contenedores)
+bash scripts/deploy/deploy.sh
 
-# Configurar .env de forma segura
-bash /opt/erp-odoo/scripts/deploy/configure.sh
+# Configurar .env
+bash scripts/deploy/configure.sh
 
-# Instalar cron automático
-sudo bash /opt/erp-odoo/scripts/deploy/install_cron.sh
+# Instalar cron de backup
+sudo bash scripts/deploy/install_cron.sh
 
-# Generar config.xml de pfSense (también disponible como artefacto CI)
-bash /opt/erp-odoo/scripts/deploy/generate_pfsense_config.sh
+# Generar config.xml de pfSense
+bash scripts/deploy/generate_pfsense_config.sh
 ```
+
+> ⚠️ El `.env` debe estar en la **raíz del proyecto**, no dentro de `docker/`.
 
 ---
 
@@ -60,100 +58,100 @@ Scripts para la configuración interna del ERP vía API XML-RPC.
 
 | Script | Descripción | Cuándo usarlo |
 |:-------|:------------|:--------------|
-| `odoo_setup_wizard.sh` | Asistente post-instalación: renombra la empresa, instala módulos y configura la conexión LDAP | Justo después del primer arranque de Odoo |
-| `odoo_crear_usuarios.sh` | Crea usuarios Odoo con sus grupos de rol (becario, ventas, RRHH, etc.) vía XML-RPC | Tras la configuración de LDAP |
+| `odoo_setup_wizard.sh` | Asistente post-instalación: renombra la empresa e instala módulos | Tras el primer arranque de Odoo |
+| `odoo_crear_usuarios.sh` | Crea usuarios Odoo con sus grupos de rol vía XML-RPC | Tras la configuración inicial |
 
 ```bash
-# Configuración inicial de Odoo (empresa + módulos + LDAP)
-bash /opt/erp-odoo/scripts/odoo/odoo_setup_wizard.sh
-
-# Crear todos los usuarios con sus roles
-bash /opt/erp-odoo/scripts/odoo/odoo_crear_usuarios.sh
+bash scripts/odoo/odoo_setup_wizard.sh
+bash scripts/odoo/odoo_crear_usuarios.sh
 ```
 
 > [!WARNING]
-> `odoo_crear_usuarios.sh` muestra las contraseñas generadas **una sola vez** al terminar.
-> Cópialas inmediatamente en un gestor de contraseñas.
+> `odoo_crear_usuarios.sh` muestra las contraseñas generadas **una sola vez**. Guárdalas inmediatamente.
 
 ---
 
-## 🔐 Integración LDAP (`ldap/`)
+## 🔐 Scripts LDAP (`ldap/`) — DESACTIVADOS
 
-Scripts para gestionar el directorio centralizado de usuarios.
+> ⚠️ **Estos scripts están desactivados.** LDAP fue descartado del despliegue principal. El servicio `openldap` ya no existe en `docker-compose.yml`.
+>
+> Ver: [`scripts/ldap/README.md`](ldap/README.md) y [`extras/ldap/README.md`](../extras/ldap/README.md)
 
-| Script | Descripción | Cuándo usarlo |
-|:-------|:------------|:--------------|
-| `configurar_cliente_ldap.sh` | Instala y configura SSSD + PAM + NSS en un PC cliente VLAN 10 para login con credencial LDAP | En cada PC de VLAN 10 que necesite login LDAP |
-| `ldap_crear_usuarios.sh` | Crea usuarios en el directorio OpenLDAP de forma interactiva (uid, nombre, email, contraseña, grupo) | Dar de alta nuevos empleados |
-| `ldap_politica_acceso.sh` | Aplica las ACLs de seguridad LDAP: admin=escritura, tecnico=solo contraseñas, readonly=lectura | Una vez tras el primer arranque de OpenLDAP |
-
-```bash
-# Aplicar ACLs (una sola vez tras instalar OpenLDAP)
-bash /opt/erp-odoo/scripts/ldap/ldap_politica_acceso.sh
-
-# Añadir un nuevo empleado al directorio
-bash /opt/erp-odoo/scripts/ldap/ldap_crear_usuarios.sh
-
-# Configurar un PC cliente VLAN 10 para login con LDAP
-# (ejecutar EN EL PC CLIENTE, no en el servidor)
-sudo bash /opt/erp-odoo/scripts/ldap/configurar_cliente_ldap.sh
-```
+| Script | Descripción | Estado |
+|:-------|:------------|:-------|
+| `configurar_cliente_ldap.sh` | Configura cliente LDAP en Debian (SSSD + PAM + NSS) | ⚠️ Desactivado |
+| `ldap_crear_usuarios.sh` | Crea usuarios en OpenLDAP | ⚠️ Desactivado |
+| `ldap_politica_acceso.sh` | Aplica ACLs de seguridad en LDAP | ⚠️ Desactivado |
 
 ---
 
 ## 🛠️ Mantenimiento y Operaciones (`mantenimiento/`)
 
-Scripts para el mantenimiento automatizado del sistema ERP.
+Scripts para el mantenimiento automatizado del sistema.
 
-| Script | Descripción | Cuándo usarlo | Cron |
-|:-------|:------------|:--------------|:-----|
-| `backup.sh` | Volcado completo de PostgreSQL en formato comprimido (`pg_dump -F c`). Retención de 7 días. | Manual o por cron | Diario 02:00 |
-| `restore.sh` | Borra la BD actual, la recrea limpia y restaura desde un archivo `.dump` | Recuperación ante desastres | Manual |
-| `monitor.sh` | Comprueba que los 4 contenedores están `Up`. Si alguno falla, lo reinicia y lo registra en log | Por cron | Cada 15 min |
-| `update.sh` | Descarga las últimas imágenes Docker, reinicia los contenedores y elimina imágenes huérfanas | Por cron | Domingos 03:00 |
+| Script | Descripción | Cron |
+|:-------|:------------|:-----|
+| `backup_postgres.sh` | **NUEVO** — `pg_dump` remoto a `192.168.40.10`. Retención 7 días. Log en `/var/log/backup_odoo.log` | Cada 4h (vía `install_cron.sh`) |
+| `backup.sh` | Backup legacy — referencia histórica | Manual |
+| `restore.sh` | Restaura en la BD externa (`192.168.40.10`) usando credenciales de `/etc/backup_odoo.env` | Manual |
+| `monitor.sh` | Comprueba `odoo-web` y `nginx-proxy`. Si alguno falla, lo reinicia | Cada 15 min |
+| `update.sh` | Descarga nuevas imágenes Docker y reinicia contenedores | Domingos 03:00 |
 
 ```bash
-# Backup manual
-bash /opt/erp-odoo/scripts/mantenimiento/backup.sh
+# Backup manual (BD externa)
+bash scripts/mantenimiento/backup_postgres.sh
 
 # Restaurar desde un backup específico
-bash /opt/erp-odoo/scripts/mantenimiento/restore.sh /opt/erp-odoo/backups/erp_20260513_020001.dump
+bash scripts/mantenimiento/restore.sh /opt/odoo/backups/odoo_20260515_0200.sql.gz
 
 # Chequeo de salud manual
-bash /opt/erp-odoo/scripts/mantenimiento/monitor.sh
+bash scripts/mantenimiento/monitor.sh
 
 # Actualización manual de imágenes Docker
-bash /opt/erp-odoo/scripts/mantenimiento/update.sh
+bash scripts/mantenimiento/update.sh
 
-# Ver los backups disponibles
-ls -lh /opt/erp-odoo/backups/
+# Ver backups disponibles
+ls -lh /opt/odoo/backups/postgres/
+
+# Ver log de backups
+tail -f /var/log/backup_odoo.log
 ```
 
 ---
 
-## Referencia Rápida — Comandos Docker
+## 🔧 Utilidades (`repomix_lite.py`)
+
+Script Python que genera un volcado completo del repositorio en un único archivo de texto (`repomix-output.md`), útil para pasar el código como contexto a modelos de lenguaje.
 
 ```bash
-# Estado de los contenedores
-docker compose -f /opt/erp-odoo/docker/docker-compose.yml ps
+python3 scripts/repomix_lite.py
+```
 
-# Logs en tiempo real (todos)
-docker compose -f /opt/erp-odoo/docker/docker-compose.yml logs -f
+---
 
-# Logs de un servicio específico
-docker compose -f /opt/erp-odoo/docker/docker-compose.yml logs -f odoo-web
+## Referencia Rápida — Docker
+
+```bash
+# Estado de los contenedores (solo odoo-web y nginx-proxy)
+docker compose -f docker/docker-compose.yml ps
+
+# Logs en tiempo real
+docker compose -f docker/docker-compose.yml logs -f
+
+# Logs de un servicio
+docker compose -f docker/docker-compose.yml logs -f odoo-web
 
 # Reiniciar un servicio
-docker compose -f /opt/erp-odoo/docker/docker-compose.yml restart nginx-proxy
+docker compose -f docker/docker-compose.yml restart nginx-proxy
 
-# Parar todo el stack
-docker compose -f /opt/erp-odoo/docker/docker-compose.yml down
+# Parar todo
+docker compose -f docker/docker-compose.yml down
 
-# Arrancar todo el stack
-docker compose -f /opt/erp-odoo/docker/docker-compose.yml up -d
+# Arrancar todo
+docker compose -f docker/docker-compose.yml up -d
 
-# Entrar a la consola de PostgreSQL
-docker exec -it odoo_erp psql -U odoo -d odoo_erp
+# Acceder a PostgreSQL externo
+psql -h 192.168.40.10 -U odoo -d odooerp
 
 # Limpiar imágenes sin usar
 docker system prune -f
