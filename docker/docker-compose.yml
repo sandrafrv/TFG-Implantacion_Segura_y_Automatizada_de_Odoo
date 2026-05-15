@@ -55,12 +55,13 @@ services:
     container_name: odoo-web
     restart: always
 
-    depends_on:
-      db:
-        condition: service_healthy
+    #sobra
+    #depends_on:
+    #  db:
+    #    condition: service_healthy
 
     environment:
-      - HOST=db
+      - HOST=192.168.40.10  #ip DE LA vm pOSTGREsql EB LA vlan 40
       - USER=odoo
       - PASSWORD=${POSTGRES_PASSWORD}
 
