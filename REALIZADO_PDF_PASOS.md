@@ -68,7 +68,7 @@ NO --------- PASO 6D -  Probar el pipeline completo
 
 NO	PASO 7 - Backups automáticos de PostgreSQL
 
-NO --------- PASO 7A - Crear scripts/mantenimiento/backup_postgres.sh
+NO --------- PASO 7A - Crear scripts/mantenimiento/backup_postgres.sh [Falta dar permisos con chmod +x]
 
 NO --------- PASO 7B - Instalar el cron en el servidor
 
