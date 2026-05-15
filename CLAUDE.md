@@ -1,194 +1,248 @@
-# CLAUDE.md — Skill de Documentación Automática del TFG
+# CLAUDE.md — Guía Técnica del Repositorio
 
-Este archivo define cómo Claude debe comportarse en este repositorio.
-Se carga automáticamente en cada sesión de Claude Code.
+Este archivo define cómo cualquier agente IA (Claude, Copilot, etc.) o colaborador debe comportarse en este repositorio. Se carga automáticamente en cada sesión de Claude Code.
 
 ---
 
 ## Contexto del Proyecto
 
 **Proyecto:** TFG — Implantación Segura y Automatizada de Odoo
-**Autora:** Sandra Fradejas
-**Descripción:** Entorno productivo completo para el ERP Odoo con enfoque en seguridad, contenerización (Docker) y buenas prácticas de administración de sistemas. Incluye pfSense como firewall, Nginx como reverse proxy, y automatización de scripts Bash.
+**Autora principal:** Sandra Fradejas Avedillo
+**Grado:** ASIR — IES Cañaveral, curso 2025/2026
+**Descripción:** Entorno productivo completo para el ERP Odoo 17 con 3 VMs orquestadas por Vagrant, pfSense como firewall perimetral, Nginx + Odoo en Docker (MACVLAN) y PostgreSQL en VM externa aislada en VLAN 40.
 
-### Estructura del Repositorio
+---
+
+## Arquitectura Actual (Mayo 2026)
+
+| VM Vagrant | Rol | IP | VLAN |
+|---|---|---|---|
+| `vm-pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | WAN + 10 + 30 + 40 |
+| `vm-odoo` | Debian 13 + Docker | 192.168.30.10 | VLAN 30 (DMZ) |
+| `vm-postgres` | PostgreSQL 16 nativo | 192.168.40.10 | VLAN 40 (BD) |
+
+**Contenedores Docker activos** (solo en `vm-odoo`):
+- `odoo-web` — Odoo 17, MACVLAN `192.168.30.21`
+- `nginx-proxy` — Nginx Alpine, MACVLAN `192.168.30.20`
+
+> ⚠️ Los servicios `db` (PostgreSQL) y `ldap` (OpenLDAP) han sido **eliminados** del `docker-compose.yml`. PostgreSQL está en `vm-postgres` (`192.168.40.10`). LDAP está descartado — ver `extras/ldap/`.
+
+---
+
+## Estructura del Repositorio
 
 ```
 TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
-├── docker/          # docker-compose.yml y configuración de contenedores
-├── config_nginx/    # Configuración de Nginx (reverse proxy + SSL)
-├── scripts/         # Scripts Bash de automatización e instalación
-├── sql/             # Scripts SQL (backups, init, usuarios)
-├── ISOs/            # Referencias a ISOs utilizadas
-├── docs/            # Documentación técnica del proyecto
-│   ├── implementation_plan.md    # Plan de implementación por fases
-│   ├── task.md                   # Tareas pendientes y completadas
-│   ├── github_issues.md          # Registro de issues de GitHub
-│   ├── reglas_pfsense.md         # Reglas de firewall pfSense
-│   └── propuestas_mejoras_extra.md # Ideas y mejoras futuras
-└── CLAUDE.md        # Este archivo
+├── Vagrantfile                        # Define las 3 VMs y sus redes
+├── vagrant/                           # Scripts de aprovisionamiento
+│   ├── provision_debian.sh             # Aprovisiona vm-odoo (Docker, Nginx, SSL)
+│   ├── provision_pfsense.sh            # Aprovisiona vm-pfsense
+│   ├── provision_postgres.sh           # Aprovisiona vm-postgres
+│   └── Explicacion_provision_postgres.md
+├── docker/
+│   ├── docker-compose.yml              # Solo odoo-web + nginx-proxy
+│   └── odoo.conf                       # db_host = 192.168.40.10
+├── scripts/
+│   ├── deploy/
+│   │   ├── deploy.sh                   # Verifica BD externa antes de levantar
+│   │   ├── configure.sh                # Lee .env desde raíz del proyecto
+│   │   ├── erp.sh                      # Menú interactivo de gestión
+│   │   ├── install_cron.sh             # Cron cada 4h + /etc/backup_odoo.env
+│   │   └── generate_pfsense_config.sh  # Genera config.xml para pfSense
+│   ├── mantenimiento/
+│   │   ├── backup_postgres.sh          # NUEVO: pg_dump remoto a 192.168.40.10
+│   │   ├── backup.sh                   # Backup legacy (referencia)
+│   │   ├── restore.sh                  # Restaura en BD externa
+│   │   ├── monitor.sh                  # Solo odoo-web + nginx-proxy
+│   │   └── update.sh                   # Actualiza imágenes Docker
+│   ├── odoo/
+│   │   ├── odoo_crear_usuarios.sh
+│   │   └── odoo_setup_wizard.sh
+│   ├── ldap/                           # ⚠️ DESACTIVADO — solo referencia
+│   └── repomix_lite.py                 # Volcado del repo para contexto LLM
+├── sql/
+│   └── audit_triggers.sql              # Triggers PL/pgSQL para auditoría
+├── config_nginx/
+│   └── odoo_proxy.conf                 # Config Nginx: SSL, WebSocket, headers
+├── config/logrotate.d/
+│   └── erp-odoo                        # Rota /var/log/backup_odoo.log y otros
+├── extras/ldap/                       # LDAP descartado — mejora futura
+├── ldap/                              # estructura.ldif legacy
+├── docs/                              # Documentación técnica completa
+├── .env.example                       # Plantilla sin variables LDAP
+└── CLAUDE.md                          # Este archivo
 ```
 
 ---
 
-## Skill: Auto-Documentación de Cambios
+## Comandos Frecuentes
 
-### Propósito
-
-Cada vez que realices o asistas en un cambio técnico en este repositorio, debes **documentar automáticamente** lo que se hizo, por qué, y cómo afecta al sistema — sin que Sandra tenga que pedírtelo explícitamente.
-
----
-
-### Cuándo Activar la Documentación
-
-Documenta automáticamente cuando:
-
-- Se **crea o modifica** cualquier archivo en `docker/`, `config_nginx/`, `scripts/`, `sql/`
-- Se **añade una regla** de pfSense o se modifica la arquitectura de red
-- Se **resuelve un issue** o se completa una tarea del `docs/task.md`
-- Se **instala, actualiza o elimina** un servicio o dependencia
-- Se **cambia una variable de entorno** o configuración sensible (sin revelar valores reales)
-- Se **corrige un error** o problema de seguridad
-
----
-
-### Qué Documentar y Dónde
-
-#### 1. `docs/task.md` — Registro de Tareas
-
-Actualiza este archivo marcando tareas completadas y añadiendo nuevas si procede.
-
-**Formato de entrada completada:**
-```markdown
-- [x] **[YYYY-MM-DD]** Descripción breve de la tarea completada
-  - _Qué se hizo:_ Explicación técnica concisa
-  - _Archivos afectados:_ `ruta/al/archivo.ext`
-  - _Resultado:_ Comportamiento esperado después del cambio
-```
-
-**Formato de tarea nueva detectada:**
-```markdown
-- [ ] **[PENDIENTE]** Descripción de la tarea detectada
-  - _Motivo:_ Por qué es necesaria
-  - _Prioridad:_ Alta / Media / Baja
-```
-
----
-
-#### 2. `docs/implementation_plan.md` — Plan de Implementación
-
-Si el cambio afecta a una fase del plan, actualiza el estado de esa fase.
-
-Cuando una fase se complete, añade al final de su sección:
-```markdown
-> ✅ **Completado [YYYY-MM-DD]:** Resumen de cómo quedó implementada esta fase.
-```
-
----
-
-#### 3. `docs/reglas_pfsense.md` — Reglas de Firewall
-
-Si el cambio implica nuevas reglas o modificación de las existentes, añade una entrada en formato tabla:
-
-```markdown
-| Fecha      | Interfaz | Acción | Protocolo | Origen → Destino | Puerto | Descripción |
-|------------|----------|--------|-----------|------------------|--------|-------------|
-| YYYY-MM-DD | LAN/WAN  | Pass/Block | TCP/UDP | IP → IP       | XXXX   | Motivo      |
-```
-
----
-
-#### 4. `docs/CHANGELOG.md` — Historial de Cambios *(crear si no existe)*
-
-Mantén un CHANGELOG siguiendo [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
-
-**Formato:**
-```markdown
-## [Sin publicar]
-
-### Añadido
-- Descripción del nuevo elemento añadido
-
-### Modificado
-- Descripción de cambio en funcionalidad existente
-
-### Corregido
-- Descripción del bug o problema resuelto
-
-### Seguridad
-- Descripción de vulnerabilidad corregida o mejora de seguridad
-```
-
-Cuando se hace un commit o se cierra un issue, mueve las entradas de `[Sin publicar]` a una nueva sección con versión o fecha:
-```markdown
-## [v1.x — YYYY-MM-DD]
-```
-
----
-
-### Reglas de Escritura para la Documentación
-
-1. **Idioma:** Siempre en español (es el TFG de Sandra).
-2. **Tono:** Técnico pero claro, como si lo leyera el tutor del TFG.
-3. **Nunca incluir:** contraseñas, tokens, IPs privadas reales, ni secretos. Usar `<VALOR_OCULTO>` o `<IP_INTERNA>` como placeholder.
-4. **Siempre incluir:** fecha del cambio, archivo(s) afectado(s), y el motivo técnico del cambio.
-5. **Máximo 3 líneas por entrada** en `task.md`. Si necesitas más detalle, crea un archivo dedicado en `docs/`.
-
----
-
-### Flujo de Trabajo Estándar
-
-Cuando Sandra te pida hacer un cambio, sigue este orden:
-
-```
-1. Analiza el cambio solicitado
-2. Implementa el cambio técnico (modifica el archivo correspondiente)
-3. Actualiza docs/task.md con lo que se hizo
-4. Actualiza docs/CHANGELOG.md con la entrada apropiada
-5. Si aplica: actualiza implementation_plan.md o reglas_pfsense.md
-6. Informa a Sandra: "✅ Cambio realizado y documentado en docs/"
-```
-
----
-
-### Comandos Útiles que Puedes Sugerir
-
-Cuando corresponda, sugiere estos comandos para verificar el entorno:
+### Vagrant
 
 ```bash
-# Verificar estado de contenedores
-docker compose -f docker/docker-compose.yml ps
+vagrant up                    # Levantar las 3 VMs
+vagrant up vm-odoo            # Levantar solo la VM de Odoo
+vagrant provision vm-odoo     # Re-ejecutar el aprovisionamiento
+vagrant ssh vm-odoo           # Conectarse a la VM de Odoo
+vagrant ssh vm-postgres       # Conectarse a la VM de PostgreSQL
+vagrant halt                  # Apagar todas las VMs
+vagrant destroy -f            # Destruir todas las VMs
+```
 
-# Ver logs de Odoo
-docker compose -f docker/docker-compose.yml logs odoo --tail=50
+### Docker (dentro de vm-odoo)
 
-# Verificar configuración de Nginx
-nginx -t -c /ruta/config_nginx/nginx.conf
+```bash
+cd /opt/odoo
+docker compose up -d          # Levantar odoo-web + nginx-proxy
+docker compose down           # Parar contenedores
+docker compose logs -f        # Ver logs en tiempo real
+docker compose ps             # Estado de los contenedores
+```
 
-# Backup manual de base de datos
-bash scripts/backup_db.sh
+> ⚠️ El servicio `db` y `ldap` ya NO existen en el `docker-compose.yml`.
+
+### Ver logs de PostgreSQL (vm-postgres)
+
+```bash
+vagrant ssh vm-postgres
+sudo journalctl -u postgresql -f
+sudo tail -f /var/log/postgresql/*.log
+```
+
+### Scripts de despliegue
+
+```bash
+bash scripts/deploy/deploy.sh         # Verificar BD externa y desplegar
+bash scripts/deploy/configure.sh      # Configurar (lee .env desde raíz)
+bash scripts/deploy/erp.sh            # Menú interactivo de gestión
+bash scripts/deploy/install_cron.sh   # Instalar cron de backup (cada 4h)
+```
+
+### Mantenimiento
+
+```bash
+bash scripts/mantenimiento/backup_postgres.sh   # Backup remoto via pg_dump
+bash scripts/mantenimiento/restore.sh <backup>  # Restaurar en BD externa
+bash scripts/mantenimiento/monitor.sh           # Estado de contenedores
+bash scripts/mantenimiento/update.sh            # Actualizar imágenes Docker
+```
+
+### Verificar conectividad BD (troubleshooting)
+
+```bash
+vagrant ssh vm-odoo
+nc -zv 192.168.40.10 5432
+psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'
 ```
 
 ---
 
-### Detección Automática de Problemas de Seguridad
+## Variables de Entorno
 
-Siempre que revises o modifiques archivos, alerta si detectas:
+El archivo `.env` debe estar en la **raíz del proyecto**, no dentro de `docker/`.
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Variables mínimas requeridas:
+
+```env
+ODOO_ADMIN_PASSWD=cambia_esto
+DB_HOST=192.168.40.10
+DB_PORT=5432
+DB_USER=odoo
+DB_PASSWORD=cambia_esto
+DOMAIN=tu_dominio_o_ip
+```
+
+> Las variables de LDAP han sido eliminadas de `.env.example`.
+
+---
+
+## Credenciales de Backup
+
+`install_cron.sh` crea `/etc/backup_odoo.env` con permisos 600 (solo root). Los scripts `backup_postgres.sh` y `restore.sh` leen las credenciales de este archivo.
+
+```bash
+# /etc/backup_odoo.env (generado automáticamente, no tocar a mano)
+DB_HOST=192.168.40.10
+DB_USER=odoo
+DB_PASSWORD=...
+```
+
+---
+
+## CI/CD — GitHub Actions
+
+| Archivo | Qué hace |
+|---|---|
+| `.github/workflows/ci.yml` | `shellcheck` en `scripts/` y `vagrant/`; `yamllint`; `docker compose config -q` |
+| `.github/workflows/deploy.yml` | Despliega y verifica `odoo-web` + `nginx-proxy` (sin PostgreSQL ni LDAP) |
+
+---
+
+## Convenciones del Proyecto
+
+1. **Bash:** Todos los scripts deben pasar `shellcheck` sin errores.
+2. **Variables de entorno:** Usar `.env` en raíz. Nunca hardcodear credenciales.
+3. **PostgreSQL:** Siempre apuntar a `192.168.40.10`. Nunca usar `localhost` ni contenedor `db`.
+4. **LDAP:** No añadir dependencias LDAP al despliegue principal. Todo va en `extras/ldap/`.
+5. **Logs de backup:** El cron escribe en `/var/log/backup_odoo.log`, rotado por logrotate.
+6. **Idioma:** Toda la documentación en español.
+7. **Tono:** Técnico pero claro — orientado al tutor del TFG.
+
+---
+
+## Documentación Automática
+
+Cada vez que se realice un cambio técnico en el repositorio, documentar en este orden:
+
+```
+1. Implementar el cambio técnico
+2. Actualizar docs/CHANGELOG.md
+3. Actualizar docs/HISTORIAL_IMPLEMENTACION.md si afecta a una fase
+4. Actualizar docs/reglas_pfsense.md si hay cambios de firewall
+5. Informar: "✅ Cambio realizado y documentado en docs/"
+```
+
+---
+
+## Detección Automática de Problemas de Seguridad
+
+Siempre que se revisen archivos, alertar si se detecta:
 
 - 🔴 **CRÍTICO:** Contraseñas o tokens hardcodeados en código fuente
 - 🟠 **ADVERTENCIA:** Puertos expuestos innecesariamente en docker-compose
-- 🟡 **AVISO:** Variables de entorno sensibles sin usar `.env` o secrets
+- 🟡 **AVISO:** Variables sensibles sin usar `.env`
 - 🔵 **INFO:** Configuración mejorable pero no crítica
-
-Formato de alerta:
-```
-⚠️ [NIVEL] Archivo: `ruta/archivo` — Descripción del problema — Recomendación
-```
 
 ---
 
-## Notas Finales
+## Solución de Problemas Frecuentes
 
-- Este es un **TFG académico** de ASIR/SMR. La documentación es parte de la evaluación.
-- Prioriza documentación **clara y pedagógica**: explica el "por qué" además del "qué".
-- Cuando tengas dudas sobre dónde documentar algo, consulta a Sandra antes de proceder.
+**Odoo no conecta con la BD:**
+```bash
+vagrant ssh vm-odoo
+nc -zv 192.168.40.10 5432
+# Si falla, revisar reglas de firewall en pfSense (VLAN 30 → VLAN 40)
+```
+
+**El script deploy.sh falla en el check de BD:**
+```bash
+cat .env | grep DB_HOST   # Debe ser 192.168.40.10
+```
+
+**El cron de backup no funciona:**
+```bash
+ls -la /etc/backup_odoo.env    # Debe ser -rw------- root root
+tail -f /var/log/backup_odoo.log
+```
+
+**Los contenedores no arrancan:**
+```bash
+docker compose logs odoo-web
+docker compose logs nginx-proxy
+# Verificar que .env está en la raíz y no en docker/
+```
