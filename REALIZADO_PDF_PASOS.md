@@ -48,3 +48,17 @@ NO --------- PASO 5B - Crear Vagrantfile en la raíz del repositorio
 NO --------- PASO 5C -  Crear vagrant/provision_debian.sh
 
 NO --------- PASO 5D -  Crear vagrant/provision_pfsense.sh
+
+
+NO	PASO 6 - Activar CI/CD (instalar self-hosted runner)
+
+NO --------- PASO 6A - Obtener token en GitHub
+
+NO --------- PASO 6B - Ejecutar en el servidor Debian (servidor Odoo)
+
+NO --------- PASO 6C -  Verifcar que el runner está conectado
+
+NO --------- PASO 6D -  Probar el pipeline completo
+
+
+
