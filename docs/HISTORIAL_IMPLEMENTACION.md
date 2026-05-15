@@ -343,16 +343,68 @@ LDAP_ADMIN_PASSWORD=<contraseña_segura>
 |------------|--------|-------|
 | pfSense | ✅ Activo | 4 interfaces (WAN/VLAN10/DMZ/VLAN40), reglas verificadas, LDAP auth |
 | Debian 13 | ✅ Activo | Con Docker y Cockpit, IP estática `192.168.30.10` |
-| Docker stack | ✅ 4 contenedores healthy | PostgreSQL, Odoo, LDAP, Nginx |
-| MACVLAN | ✅ Activa | Nginx en .20, Odoo en .21, LDAP en .22 |
-| LDAP | ✅ Integrado | Auth centralizada para Odoo + PCs VLAN 10 (SSSD+PAM) |
-| DNS interno | ✅ Configurado | `erp.odoo.tfg.com` → `192.168.30.10` |
+| Docker stack | ✅ **2 contenedores** healthy | `odoo-web` + `nginx-proxy` (PostgreSQL y LDAP son VMs externas) |
+| MACVLAN | ✅ Activa | Nginx en .20, Odoo en .21 |
+| PostgreSQL | ✅ VM externa | `db-server` en `192.168.40.10` (VLAN 40), no es contenedor Docker |
+| LDAP | ✅ Integrado | Servidor LDAP externo; auth centralizada para Odoo + PCs VLAN 10 (SSSD+PAM) |
+| DNS interno | ✅ Configurado | `erp.odoo.tfg.com` → `192.168.30.20` |
 | CI/CD | ✅ Operativo | Runner `debian-dmz` activo |
 | Auditoría SQL | ✅ Ejecutada | Trigger en `res_users` |
-| Backups | ✅ Programados | Diario a las 02:00 |
+| Backups | ✅ Programados | Diario a las 02:00, restore remoto contra VM PostgreSQL |
 | UFW | ✅ Activo | Solo 22, 80, 443, 9090 |
 | Control de acceso | ✅ 3 capas activas | Nginx rutas + Odoo tipos + LDAP grupos |
 | VLAN 40 (Admin) | ✅ Configurada | Panel pfSense + SSH + Cockpit solo desde VLAN 40 |
+| **Revisión IaC** | ✅ Completada (2026-05-15) | 7 bugs corregidos, 0 críticos pendientes |
+
+---
+
+## v1.7 — Revisión IaC Completa (2026-05-15)
+
+### Auditoría estática de la infraestructura
+
+Se realizó una revisión estática completa de todos los archivos de configuración e infraestructura del repositorio. El objetivo fue garantizar la coherencia entre la arquitectura real (PostgreSQL en VM externa, stack Docker con 2 contenedores) y el código.
+
+**Resultado:** 7 bugs identificados y corregidos. Ningún crítico pendiente.
+
+### Bugs críticos corregidos
+
+**`docker/odoo.conf` — `db_host` incorrecto:**
+- El archivo tenía `db_host = db` (nombre de un contenedor local que no existe).
+- Corregido a `db_host = 192.168.40.10` (IP real de la VM PostgreSQL en VLAN 40).
+- Aunque Odoo da prioridad a la variable `HOST` del entorno, mantener el valor incorrecto en el conf era un riesgo si se cambiaba el método de inyección de variables.
+
+**`scripts/mantenimiento/restore.sh` — Restauraba contra contenedor inexistente:**
+- El script original intentaba usar el contenedor `odoo_erp` (BD local) que está comentado en el `docker-compose.yml`.
+- Reescrito completamente para ejecutar el restore directamente contra la VM PostgreSQL (`192.168.40.10:5432`) mediante `psql` remoto con `PGPASSWORD`.
+- Flujo actual: verificar conectividad → parar `odoo-web` → DROP + CREATE DATABASE → restaurar con `zcat | psql` → reiniciar `odoo-web`.
+
+### Bugs medios corregidos
+
+**`scripts/mantenimiento/monitor.sh` — Lista de contenedores con entradas fantasma:**
+- La lista incluía `odoo_erp` y `openldap`, que no existen en el stack actual.
+- Esto generaba alertas falsas en cada ejecución del cron (cada 15 min) y llenaba el log.
+- Corregido a: `CONTENEDORES=("odoo-web" "nginx-proxy")`.
+
+**`scripts/deploy/configure.sh` — Ruta del `.env` inconsistente:**
+- El script generaba el `.env` en `docker/.env`, pero `docker compose` busca el `.env` en el directorio de trabajo (`/opt/erp-odoo/`).
+- Corregido: el `.env` se escribe siempre en la raíz del proyecto (`$PROJECT_DIR/.env`).
+
+### Bugs menores corregidos
+
+**`config/logrotate.d/erp-odoo` — Patrón de logs incompleto:**
+- El patrón `erp_*.log` no cubría `/var/log/erp-odoo/erp.log` ni `/var/log/backup_odoo.log`.
+- Ampliado a: `/var/log/erp_*.log /var/log/erp-odoo/*.log /var/log/backup_odoo.log`.
+
+**`scripts/deploy/erp.sh` — Opción de logs para `odoo_erp` en el menú:**
+- La opción 3 del submenú de logs intentaba hacer `docker logs odoo_erp` (contenedor inexistente).
+- Corregido: el menú ahora ofrece solo `nginx-proxy`, `odoo-web` y `Todos (compose)`.
+- Añadida nota informativa sobre cómo consultar los logs de PostgreSQL via SSH.
+
+### Pendiente (BUG-04)
+
+`vagrant/provision_debian.sh`: usar `find scripts/ -name "*.sh" -exec chmod +x {} +` en lugar de globbing directo. Pendiente de aplicar si se reactiva el entorno Vagrant para pruebas.
+
+---
 
 ### Pendiente para la defensa
 
@@ -391,41 +443,48 @@ TFG-ASIRB/
 │   ├── ci.yml          # CI: ShellCheck + YAML + Markdown
 │   └── deploy.yml      # CD: despliegue automático al servidor
 ├── config/logrotate.d/
-│   └── erp-odoo        # Rotación semanal de logs
+│   └── erp-odoo        # Rotación semanal de logs (patrón ampliado v1.7)
 ├── config_nginx/
 │   └── odoo_proxy.conf # Proxy inverso Nginx + SSL + cabeceras seguridad
 ├── docker/
-│   ├── .env            # Credenciales (excluido de Git)
-│   ├── docker-compose.yml  # 4 servicios: DB, Odoo, LDAP, Nginx
-│   └── odoo.conf       # Configuración interna de Odoo
+│   ├── docker-compose.yml  # 2 servicios activos: odoo-web, nginx-proxy
+│   └── odoo.conf       # Configuración interna de Odoo (db_host = 192.168.40.10)
 ├── docs/
-│   ├── GUIA_DESPLIEGUE.md         # ← Cómo desplegar desde cero
+│   ├── INSTALACION_COMPLETA.md    # ← Guía principal de instalación
 │   ├── HISTORIAL_IMPLEMENTACION.md # ← Este archivo
 │   ├── CHANGELOG.md               # Registro de cambios por versión
-│   ├── implementation_plan.md     # Plan técnico detallado (con comandos)
+│   ├── CONTROL_ACCESO.md          # Control de acceso en 3 capas
+│   ├── diagrama_red.md            # Topología de red con diagramas Mermaid
 │   ├── reglas_pfsense.md          # Reglas de firewall documentadas
-│   ├── task.md                    # Lista de tareas por fase
-│   └── mas_info/
-│       ├── informe_erp.md         # Investigación técnica completa
-│       └── investigacion.md
+│   ├── guias/                     # Sub-guías por módulo
+│   │   ├── INSTALACION_RED.md
+│   │   ├── INSTALACION_SERVIDOR.md
+│   │   └── INSTALACION_LDAP_CICD_HARDENING.md
+│   └── archive/                   # Documentación histórica archivada
+├── ldap/
+│   └── estructura.ldif # Estructura base del directorio LDAP
 ├── scripts/
-│   ├── backup.sh           # Backup comprimido de PostgreSQL
-│   ├── configure.sh        # Configuración interactiva del .env
-│   ├── deploy.sh           # Despliegue del stack con healthcheck
-│   ├── erp.sh              # Orquestador central (menú interactivo)
-│   ├── install_cron.sh     # Instala tareas cron y logrotate
-│   ├── ldap_crear_usuarios.sh   # Gestión de usuarios LDAP
-│   ├── monitor.sh          # Monitor de salud + auto-reinicio
-│   ├── odoo_crear_usuarios.sh   # Crea usuarios Odoo por XML-RPC
-│   ├── odoo_setup_wizard.sh     # Post-instalación Odoo + LDAP
-│   ├── restore.sh          # Restauración de backup
-│   ├── setup_runner.sh     # Registra GitHub Actions runner
-│   └── update.sh           # Actualización de imágenes Docker
+│   ├── deploy/
+│   │   ├── configure.sh    # Genera .env interactivamente (en raíz del proyecto)
+│   │   ├── deploy.sh       # Despliegue del stack con healthcheck
+│   │   ├── erp.sh          # Orquestador central (menú interactivo 10 opciones)
+│   │   ├── install_cron.sh # Instala tareas cron y logrotate
+│   │   └── generate_pfsense_config.sh  # Genera config.xml para pfSense
+│   ├── mantenimiento/
+│   │   ├── backup_postgres.sh  # Backup comprimido de PostgreSQL (remoto)
+│   │   ├── backup.sh           # Script de backup con directorio configurable
+│   │   ├── monitor.sh          # Monitor de salud: odoo-web + nginx-proxy
+│   │   ├── restore.sh          # Restore remoto contra VM PostgreSQL externa
+│   │   └── update.sh           # Actualización de imágenes Docker
+│   ├── ldap/               # Scripts de gestión de usuarios LDAP
+│   └── odoo/               # Scripts de configuración post-instalación de Odoo
 ├── sql/
 │   └── audit_triggers.sql  # Auditoría PL/pgSQL en PostgreSQL
-├── .env.example            # Plantilla pública de variables
-├── .gitignore              # Excluye .env, certs, data/, ISOs/
-├── CLAUDE.md               # Instrucciones para el asistente AI
-├── install.sh              # Instalador todo-en-uno
-└── README.md               # Documentación principal del proyecto
+├── vagrant/            # Entorno Vagrant para desarrollo/test local
+├── .env.example        # Plantilla pública de variables
+├── .gitignore          # Excluye .env, certs, data/, ISOs/
+├── CLAUDE.md           # Instrucciones para el asistente IA
+├── install.sh          # Instalador todo-en-uno
+├── Vagrantfile         # Definición de VMs para entorno local
+└── README.md           # Documentación principal del proyecto
 ```

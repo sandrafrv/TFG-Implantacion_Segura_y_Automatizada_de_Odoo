@@ -21,7 +21,7 @@ Este repositorio documenta el diseño e implantación de un entorno productivo c
 **Características principales:**
 
 - **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/LAN/DMZ) con reglas explícitas de bloqueo anti-pivoting.
-- **Orquestación de Contenedores:** Despliegue de servicios (Nginx, Odoo 17 y PostgreSQL 16) usando Docker y Docker Compose sobre **Debian 13 Server (Trixie)**.
+- **Orquestación de Contenedores:** Despliegue de servicios (Nginx y Odoo 17) usando Docker y Docker Compose sobre **Debian 13 Server (Trixie)**. PostgreSQL 16 reside en una **VM externa dedicada** (VLAN 40 — `192.168.40.10`) para aislar completamente la capa de datos.
 - **Segmentación de Red:** Soporte de VLANs (10, 30) para aislar el tráfico de clientes internos y servicios públicos.
 - **Redes MACVLAN:** Los contenedores Nginx y Odoo-web tienen IPs propias en la VLAN30 (`192.168.30.20` y `192.168.30.21`), visibles directamente por pfSense como hosts independientes.
 - **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante un contenedor Nginx Alpine, con terminación SSL/TLS, limitando el acceso a los puertos 80/443 del host.
@@ -147,13 +147,16 @@ docker network create \
 
 | Contenedor | Red interna (`odoo_net`) | Red MACVLAN (`macvlan_vlan30`) |
 | :--- | :--- | :--- |
-| `odoo_erp` (PostgreSQL) | 172.19.0.x | ❌ No expuesto (seguridad) |
 | `odoo-web` (Odoo 17) | 172.19.0.3 | `192.168.30.21` |
 | `nginx-proxy` (Nginx) | 172.19.0.4 | `192.168.30.20` |
 
+> ⚠️ **PostgreSQL 16** no corre como contenedor Docker. Reside en la **VM `db-server`** (`192.168.40.10`, VLAN 40). Los contenedores se conectan a ella directamente a través de la red interna de la VM Debian.
+
+**Ventaja de seguridad adicional:** La separación física (VM) de la BD garantiza que incluso si el stack Docker se ve comprometido, la base de datos no es accesible desde la red DMZ.
+
 **Ventajas de seguridad:**
 
-- PostgreSQL **no tiene IP pública** → inaccesible desde pfSense o la LAN.
+- PostgreSQL en VM externa → **completamente aislada** de la DMZ vía VLAN 40.
 - pfSense puede aplicar reglas individuales por contenedor (granularidad de host).
 - El host Debian actúa de servidor, no de NAT/gateway para el tráfico de los contenedores.
 
@@ -189,7 +192,7 @@ docker network create \
 | Sistema Operativo Base | **Debian 13 Server (Trixie)** con Cockpit |
 | Proxy Inverso | Nginx (Alpine Linux) — contenedor Docker con MACVLAN |
 | ERP/CRM | Odoo 17 CE — contenedor Docker con MACVLAN |
-| Base de Datos | PostgreSQL 16 — contenedor Docker (solo red interna) |
+| Base de Datos | PostgreSQL 16 — **VM externa** (VLAN 40, `192.168.40.10`) |
 | Certificados | OpenSSL (autofirmados TLS) |
 | Scripting | GNU Bash, ANSI SQL & PL/pgSQL |
 | Control de Versiones | Git + GitHub |

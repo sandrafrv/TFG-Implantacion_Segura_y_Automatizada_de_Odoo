@@ -13,6 +13,55 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 - Capturas de pantalla para la memoria del TFG
 - Redacción de la memoria del TFG
 
+---
+
+## [v1.7 — 2026-05-15]
+
+> Revisión IaC completa del repositorio. Se auditaron estáticamente todos los scripts y archivos de configuración. Se identificaron y corrigieron 7 bugs.
+
+### Corregido
+
+- **BUG-01 `docker/odoo.conf` — `db_host` apuntaba al nombre de contenedor `db`** (🔴 CRÍTICA):
+  Cambiado `db_host = db` → `db_host = 192.168.40.10`.
+  La BD reside en la VM PostgreSQL externa (VLAN 40), no en un contenedor local.
+  El valor incorrecto no causaba fallo inmediato (la variable de entorno `HOST` en `docker-compose.yml` tiene prioridad),
+  pero era confuso y peligroso si se cambiaba el método de inyección de variables.
+
+- **BUG-02 `scripts/mantenimiento/restore.sh` — Restauraba contra contenedor `odoo_erp` inexistente** (🔴 CRÍTICA):
+  El script ha sido reescrito para ejecutar el restore directamente contra la VM PostgreSQL externa
+  via `pg_restore -h 192.168.40.10`. Ahora: para `odoo-web`, elimina y recrea la BD remotamente,
+  restaura el dump con `zcat | psql` y reinicia el contenedor Odoo.
+
+- **BUG-03 `scripts/mantenimiento/monitor.sh` — Monitorizaba `odoo_erp` y `openldap` inexistentes** (🟠 MEDIA):
+  Lista de contenedores corregida:
+  `("odoo_erp" "openldap" "odoo-web" "nginx-proxy")` → `("odoo-web" "nginx-proxy")`.
+  Eliminadas las alertas falsas generadas cada 15 minutos por los contenedores que no existen en el stack actual.
+
+- **BUG-05 `scripts/deploy/configure.sh` — Ruta del `.env` inconsistente** (🟠 MEDIA):
+  El script generaba el `.env` en `$PROJECT_DIR/docker/.env` pero `provision_debian.sh` lo creaba en
+  la raíz (`$PROJECT_DIR/.env`) y `docker compose` busca el `.env` en el directorio de trabajo
+  (`/opt/erp-odoo/`). Unificado: el `.env` siempre se escribe en `$PROJECT_DIR/.env` (raíz).
+
+- **BUG-06 `config/logrotate.d/erp-odoo` — Patrón de logs incompleto** (🟡 BAJA):
+  El patrón `erp_*.log` no cubría `/var/log/erp-odoo/erp.log` (creado por `erp.sh`) ni
+  `/var/log/backup_odoo.log` (creado por `backup_postgres.sh`). Corregido a:
+  `/var/log/erp_*.log /var/log/erp-odoo/*.log /var/log/backup_odoo.log`.
+
+- **BUG-07 `scripts/deploy/erp.sh` — Menú de logs incluía opción para `odoo_erp` inexistente** (🟡 BAJA):
+  La opción de logs del menú interactivo ha sido limpiada. Ahora muestra solo:
+  `1) nginx-proxy`, `2) odoo-web`, `3) Todos`. Se añadió nota informativa de cómo
+  consultar los logs de PostgreSQL via SSH a la VM `db-server`.
+
+### Notas de la revisión
+
+- **`vagrant/provision_debian.sh` BUG-04** (🟡 BAJA): Se recomienda sustituir `chmod +x scripts/deploy/*.sh`
+  por `find scripts/ -name "*.sh" -exec chmod +x {} +` para mayor robustez ante directorios faltantes.
+  Pendiente de aplicar si se reactiva el entorno Vagrant.
+
+- **Alertas de seguridad menores documentadas en la revisión:**
+  - `Vagrantfile`: passwords de fallback `changeme_db/changeme_master` solo activos si no se pasan variables de entorno.
+  - `docker-compose.yml`: Puerto 80 expuesto al host es **intencional** (redirige a 443 vía Nginx).
+
 ### Añadido
 
 - **Automatización de la configuración de pfSense** (`scripts/deploy/generate_pfsense_config.sh`):
