@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # ============================================================
 # SCRIPT: generate_pfsense_config.sh
 # DESCRIPCIÓN: Genera un config.xml completo para pfSense
@@ -7,13 +7,13 @@
 # USO: ./scripts/deploy/generate_pfsense_config.sh
 # ============================================================
 
-set -euo pipefail
+set -eu
 
 # ── Variables de red ──
-WAN_IF="vtnet0"
-LAN_IF="vtnet1"
-DMZ_IF="vtnet2"
-ADMIN_IF="vtnet3"
+WAN_IF="em0"
+LAN_IF="em1"
+DMZ_IF="em2"
+ADMIN_IF="em3"
 
 LAN_IP="192.168.10.1"
 LAN_SUBNET="24"
@@ -26,7 +26,6 @@ SERVER_IP="192.168.30.10"
 NGINX_IP="192.168.30.20"
 # shellcheck disable=SC2034
 ODOO_IP="192.168.30.21"
-LDAP_IP="192.168.30.22"
 
 ADMIN_IP="192.168.40.1"
 ADMIN_SUBNET="24"
@@ -264,12 +263,7 @@ cat << XMLEOF
       <address>${NGINX_IP}</address>
       <descr><![CDATA[Nginx Reverse Proxy]]></descr>
     </alias>
-    <alias>
-      <name>OpenLDAP</name>
-      <type>host</type>
-      <address>${LDAP_IP}</address>
-      <descr><![CDATA[Contenedor OpenLDAP]]></descr>
-    </alias>
+
     <alias>
       <name>VLAN_Clientes</name>
       <type>network</type>
@@ -361,18 +355,7 @@ cat << XMLEOF
       </destination>
       <descr><![CDATA[Bloquear Cockpit]]></descr>
     </rule>
-    <!-- LAN Pos.4: Bloquear LDAPS admin -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>lan</interface>
-      <source><network>lan</network></source>
-      <destination>
-        <address>${LDAP_IP}</address>
-        <port>636</port>
-      </destination>
-      <descr><![CDATA[Bloquear LDAPS admin]]></descr>
-    </rule>
+
     <!-- LAN Pos.5: Bloquear PostgreSQL -->
     <rule>
       <type>block</type>
@@ -411,19 +394,7 @@ cat << XMLEOF
       </destination>
       <descr><![CDATA[Odoo HTTPS via Nginx]]></descr>
     </rule>
-    <!-- LAN Pos.9: LDAP autenticacion readonly -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>lan</interface>
-      <source><network>lan</network></source>
-      <destination>
-        <address>${LDAP_IP}</address>
-        <port>389</port>
-      </destination>
-      <descr><![CDATA[LDAP autenticacion readonly]]></descr>
-    </rule>
+
     <!-- LAN Pos.10: Navegacion general Internet -->
     <rule>
       <type>pass</type>
@@ -579,32 +550,7 @@ cat << XMLEOF
       </destination>
       <descr><![CDATA[Nginx/Odoo admin completo]]></descr>
     </rule>
-    <!-- ADMIN Pos.5: LDAP admin -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <address>${LDAP_IP}</address>
-        <port>389</port>
-      </destination>
-      <descr><![CDATA[LDAP admin lectura y escritura]]></descr>
-    </rule>
-    <!-- ADMIN Pos.6: LDAPS admin cifrado -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <address>${LDAP_IP}</address>
-        <port>636</port>
-      </destination>
-      <descr><![CDATA[LDAPS admin cifrado]]></descr>
-    </rule>
+
     <!-- ADMIN Pos.7: Internet + DNS -->
     <rule>
       <type>pass</type>
@@ -683,9 +629,4 @@ echo "5. pfSense se reiniciara con la configuracion aplicada"
 echo ""
 echo "=== Post-importacion ==="
 echo "6. Cambiar la contrasena admin en el primer login"
-echo "7. Configurar LDAP auth (requiere OpenLDAP activo):"
-echo "   System → User Manager → Authentication Servers → + Add"
-echo "8. Verificar acceso desde VLAN 40: https://192.168.40.1"
-echo ""
-echo "ADVERTENCIA: La autenticacion LDAP NO se incluye en el XML"
-echo "porque requiere que el contenedor OpenLDAP este activo primero."
+echo "7. Verificar acceso desde VLAN 40: https://192.168.40.1"

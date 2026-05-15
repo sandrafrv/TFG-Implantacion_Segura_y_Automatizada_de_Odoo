@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # ============================================================
 # SCRIPT: vagrant/provision_pfsense.sh
 # DESCRIPCION: Provisioning de la VM pfSense.
@@ -21,8 +21,9 @@ fi
 # Aplicar el config.xml generado (se guardara en /config/pfsense_config.xml al ejecutarse desde /tmp)
 if [ -f /config/pfsense_config.xml ]; then
     cp /config/pfsense_config.xml /cf/conf/config.xml
-    /etc/rc.reload_all
     echo "[OK] Configuracion pfSense aplicada desde config.xml."
+    # Se ejecuta en segundo plano para no colgar la conexion SSH de Vagrant al recargar la red
+    nohup /etc/rc.reload_all > /dev/null 2>&1 &
 else
     echo ""
     echo "[AVISO] No se encontro config.xml generado."
