@@ -12,15 +12,15 @@ echo "=========================================="
 echo " Provisioning pfSense..."
 echo "=========================================="
 
-# Generar config.xml a partir del script del repositorio
-if [ -f /vagrant/scripts/deploy/generate_pfsense_config.sh ]; then
-    chmod +x /vagrant/scripts/deploy/generate_pfsense_config.sh
-    /vagrant/scripts/deploy/generate_pfsense_config.sh
+# Generar config.xml a partir del script subido a /tmp
+if [ -f /tmp/generate_pfsense_config.sh ]; then
+    chmod +x /tmp/generate_pfsense_config.sh
+    /tmp/generate_pfsense_config.sh
 fi
 
-# Aplicar el config.xml generado
-if [ -f /tmp/config.xml ]; then
-    cp /tmp/config.xml /cf/conf/config.xml
+# Aplicar el config.xml generado (se guardara en /config/pfsense_config.xml al ejecutarse desde /tmp)
+if [ -f /config/pfsense_config.xml ]; then
+    cp /config/pfsense_config.xml /cf/conf/config.xml
     /etc/rc.reload_all
     echo "[OK] Configuracion pfSense aplicada desde config.xml."
 else

@@ -25,6 +25,9 @@ Vagrant.configure("2") do |config|
     pf.vm.box_check_update = false
     pf.vm.hostname         = "pfsense-tfg"
 
+    # Fix: Desactivar la carpeta compartida por defecto para evitar que se quede colgado en FreeBSD
+    pf.vm.synced_folder ".", "/vagrant", disabled: true
+
     pf.vm.network "public_network",  bridge: "VMnet0", auto_config: false
     pf.vm.network "private_network", ip: "192.168.10.1",
       vmware__vmnet: "VMnet1", auto_config: false
@@ -38,6 +41,8 @@ Vagrant.configure("2") do |config|
       v.gui    = true
     end
 
+    # Fix: Subir el script directamente y provisionar
+    pf.vm.provision "file", source: "scripts/deploy/generate_pfsense_config.sh", destination: "/tmp/generate_pfsense_config.sh"
     pf.vm.provision "shell", path: "vagrant/provision_pfsense.sh"
   end
 
