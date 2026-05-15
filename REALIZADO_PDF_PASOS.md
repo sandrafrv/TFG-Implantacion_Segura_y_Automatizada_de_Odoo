@@ -46,9 +46,9 @@ NO --------- PASO 4F -  Exportar el fichero .ovpn
 
 NO	PASO 5 - Automatizar VMs con Vagrant
 
-NO --------- PASO 5A - Instalar en el PC (PowerShell como administrador)
+SI --------- PASO 5A - Instalar en el PC (PowerShell como administrador) [falta sandra]
 
-NO --------- PASO 5B - Crear Vagrantfile en la raíz del repositorio
+SI --------- PASO 5B - Crear Vagrantfile en la raíz del repositorio
 
 NO --------- PASO 5C -  Crear vagrant/provision_debian.sh
 
