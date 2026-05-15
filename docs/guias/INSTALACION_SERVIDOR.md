@@ -58,7 +58,7 @@ ping -c 3 192.168.30.1   # Gateway pfSense responde
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y git curl wget openssl ca-certificates gnupg lsb-release net-tools
+sudo apt install -y git curl wget openssl ca-certificates gnupg lsb-release net-tools postgresql-client
 ```
 
 ### 1.5 Instalar Docker
@@ -116,27 +116,27 @@ cd /opt/erp-odoo
 ### 1.8 Crear el Archivo `.env` con Credenciales
 
 ```bash
-cp .env.example docker/.env
-nano docker/.env   # Editar con contraseñas reales
-chmod 600 docker/.env
+cp .env.example .env
+nano .env   # Editar con contraseñas reales
+chmod 600 .env
 ```
 
 El `.env` debe quedar así (con contraseñas **reales**, no los ejemplos):
 
 ```bash
-# Conexión a PostgreSQL externo (vm-postgres, VLAN 40)
-POSTGRES_HOST=192.168.40.10
-POSTGRES_USER=odoo
-POSTGRES_PASSWORD=<contraseña_segura_postgres>
-POSTGRES_DB=odoo_erp
-ODOO_MASTER_PASSWORD=<contraseña_maestra_odoo>
+# Conexión a PostgreSQL externo (VM vm-postgres, VLAN 40)
+ODOO_ADMIN_PASSWD=<contraseña_maestra_odoo>
+DB_HOST=192.168.40.10
+DB_PORT=5432
+DB_USER=odoo
+DB_PASSWORD=<contraseña_segura_postgres>
+DOMAIN=erp.odoo.tfg.com
 
-# LDAP eliminado del despliegue principal
-# Si necesitas LDAP, ver extras/ldap/README.md
+# LDAP eliminado del despliegue principal — ver extras/ldap/ si se necesita en el futuro
 ```
 
 > [!CAUTION]
-> **Nunca hagas `git add docker/.env`**. Está en `.gitignore`, pero verifica siempre con `git status` antes de hacer commit.
+> **Nunca hagas `git add .env`**. Está en `.gitignore`, pero verifica siempre con `git status` antes de hacer commit.
 
 ### 1.9 Alternativa: Instalador Todo-en-Uno
 
@@ -154,22 +154,22 @@ El instalador hace: dependencias → Cockpit → Docker → estructura de dirs �
 
 ## PARTE 2 — Stack Docker: Odoo + Nginx
 
+> [!IMPORTANT]
+> El stack activo contiene **únicamente 2 contenedores**: `odoo-web` y `nginx-proxy`.
+> PostgreSQL reside en la **VM externa `vm-postgres`** (`192.168.40.10`, VLAN 40).
+> LDAP ha sido descartado del despliegue principal — ver `extras/ldap/` para más info.
+
 ### 2.1 Arquitectura de Contenedores
 
 ```
-VM Debian (192.168.30.10):
-  odoo-web    (Odoo 17)     → MACVLAN 192.168.30.21
-                            → conecta a 192.168.40.10:5432 (PostgreSQL externo)
-  nginx-proxy (Nginx)       → MACVLAN 192.168.30.20
-                            → reverse proxy :443 → odoo-web :8069
+VM Debian (192.168.30.10) — VLAN 30 (DMZ)
+  odoo-web  (Odoo 17)    MACVLAN: 192.168.30.21  →  192.168.40.10:5432 (PostgreSQL externo)
+  nginx-proxy (Nginx)    MACVLAN: 192.168.30.20  →  proxy inverso SSL → odoo-web:8069
 
-VM PostgreSQL (192.168.40.10, VLAN 40):
-  PostgreSQL 16 — nativo    → puerto 5432
-                            → solo accesible desde 192.168.30.21 (regla pfSense OPT1)
+VM PostgreSQL (192.168.40.10) — VLAN 40 (BD)
+  PostgreSQL 16 nativo   puerto 5432
+  Solo accesible desde VLAN 30 (regla pfSense explícita)
 ```
-
-> **PostgreSQL no corre como contenedor Docker en esta VM.**
-> Está en la VM dedicada `vm-postgres` (VLAN 40). Ver [FASE 2 de INSTALACION_COMPLETA.md](../INSTALACION_COMPLETA.md).
 
 ### 2.2 Crear la Red MACVLAN
 
@@ -210,14 +210,15 @@ ls /opt/erp-odoo/certs/   # → erp.crt  erp.key
 
 ### 2.4 Verificar Conectividad con PostgreSQL Externo
 
-Antes de levantar el stack, confirmar que la VM PostgreSQL es alcanzable:
+Antes de levantar Odoo, confirmar que la VM PostgreSQL es alcanzable:
 
 ```bash
-nc -zv 192.168.40.10 5432   # Debe responder ✅
-psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l'   # Debe listar la BD
+# Desde vm-odoo (192.168.30.10)
+nc -zv 192.168.40.10 5432   # → Connection succeeded ✅
+psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'
 ```
 
-Si no responde: verificar que `vm-postgres` está arrancada y que la regla pfSense OPT1→VLAN40:5432 está activa.
+> Si falla, verificar las reglas de firewall en pfSense: OPT1 (DMZ) → OPT2 (BD) puerto 5432.
 
 ### 2.5 Levantar el Stack Docker
 
@@ -244,15 +245,15 @@ odoo-web      odoo:17        Up (healthy)
 nginx-proxy   nginx:alpine   Up (healthy)
 ```
 
-> **Solo 2 contenedores.** PostgreSQL está en `vm-postgres` (VLAN 40), no aquí.
+> Solo deben aparecer **2 contenedores**. Si ves `odoo_erp` o `openldap`, el compose file tiene una versión antigua.
 
 ### 2.7 Solución de Problemas Comunes
 
 | Error | Causa | Solución |
 |:------|:------|:---------|
-| `password authentication failed` | `.env` con credenciales incorrectas o BD externa inalcanzable | Verificar `POSTGRES_HOST=192.168.40.10` y conectividad |
-| Odoo no arranca (timeout) | `vm-postgres` no está activa | Arrancar `vm-postgres`, verificar `nc -zv 192.168.40.10 5432` |
-| Nginx en bucle de reinicios | Certificados con nombre incorrecto | Verificar `grep ssl_certificate config_nginx/*.conf` y regenerar con ese nombre |
+| `could not connect to server` (Odoo) | `DB_HOST` mal configurado o VM PostgreSQL apagada | Verificar `.env` → `DB_HOST=192.168.40.10`; levantar `vm-postgres` |
+| `password authentication failed` | Contraseñas incorrectas en `.env` | `docker compose down` → corregir `.env` → `docker compose up -d` |
+| Nginx en bucle de reinicios | Certificados con nombre incorrecto | Verificar `grep ssl_certificate config_nginx/*.conf` y regenerar SSL |
 | `dubious ownership` en git | `/opt/erp-odoo` creado por root, runner usa otro usuario | `git config --global --add safe.directory /opt/erp-odoo` |
 | Puerto 80/443 en uso | Contenedor nginx en estado corrupto | `docker compose down --remove-orphans && docker compose up -d --force-recreate` |
 
@@ -260,14 +261,14 @@ nginx-proxy   nginx:alpine   Up (healthy)
 
 ```bash
 bash /opt/erp-odoo/scripts/deploy/install_cron.sh
-cat /etc/cron.d/erp-odoo   # Verificar 3 tareas instaladas
+cat /etc/cron.d/erp-odoo   # Verificar tareas instaladas
 ```
 
 | Tarea | Horario | Script |
 |:------|:--------|:-------|
-| Backup PostgreSQL | Diario 02:00 | `scripts/mantenimiento/backup_postgres.sh` |
-| Monitor de salud | Cada 15 min | `scripts/mantenimiento/monitor.sh` |
-| Actualizar imágenes | Domingo 03:00 | `scripts/mantenimiento/update.sh` |
+| Backup PostgreSQL remoto | Diario 02:00 | `mantenimiento/backup_postgres.sh` |
+| Monitor de salud | Cada 15 min | `mantenimiento/monitor.sh` |
+| Actualizar imágenes Docker | Domingo 03:00 | `mantenimiento/update.sh` |
 
 ---
 
@@ -279,17 +280,14 @@ cat /etc/cron.d/erp-odoo   # Verificar 3 tareas instaladas
 bash /opt/erp-odoo/scripts/odoo/odoo_setup_wizard.sh
 ```
 
-El asistente realiza 3 pasos:
+El asistente realiza 2 pasos principales:
 
 1. **Renombrar empresa** → "My Company" → "TechSolutions S.L." (UPDATE en BD)
 2. **Instalar módulos** → CRM, Ventas, RRHH, Inventario
-3. **Restricción** (opcional) → elimina contraseñas locales (solo admin conserva la suya)
-
-> ⏱️ La instalación de módulos puede tardar 2–5 minutos.
 
 > [!NOTE]
-> **LDAP (`auth_ldap`) no se instala en el despliegue principal.**
-> La autenticación es local de Odoo. Si necesitas LDAP, ver `extras/ldap/README.md`.
+> `auth_ldap` **no se instala** en el despliegue principal.
+> Si necesitas LDAP en el futuro, consulta [`extras/ldap/README.md`](../../extras/ldap/README.md).
 
 ### 3.2 Crear Usuarios Odoo con Roles
 
@@ -313,46 +311,51 @@ bash /opt/erp-odoo/scripts/odoo/odoo_crear_usuarios.sh
 > [!WARNING]
 > Las contraseñas se generan aleatoriamente y se muestran **una sola vez**. Guárdalas inmediatamente.
 
-### 3.3 Auditoría SQL en PostgreSQL
+### 3.3 Auditoría SQL en PostgreSQL Externo
 
 ```bash
-# Aplicar triggers de auditoría en la VM PostgreSQL externa
-psql -h 192.168.40.10 -U odoo -d odoo_erp \
+# Aplicar triggers de auditoría directamente en la VM PostgreSQL externa
+psql -h 192.168.40.10 -U odoo -d odooerp \
     < /opt/erp-odoo/sql/audit_triggers.sql
 
-# Verificar que funciona
-psql -h 192.168.40.10 -U odoo -d odoo_erp \
+# Verificar que el trigger funciona
+psql -h 192.168.40.10 -U odoo -d odooerp \
     -c "SELECT * FROM v_audit_resumen;"
 ```
 
 El script crea:
-- **Tabla** `asir_audit_log` — snapshot JSONB de cada usuario creado
+- **Tabla** `asir_audit_log` — snapshot JSONB de cada usuario creado en Odoo
 - **Trigger** `trg_audit_new_odoo_user` en `res_users`
 - **Vista** `v_audit_resumen` para consultas rápidas
 
-Ver [`sql/README.md`](../../sql/README.md) para más detalles.
+Ver documentación completa: [`sql/README.md`](../../sql/README.md)
 
 ### 3.4 Verificación Completa del Servidor
 
 ```bash
-# Contenedores activos (solo 2)
+# Contenedores activos (deben ser exactamente 2)
 docker compose -f docker/docker-compose.yml ps
 
 # Odoo responde
 curl -k -I https://erp.odoo.tfg.com   # → HTTP/2 200
 
-# PostgreSQL externo accesible desde vm-odoo
-psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l'   # → lista BDs ✅
+# Conectividad Odoo → PostgreSQL externo
+nc -zv 192.168.40.10 5432   # → Connection succeeded ✅
 
 # PostgreSQL bloqueado desde VLAN 10 (verificar desde cliente)
-nc -zv 192.168.40.10 5432             # → Timeout ✅
+nc -zv 192.168.40.10 5432   # → Timeout ✅ (desde VLAN 10)
 
-# Empresa renombrada
-psql -h 192.168.40.10 -U odoo -d odoo_erp \
+# Empresa renombrada en BD externa
+psql -h 192.168.40.10 -U odoo -d odooerp \
     -c "SELECT name FROM res_company WHERE id=1;"
 # → TechSolutions S.L. ✅
+
+# Trigger de auditoría activo
+psql -h 192.168.40.10 -U odoo -d odooerp \
+    -c "SELECT trigger_name FROM information_schema.triggers WHERE trigger_name='trg_audit_new_odoo_user';"
+# → trg_audit_new_odoo_user ✅
 ```
 
 ---
 
-**→ Siguiente:** [`guias/INSTALACION_LDAP_CICD_HARDENING.md`](INSTALACION_LDAP_CICD_HARDENING.md) — CI/CD + Hardening
+**→ Siguiente:** [`guias/INSTALACION_LDAP_CICD_HARDENING.md`](INSTALACION_LDAP_CICD_HARDENING.md) — LDAP (opcional) + CI/CD + Hardening
