@@ -18,207 +18,342 @@
 
 Este repositorio documenta el diseño e implantación de un entorno productivo completo para el ERP/CRM **Odoo**, simulando las necesidades de una empresa ("TechSolutions S.L."). La arquitectura se caracteriza por su enfoque en la seguridad, la contenerización y las buenas prácticas de administración de sistemas.
 
+> **⚠️ Estado actual (Mayo 2026):** La arquitectura ha evolucionado a **3 Máquinas Virtuales** orquestadas con Vagrant. PostgreSQL ya **no corre en Docker** sino en una VM dedicada en VLAN 40. LDAP ha sido **retirado del despliegue activo** y movido a `extras/ldap/` como mejora futura.
+
 **Características principales:**
 
-- **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/LAN/DMZ) con reglas explícitas de bloqueo anti-pivoting.
-- **Orquestación de Contenedores:** Despliegue de servicios (Nginx, Odoo 17 y PostgreSQL 16) usando Docker y Docker Compose sobre **Debian 13 Server (Trixie)**.
-- **Segmentación de Red:** Soporte de VLANs (10, 30) para aislar el tráfico de clientes internos y servicios públicos.
-- **Redes MACVLAN:** Los contenedores Nginx y Odoo-web tienen IPs propias en la VLAN30 (`192.168.30.20` y `192.168.30.21`), visibles directamente por pfSense como hosts independientes.
-- **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante un contenedor Nginx Alpine, con terminación SSL/TLS, limitando el acceso a los puertos 80/443 del host.
-- **Automatización y Auditoría:** Scripts en Bash para *backups*, restauración, monitorización y despliegue, junto con *Triggers* (PL/pgSQL) para la auditoría de acciones en la base de datos.
+- **Infraestructura como Código (IaC):** 3 VMs definidas y aprovisionadas automáticamente con **Vagrant** (`Vagrantfile` en la raíz).
+- **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/VLAN10/VLAN30/VLAN40) con reglas explícitas de bloqueo anti-pivoting.
+- **Orquestación de Contenedores:** Despliegue de servicios (Nginx y Odoo 17) usando Docker y Docker Compose sobre **Debian 13 Server (Trixie)** — solo 2 contenedores activos.
+- **Base de Datos Separada:** PostgreSQL 16 instalado nativamente en una **VM dedicada** (VLAN 40, `192.168.40.10`), aislada de los contenedores.
+- **Segmentación de Red:** VLANs 10, 30 y 40 para aislar tráfico de usuarios, servicios y base de datos.
+- **Redes MACVLAN:** Los contenedores Nginx y Odoo-web tienen IPs propias en VLAN 30 (`192.168.30.20` y `192.168.30.21`), visibles directamente por pfSense como hosts independientes.
+- **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante Nginx Alpine con terminación SSL/TLS.
+- **Backups Automatizados:** `pg_dump` remoto hacia la VM PostgreSQL cada 4 horas, con retención de 7 días y credenciales en `/etc/backup_odoo.env` (modo 600).
 - **Gestión Visual:** Administración del servidor mediante **Cockpit** (interfaz web en puerto 9090).
 
 ---
 
-## 🏗️ Arquitectura de Red
+## 🏗️ Arquitectura de Red — 3 VMs
 
-La topología divide la red en tres zonas de confianza principales, gestionadas por un firewall pfSense:
+> La topología divide la infraestructura en 3 VMs y 3 VLANs gestionadas por pfSense:
 
-- **WAN (Internet):** Acceso externo simulado.
-- **DMZ (VLAN 30 - 192.168.30.0/24):** Servidor **Debian 13 Server** que aloja el entorno Docker íntegro (Nginx, Odoo, PostgreSQL). Gestionado visualmente desde **Cockpit** (`https://192.168.40.10:9090`).
-- **LAN Clientes (VLAN 10 - 192.168.10.0/24):** Equipos internos de la empresa.
-- **LAN Administración (VLAN 40)**: Grupos admin y DBA
+```
+                    ┌─────────────────────────────────────────────────┐
+                    │            pfSense (VM 1)                       │
+                    │  WAN ─ VLAN10 (10.x) ─ VLAN30 (30.x) ─ VLAN40 │
+                    └────────┬──────────────────┬──────────────┬──────┘
+                             │                  │              │
+                    VLAN 10  │         VLAN 30  │    VLAN 40   │
+               192.168.10.0/24        192.168.30.0/24  192.168.40.0/24
+                             │                  │              │
+              ┌──────────────┘     ┌────────────┘   ┌──────────┘
+              │                    │                 │
+     ┌────────▼───────┐   ┌────────▼────────┐  ┌────▼────────────────┐
+     │  Empleados /   │   │   VM 2 — Debian │  │  VM 3 — PostgreSQL  │
+     │  Usuarios      │   │   192.168.30.10 │  │  192.168.40.10      │
+     │  VLAN 10       │   │                 │  │                     │
+     └────────────────┘   │  ┌─────────────┐│  │  PostgreSQL 16      │
+                           │  │nginx-proxy  ││  │  (nativo, no Docker)│
+                           │  │.30.20 MVLAN ││  │                     │
+                           │  └──────┬──────┘│  │  pg_hba: solo       │
+                           │         │       │  │  192.168.30.0/24    │
+                           │  ┌──────▼──────┐│  └─────────────────────┘
+                           │  │ odoo-web    ││
+                           │  │.30.21 MVLAN ││
+                           │  └──────┬──────┘│
+                           │         │ 5432   │
+                           │    BD externa   │
+                           └─────────────────┘
+```
+
+### Tabla de Direccionamiento IP
+
+| VM / Servicio | VLAN | IP | Puertos abiertos | Descripción |
+|:---|:---|:---|:---|:---|
+| pfSense (VM 1) | WAN / todas | dinámica WAN | 443 (WAN NAT), 1194/UDP (VPN) | Firewall + NAT + VPN |
+| Servidor Debian (VM 2) | VLAN 30 | `192.168.30.10` | 22, 9090 | Host Docker + Cockpit |
+| nginx-proxy | VLAN 30 (MACVLAN) | `192.168.30.20` | 80, 443 | Proxy inverso SSL |
+| odoo-web | VLAN 30 (MACVLAN) | `192.168.30.21` | 8069, 8072 | Odoo 17 CE |
+| PostgreSQL (VM 3) | VLAN 40 | `192.168.40.10` | 5432 (solo VLAN 30) | BD externa nativa |
+| Administrador | VLAN 40 | `192.168.40.x` | — | Acceso SSH, Cockpit, psql |
+| Empleados/Clientes | VLAN 10 | `192.168.10.x` | — | Solo HTTPS a Nginx |
+
+### Diagrama de flujos de red (Mermaid)
+
 ```mermaid
 graph TD
-    GITHUB["☁️ GITHUB"]
-    WLAN["☁️ WLAN"]
+    INTERNET["☁️ Internet / WAN"]
+    VPN["🔐 VPN OpenVPN\n1194/UDP"]
 
-    GITHUB -.->PFSENSE
-    WLAN --> PFSENSE
+    INTERNET -->|"443 HTTPS"| PFSENSE
+    VPN -->|"teletrabajador"| PFSENSE
 
-    PFSENSE(["Pfsense\nFirewall · DHCP "])
+    PFSENSE(["🛡️ pfSense VM1\nFirewall · NAT · VPN"])
 
-    PFSENSE -->|" 192.168.40.0/24"| VLAN40
-    PFSENSE -->|" 192.168.30.0/24"| DMZ
+    PFSENSE -->|"192.168.40.0/24"| VLAN40
+    PFSENSE -->|"192.168.30.0/24"| DMZ
     PFSENSE -->|"192.168.10.0/24"| VLAN10
 
-    subgraph VLAN40["VLAN 40 — Administración"]
-        ADMIN["🖥️Administrador"]
-        DBA["🖥️DBA"]
-   end
+    subgraph VLAN40["VLAN 40 — Administración + BD"]
+        ADMIN["🖥️ Administrador\n192.168.40.x"]
+        POSTGRES["🗄️ VM3 PostgreSQL\n192.168.40.10:5432"]
+    end
 
     subgraph VLAN10["VLAN 10 — Clientes"]
-        CLIENT["💻 Empleados"]
-        CLIENT["🖥️ Empleados"]
+        CLIENT["💻 Empleados\n192.168.10.x"]
     end
 
-
-    subgraph DMZ["VLAN 30 DMZ"]
-        subgraph Debian [" Server Debian 13 "]
-                NGINX["DOCKER · NGINX\nMAC_VLAN: 20"]
-                ODOO[" DOCKER · ODOO\nMAC_VLAN: 21"]
-                BBDD[" DOCKER · PostgreSQL"]
-
-                NGINX -->|"Reverse Proxy"| ODOO
-                ODOO -->|"Consultas"| BBDD
+    subgraph DMZ["VLAN 30 — DMZ"]
+        subgraph VM2["VM2 · Debian 13 · 192.168.30.10"]
+            NGINX["DOCKER · NGINX\nMAC_VLAN: .30.20"]
+            ODOO["DOCKER · ODOO\nMAC_VLAN: .30.21"]
+            NGINX -->|"Reverse Proxy"| ODOO
         end
     end
+
+    ODOO -->|"TCP 5432 VLAN30→40"| POSTGRES
 
     classDef firewall fill:#BBDEFB,stroke:#1565C0,color:#000
     classDef vlan fill:#FFE0B2,stroke:#E65100,color:#000
     classDef dmznode fill:#CE93D8,stroke:#6A1B9A,color:#000
+    classDef db fill:#C8E6C9,stroke:#2E7D32,color:#000
     classDef client fill:#FFE0B2,stroke:#E65100,color:#000
 
     class PFSENSE firewall
-    class ADMIN,Debian,DBA vlan
+    class ADMIN,VM2 vlan
     class CLIENT client
-    class LDAP,NGINX,ODOO,BBDD dmznode
-
+    class NGINX,ODOO dmznode
+    class POSTGRES db
 ```
 
----
-
-### Tabla de Direccionamiento IP
-
-| Zona | Subred (CIDR) | Gateway (pfSense) | IP del Sistema | Puertos Abiertos | Servicio |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| WAN (Exterior) | Red Fija/DHCP | Router físico | IP WAN | 80, 443 (NAT) | Redirección NAT hacia DMZ |
-| DMZ (VLAN 30) | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | 80, 443, 22, 9090 | Servidor único Debian + Docker + Cockpit |
-| DMZ — nginx-proxy | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.20`** | 80, 443 | Proxy inverso Nginx (MACVLAN) |
-| DMZ — odoo-web | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.21`** | 8069, 8072 | Aplicación Odoo 17 (MACVLAN) |
-| LAN Clientes (VLAN 10) | `192.168.10.0/24` | `192.168.10.1` | `192.168.10.x` | — | Equipos de usuarios |
-
-### Reglas Principales de Firewall (pfSense/UFW)
+### Reglas principales de Firewall (pfSense)
 
 | Origen | Destino | Puertos | Acción | Propósito |
-| :--- | :--- | :--- | :--- | :--- |
-| WAN | DMZ (192.168.30.20) | 80, 443 | ✅ Permitir | Acceso web al ERP vía NAT → nginx MACVLAN |
-| LAN (VLAN 10) | DMZ (192.168.30.20) | 443, 80 | ✅ Permitir | Clientes internos a Odoo |
-| Admin LAN | DMZ (192.168.30.10) | 22, 9090 | ✅ Permitir | SSH y Cockpit (solo admin) |
-| DMZ | LAN (VLAN 10) | * | ❌ Bloquear | Anti-pivoting |
-| DMZ | pfSense (gestión) | 443, 80, 22 | ❌ Bloquear | Proteger panel del firewall |
+|:---|:---|:---|:---|:---|
+| WAN | `192.168.30.20` (Nginx) | 443 | ✅ NAT + Pass | Acceso externo HTTPS |
+| VLAN 10 | `192.168.30.20` (Nginx) | 443 | ✅ Pass | Empleados a Odoo |
+| VLAN 30 (Odoo) | `192.168.40.10` (PostgreSQL) | 5432 | ✅ Pass | Odoo → BD externa |
+| VLAN 40 (Admin) | `192.168.30.10` | 22, 9090 | ✅ Pass | SSH + Cockpit |
+| VLAN 40 (Admin) | `192.168.40.10` | 5432 | ✅ Pass | Acceso DBA directo |
+| WAN | `192.168.40.10` | 5432 | ❌ Block | BD nunca expuesta a Internet |
+| VLAN 10 | `192.168.40.10` | 5432 | ❌ Block | Usuarios no tocan la BD |
+| VLAN 10 | `192.168.30.21` | 8069 | ❌ Block | No acceso directo a Odoo |
+| DMZ | VLAN 10 | * | ❌ Block | Anti-pivoting |
 
 ---
 
-## 🚀 Fases de Implantación
+## 🚀 Inicio Rápido — Vagrant
 
-A continuación, se detalla la hoja de ruta seguida para la ejecución del proyecto:
-
-### 1. Preparación de la Infraestructura
-
-- Configuración del hipervisor (VMware/VirtualBox).
-- Despliegue de pfSense con sus respectivas interfaces virtuales (Trunk/VLANs).
-- Instalación del S.O. anfitrión único (**Debian 13 Server**) en la DMZ con direccionamiento IP estático e instalación de **Cockpit**.
-
-### 2. Contenerización Completa (Docker / Nginx / Odoo)
-
-- Instalación de `docker`, `docker-compose` y securización del daemon.
-- Creación del fichero `docker-compose.yml` declarativo para instanciar Nginx, Odoo 17 y PostgreSQL 16 interactuando en su propia red de contenedores (`odoo_net`).
-- Configuración de volúmenes persistentes localizados en `./data` y montajes vinculados para la configuración perimetral de `./config_nginx`.
-- Inyección segura de credenciales mediante archivo `.env`.
-
-### 3. Redes MACVLAN — Contenedores como Hosts de Red
-
-> ✅ **Implementado en producción** (mayo 2026)
-
-Se creó una red Docker de tipo `macvlan` vinculada a la interfaz física del servidor (`ens18`) en modo `bridge`, dando IPs reales de la VLAN30 a los contenedores expuestos:
+> **Instalación completa desde cero:** [`docs/INSTALACION_COMPLETA.md`](docs/INSTALACION_COMPLETA.md)
 
 ```bash
-# Creación de la red MACVLAN externa
-docker network create \
-  --driver macvlan \
-  --subnet=192.168.30.0/24 \
-  --gateway=192.168.30.1 \
-  --opt parent=ens18 \
-  macvlan_vlan30
+# 1. Clonar el repositorio
+git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git
+cd TFG-Implantacion_Segura_y_Automatizada_de_Odoo
+
+# 2. Copiar y completar el archivo de variables de entorno (en la RAÍZ)
+cp .env.example .env
+nano .env
+
+# 3. Levantar las 3 VMs automáticamente
+vagrant up
+
+# 4. Verificar estado
+vagrant status
+
+# VMs disponibles:
+# - pfsense   (VM 1 — VLAN 10/30/40)   → configurar manualmente o via config.xml
+# - odoo-server (VM 2 — VLAN 30)       → Debian + Docker + Nginx + Odoo
+# - db-server   (VM 3 — VLAN 40)       → Debian + PostgreSQL 16 nativo
+
+# 5. Acceder a Odoo
+# https://192.168.30.20  (desde VLAN 10 o navegador del host)
 ```
 
-**Asignación de IPs MACVLAN en `docker-compose.yml`:**
+### Comandos útiles post-despliegue
 
-| Contenedor | Red interna (`odoo_net`) | Red MACVLAN (`macvlan_vlan30`) |
-| :--- | :--- | :--- |
-| `odoo_erp` (PostgreSQL) | 172.19.0.x | ❌ No expuesto (seguridad) |
-| `odoo-web` (Odoo 17) | 172.19.0.3 | `192.168.30.21` |
-| `nginx-proxy` (Nginx) | 172.19.0.4 | `192.168.30.20` |
+```bash
+# Estado de los contenedores (en VM 2)
+vagrant ssh odoo-server
+docker compose -f /opt/erp-odoo/docker/docker-compose.yml ps
 
-**Ventajas de seguridad:**
+# Logs de Odoo
+docker compose -f /opt/erp-odoo/docker/docker-compose.yml logs odoo-web --tail=50
 
-- PostgreSQL **no tiene IP pública** → inaccesible desde pfSense o la LAN.
-- pfSense puede aplicar reglas individuales por contenedor (granularidad de host).
-- El host Debian actúa de servidor, no de NAT/gateway para el tráfico de los contenedores.
+# Estado de PostgreSQL (en VM 3)
+vagrant ssh db-server
+systemctl status postgresql
 
-> **Nota técnica:** Con el driver `macvlan`, el host Debian **no puede comunicarse directamente** con las IPs MACVLAN de sus propios contenedores (limitación del kernel Linux). Para verificar conectividad desde el host se usa un contenedor temporal:
-> `docker run --rm --network macvlan_vlan30 alpine wget -qO- https://192.168.30.20`
+# Backup manual
+bash scripts/mantenimiento/backup_postgres.sh
 
-### 4. Automatización y Monitorización (DevOps)
+# Menú de administración interactivo
+bash scripts/deploy/erp.sh
+```
 
-- Desarrollo de *scripts* Bash para el ciclo de vida del ERP:
-  - `install.sh` / `erp.sh`: Instalador todo-en-uno y orquestador centralizado de administración.
-  - `deploy.sh`: Levantamiento automático de la infraestructura.
-  - `backup.sh`: Volcados comprimidos seguros de PostgreSQL (`pg_dump -F c`).
-  - `restore.sh`: Recuperación rápida ante desastres simulados.
-  - `update.sh`: Carga de nuevas imágenes Docker y limpieza (`prune`) automatizada.
-  - `monitor.sh`: Chequeo de salud de contenedores y detección de caídas.
-- Programación de funciones PL/pgSQL y disparadores (`Triggers`) para auditar la creación de usuarios en la tabla `res_users` de Odoo, registrando eventos en `asir_audit_log`.
+---
 
-### 5. Capa de Presentación Segura (Nginx en Docker)
+## 🐳 Docker — Contenedores activos
 
-- Despliegue de Nginx como un contenedor Alpine dentro del stack en lugar de una instalación nativa en la DMZ.
-- Configuración de proxy dinámico enviando tráfico HTTP/HTTPS hacia el contenedor backend de Odoo.
-- Implementación de certificados SSL (autofirmados con OpenSSL) montados mediante volúmenes.
-- Cabeceras de seguridad: WebSocket *upgrade*, `X-Forwarded-Proto`, `X-Real-IP`, `X-Forwarded-For`.
+> ⚠️ A partir de Mayo 2026, el `docker-compose.yml` **solo contiene 2 servicios**:
+
+| Contenedor | Imagen | IP (MACVLAN VLAN 30) | Propósito |
+|:---|:---|:---|:---|
+| `nginx-proxy` | `nginx:alpine` | `192.168.30.20` | Proxy inverso SSL/TLS |
+| `odoo-web` | `odoo:17` | `192.168.30.21` | Aplicación Odoo 17 CE |
+
+El servicio `db` (PostgreSQL) y el servicio `ldap` (OpenLDAP) han sido **eliminados del compose**.
+
+- PostgreSQL → VM 3 nativa en `192.168.40.10` (ver `docker/odoo.conf`: `db_host = 192.168.40.10`)
+- LDAP → retirado del despliegue, disponible como mejora futura en `extras/ldap/`
+
+---
+
+## 🔐 Variables de Entorno (`.env`)
+
+> El archivo `.env` debe estar siempre en la **raíz** del repositorio (no en `docker/`).
+
+```bash
+# Copia la plantilla
+cp .env.example .env
+```
+
+Variables requeridas (sin referencias a LDAP en esta versión):
+
+```env
+# Base de datos externa (VM 3)
+POSTGRES_DB=odooerp
+POSTGRES_USER=odoo
+POSTGRES_PASSWORD=<contraseña_segura>
+POSTGRES_HOST=192.168.40.10
+POSTGRES_PORT=5432
+
+# Odoo
+ODOO_ADMIN_PASSWD=<master_password_odoo>
+
+# SSL (rutas en la VM 2)
+SSL_CERT_PATH=/etc/ssl/certs/odoo-selfsigned.crt
+SSL_KEY_PATH=/etc/ssl/private/odoo-selfsigned.key
+```
+
+---
+
+## 🗄️ Backups y Recuperación
+
+Los backups se ejecutan automáticamente vía cron cada **4 horas** desde la VM 2.
+
+```bash
+# Credenciales de BD almacenadas de forma segura (solo root lee)
+# /etc/backup_odoo.env  →  chmod 600
+
+# Script de backup (usa pg_dump remoto)
+bash scripts/mantenimiento/backup_postgres.sh
+
+# Script de restauración
+bash scripts/mantenimiento/restore.sh <archivo_backup.sql.gz>
+
+# Backups almacenados en:
+# /opt/erp-odoo/backups/postgres/
+# Retención: últimos 7 días
+```
+
+---
+
+## 📚 Estructura del Repositorio
+
+```
+TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
+├── Vagrantfile                  # Define y orquesta las 3 VMs
+├── .env.example                 # Plantilla de variables de entorno (sin LDAP)
+├── .env                         # Variables reales (excluido de Git)
+├── README.md                    # Este archivo
+├── CLAUDE.md                    # Instrucciones para el asistente IA
+├── REALIZADO_PDF_PASOS.md       # Checklist de progreso del TFG
+│
+├── vagrant/                     # Scripts de aprovisionamiento de las 3 VMs
+│   ├── provision_debian.sh      # Aprovisiona VM2 (Odoo+Nginx+Docker)
+│   ├── provision_pfsense.sh     # Aprovisiona VM1 (pfSense)
+│   ├── provision_postgres.sh    # Aprovisiona VM3 (PostgreSQL nativo)
+│   └── Explicacion_provision_postgres.md
+│
+├── docker/                      # Configuración de contenedores (solo Odoo+Nginx)
+│   ├── docker-compose.yml       # Solo: odoo-web + nginx-proxy
+│   └── odoo.conf                # db_host = 192.168.40.10
+│
+├── config_nginx/                # Configuración Nginx proxy inverso + SSL
+│   └── odoo_proxy.conf
+│
+├── scripts/                     # Scripts Bash de automatización
+│   ├── README.md                # Índice de todos los scripts
+│   ├── deploy/                  # Despliegue: deploy.sh, erp.sh, configure.sh...
+│   ├── mantenimiento/           # backup_postgres.sh, restore.sh, monitor.sh...
+│   ├── odoo/                    # odoo_crear_usuarios.sh, odoo_setup_wizard.sh
+│   └── ldap/                    # ⚠️ DEPRECADO — scripts LDAP sin uso activo
+│
+├── sql/                         # Triggers PL/pgSQL de auditoría
+│   └── audit_triggers.sql
+│
+├── config/
+│   └── logrotate.d/erp-odoo     # Rotación de logs (incluye backup_odoo.log)
+│
+├── extras/
+│   └── ldap/                    # LDAP como mejora futura
+│       ├── README.md            # Por qué se retiró y cómo retomarlo
+│       └── estructura.ldif      # Backup estructura usuarios/grupos
+│
+├── ldap/                        # ⚠️ LEGACY — material histórico de LDAP
+│
+└── docs/                        # Documentación técnica completa
+    ├── README.md
+    ├── CHANGELOG.md
+    ├── CONTROL_ACCESO.md
+    ├── HISTORIAL_IMPLEMENTACION.md
+    ├── INSTALACION_COMPLETA.md
+    ├── diagrama_red.md
+    ├── reglas_pfsense.md
+    ├── memoria_tfg_borrador.md
+    ├── memoria_tfg_nuevo.md
+    ├── guias/                   # Guías por módulo
+    ├── mas_info/                # Informe ERP e investigación
+    └── archive/                 # Documentos históricos (no modificar)
+```
 
 ---
 
 ## 🧰 Stack Tecnológico
 
 | Capa | Tecnología |
-| :--- | :--- |
-| Redes/Seguridad | pfSense (FreeBSD), UFW |
-| Virtualización/Orquestación | Docker Engine, Docker Compose |
-| Sistema Operativo Base | **Debian 13 Server (Trixie)** con Cockpit |
-| Proxy Inverso | Nginx (Alpine Linux) — contenedor Docker con MACVLAN |
-| ERP/CRM | Odoo 17 CE — contenedor Docker con MACVLAN |
-| Base de Datos | PostgreSQL 16 — contenedor Docker (solo red interna) |
+|:---|:---|
+| IaC / Orquestación VMs | **Vagrant** + VirtualBox/VMware |
+| Redes / Seguridad | pfSense (FreeBSD), UFW |
+| Contenerización | Docker Engine, Docker Compose |
+| Sistema Operativo Base | **Debian 13 Server (Trixie)** + Cockpit |
+| Proxy Inverso | Nginx (Alpine Linux) — Docker con MACVLAN |
+| ERP / CRM | Odoo 17 CE — Docker con MACVLAN |
+| Base de Datos | PostgreSQL 16 — **VM nativa** (no Docker) |
 | Certificados | OpenSSL (autofirmados TLS) |
-| Scripting | GNU Bash, ANSI SQL & PL/pgSQL |
+| Scripting | GNU Bash, PL/pgSQL |
 | Control de Versiones | Git + GitHub |
-| Integración Continua | GitHub Actions |
+| CI/CD | GitHub Actions (ShellCheck + deploy) |
 
 ---
 
-## 📚 Estructura de este Repositorio
+## ⚙️ CI/CD — GitHub Actions
 
-> **🚀 Instalación desde cero: [`docs/INSTALACION_COMPLETA.md`](docs/INSTALACION_COMPLETA.md)**
+| Workflow | Trigger | Qué hace |
+|:---|:---|:---|
+| `ci.yml` | `push` / `PR` a `main` | ShellCheck de todos los `.sh` (incluye `vagrant/`), YAML lint, generación y validación de `config.xml` pfSense |
+| `deploy.yml` | `push` a `main` | Pull del repo en servidor, `docker compose up`, verifica que `odoo-web` y `nginx-proxy` estén `healthy` |
 
-| Directorio / Archivo | Descripción |
-|:---------------------|:------------|
-| `/docker/` | `docker-compose.yml`, `odoo.conf` y `.env` (excluido de Git) |
-| `/scripts/` | Scripts Bash por categoría: `deploy/`, `odoo/`, `ldap/`, `mantenimiento/` |
-| `/sql/` | Triggers PL/pgSQL para auditoría de base de datos |
-| `/config_nginx/` | Configuración del proxy inverso Nginx con SSL y cabeceras de seguridad |
-| `/ldap/` | Estructura base del directorio LDAP (`estructura.ldif`) |
-| `/docs/` | Documentación técnica completa |
-| `/docs/guias/` | Sub-guías por módulo: pfSense, Debian, Docker, Odoo, LDAP, CI/CD, Hardening |
-| `/ISOs/` | Imágenes de instalación (Debian 13, pfSense 2.7.x) |
-| `install.sh` | Instalador todo-en-uno |
+> La verificación post-despliegue ya **no incluye** contenedores de PostgreSQL ni LDAP.
 
 ---
 
 ## 👥 Reparto de Roles
 
 | Integrante | Especialización |
-| :--- | :--- |
+|:---|:---|
 | **Sandra Fradejas Avedillo** | Sistemas y Orquestación |
 | **Mario García García** | Redes y Seguridad Perimetral |
 | **Javier Córdoba Del Valle** | Bases de Datos y Automatización |
@@ -227,67 +362,36 @@ docker network create \
 
 ## ❓ ¿Por qué Odoo y no otra alternativa?
 
-Antes de definir la arquitectura, se evaluó comparativamente con otras soluciones ERP de código abierto:
-
 | Criterio | **Odoo 17** | Dolibarr | ERPNext |
-| :--- | :--- | :--- | :--- |
+|:---|:---|:---|:---|
 | **Facilidad de uso** | ✅ Alta — interfaz moderna e intuitiva | Media — sencillo pero básico | Media — muy completo pero abrumador |
 | **Flexibilidad de API** | ✅ Muy alta — XML-RPC y JSON-RPC | Limitada | Alta (API REST) pero compleja |
-| **Consumo de recursos** | Moderado (requiere VM decente) | ✅ Muy ligero | Pesado |
+| **Consumo de recursos** | Moderado | ✅ Muy ligero | Pesado |
 | **Cobertura funcional** | ✅ CRM, Ventas, RRHH, Inventario, Proyectos | Básico | Muy completo |
 | **Comunidad y soporte** | ✅ Muy activa, documentación extensa | Activa (menor escala) | Activa |
 | **Idoneidad para el TFG** | ✅ **Elegido** | Descartado | Descartado |
-
-**Conclusión**: Odoo es la opción que mejor equilibra facilidad de despliegue, cobertura funcional y capacidad de integración para el escenario de la empresa simulada "TechSolutions S.L."
 
 ---
 
 ## 🎓 Módulos Académicos Cubiertos (ASIR)
 
-| Módulo | Contenido aplicado en este TFG |
-| :--- | :--- |
-| **Seguridad y Alta Disponibilidad** | Topología DMZ con pfSense, UFW en host, reglas de firewall, política default-deny, backups automatizados con retención |
-| **Gestión de Bases de Datos** | Triggers PL/pgSQL con auditoría en formato JSONB, función `func_audit_users()`, tabla `asir_audit_log`, vista `v_audit_resumen` |
-| **Servicios de Red** | Cabeceras de seguridad HTTP, DHCP en pfSense, NAT/Port Forwarding, DNS interno |
-| **Redes** | Configuracion de VLANs (10/30), monitorizacion de la red y los paquetes, topologia de red|
-| **Arquitectura de la Nube** | Creacion y uso de Dockers, proxy inverso Nginx con terminación SSL/TLS, redes MACVLAN Docker |
-| **Administracion de Sistemas Operativos e Implementacion de sistemas operativos** | Creacion y gestion de servidor LDAP, creacion y uso de scripts bash para despliegue, backup, restauración y monitorización |
-
----
-
-## 📖 Investigación y Bases Técnicas
-
-El diseño de este proyecto se apoya en los siguientes recursos técnicos de referencia:
-
-**Redes y Perímetro (pfSense)**
-
-- Documentación Oficial de Netgate — Configuración VLAN: <https://docs.netgate.com/pfsense/en/latest/vlan/configuration.html>
-- Docker Macvlan Network en Entornos DMZ: <https://vegard.blog.engen.priv.no/?p=364>
-
-**Infraestructura y Hardening del Servidor**
-
-- Lista de Verificación de Endurecimiento Linux en Producción (2026): <https://hostperl.com/blog/linux-server-hardening-checklist-essential-security-controls-production-2026>
-- CIS Benchmark Validation (Linux Mint 22, base aplicable a Debian): <https://www.scribd.com/document/946643717/CIS-Linux-Mint-22-Benchmark-v1-0-0>
-
-**Despliegue de Odoo y Nginx**
-
-- Documentación Odoo 17 — Despliegue en Producción y Multiprocesamiento: <https://www.odoo.com/documentation/19.0/administration/on_premise/deploy.html>
-- Proxy Inverso y Configuración SSL para Odoo: <https://oec.sh/guides/odoo-nginx-config>
-
-**Bases de Datos y Auditoría (PostgreSQL)**
-
-- Wiki Oficial PostgreSQL — Generic Audit Trigger (PL/pgSQL): <https://wiki.postgresql.org/wiki/Audit_trigger>
-- Estrategias Completas de Backup y Recuperación (DR) en Odoo: <https://oec.sh/guides/odoo-backup-recovery>
+| Módulo | Contenido aplicado |
+|:---|:---|
+| **Seguridad y Alta Disponibilidad** | pfSense DMZ, UFW, reglas firewall inter-VLAN, backups automáticos cada 4h |
+| **Gestión de Bases de Datos** | PostgreSQL nativo en VM dedicada, triggers PL/pgSQL, auditoría `asir_audit_log`, pg_dump remoto |
+| **Servicios de Red** | DHCP pfSense, NAT, DNS, cabeceras HTTP seguras, VPN OpenVPN |
+| **Redes** | VLANs 10/30/40, topología 3 segmentos, inter-VLAN controlado |
+| **Arquitectura de la Nube** | Docker, MACVLAN, proxy inverso Nginx SSL/TLS |
+| **Administración de Sistemas** | Vagrant IaC, scripts Bash, despliegue automatizado, monitorización |
 
 ---
 
 ## 🔮 Mejoras Futuras
 
-Estas mejoras quedan fuera del alcance del TFG pero se documentan para demostrar conocimiento avanzado:
-
 | Mejora | Descripción |
-| :--- | :--- |
-| **Ansible (IaC)** | Automatizar toda la configuración del servidor Debian con un Playbook de Ansible, eliminando la configuración manual. |
-| **VPN WireGuard en pfSense** | Ocultar el ERP de Internet público, accesible solo desde la VLAN interna o a través de un túnel VPN cifrado. Diseño "Zero Trust". |
-| **Stack de Monitorización** | Sustituir los scripts de log por Prometheus + Grafana o Uptime Kuma con panel gráfico de estado en tiempo real. |
-| **Ldap / Active Directory** | Centralizar credenciales de usuarios usando Windows Server 2022 y LDAP como Controlador de Dominio, integrando Odoo con AD. |
+|:---|:---|
+| **LDAP / Active Directory** | Ver `extras/ldap/README.md` — estructura lista, solo falta integración con el compose |
+| **Ansible (IaC)** | Sustituir scripts de aprovisionamiento Vagrant por un Playbook Ansible |
+| **Alta Disponibilidad PostgreSQL** | Patroni + replicación entre 2 nodos para evitar SPOF en la BD |
+| **Stack de Monitorización** | Prometheus + Grafana o Uptime Kuma con panel gráfico en tiempo real |
+| **VPN WireGuard** | Migrar de OpenVPN a WireGuard para mayor rendimiento |
