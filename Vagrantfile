@@ -7,11 +7,18 @@
 #   winget install HashiCorp.Vagrant
 #   vagrant plugin install vagrant-vmware-desktop
 #
+# VARIABLES DE ENTORNO (obligatorias para repo privado y runners):
+#   GH_PAT              → Personal Access Token con scope repo
+#   GH_RUNNER_TOKEN     → Registration token del repositorio
+#                         (GitHub → Settings → Actions → Runners → New → token)
+#
 # VARIABLES DE ENTORNO (opcionales; si no se pasan, usa valores demo):
 #   POSTGRES_PASSWORD    → contraseña de la BD
 #   ODOO_MASTER_PASSWORD → contraseña maestra de Odoo
+#
+# Ejemplo de uso:
+#   GH_PAT=ghp_xxx GH_RUNNER_TOKEN=AXXXXX POSTGRES_PASSWORD=s3cr3t vagrant up
 # ============================================================
-
 Vagrant.configure("2") do |config|
 
   # --------------------------------------------------------
@@ -75,7 +82,10 @@ Vagrant.configure("2") do |config|
       env: {
         "POSTGRES_PASSWORD"    => ENV["POSTGRES_PASSWORD"]    || "changeme_db",
         "ODOO_MASTER_PASSWORD" => ENV["ODOO_MASTER_PASSWORD"] || "changeme_master",
-        "POSTGRES_HOST"        => "192.168.40.10"
+        "POSTGRES_HOST"        => "192.168.40.10",
+        "GH_PAT"               => ENV["GH_PAT"]               || "",
+        "GH_RUNNER_TOKEN"      => ENV["GH_RUNNER_TOKEN"]      || "",
+        "RUNNER_NAME"          => "odoo-runner"
       }
   end
 
@@ -100,13 +110,15 @@ Vagrant.configure("2") do |config|
       v.cpus   = 1
       v.gui    = true
     end
-
     db.vm.provision "shell",
       path:       "vagrant/provision_postgres.sh",
       privileged: true,
       env: {
-        "POSTGRES_PASSWORD" => ENV["POSTGRES_PASSWORD"] || "changeme_db"
+        "POSTGRES_PASSWORD" => ENV["POSTGRES_PASSWORD"] || "changeme_db",
+        "GH_PAT"            => ENV["GH_PAT"]            || "",
+        "GH_RUNNER_TOKEN"   => ENV["GH_RUNNER_TOKEN"]   || "",
+        "RUNNER_NAME"       => "db-runner"
       }
   end
-
+ 
 end
