@@ -4,7 +4,7 @@
 # ============================================================
 set -e
 PROJECT_DIR="/opt/erp-odoo"
-REPO="https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.g
+REPO="https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git
 POSTGRES_HOST="${POSTGRES_HOST:-192.168.40.10}"
 echo "=========================================="
 echo " Provisioning servidor Odoo..."
