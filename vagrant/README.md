@@ -1,140 +1,123 @@
 # Vagrant — Infraestructura como Código
 
-**TFG ASIR 2025/2026 — TechSolutions S.L.**
-
-Esta carpeta contiene los scripts de aprovisionamiento automático para las **3 máquinas virtuales** del entorno. Vagrant orquesta la creación y configuración de todas ellas a partir del `Vagrantfile` en la raíz del proyecto.
+Esta carpeta contiene los scripts de aprovisionamiento de las **3 VMs** que forman el entorno del proyecto, orquestadas por el `Vagrantfile` de la raíz.
 
 ---
 
-## Requisitos Previos
+## Arquitectura de VMs
 
-- [Vagrant](https://www.vagrantup.com/) ≥ 2.3
-- [VirtualBox](https://www.virtualbox.org/) ≥ 7.0
-- `.env` configurado en la raíz del proyecto (`cp .env.example .env` y rellenar)
+| VM Vagrant | Rol | IP | VLAN | Script de aprovisionamiento |
+|:-----------|:----|:---|:-----|:----------------------------|
+| `vm-pfsense` | Firewall / Router / NAT / DHCP | 192.168.10.1 / 30.1 / 40.1 | WAN + VLAN 10 + VLAN 30 + VLAN 40 | `provision_pfsense.sh` |
+| `vm-odoo` | Debian 13 + Docker (Nginx + Odoo) | 192.168.30.10 | VLAN 30 (DMZ) | `provision_debian.sh` |
+| `vm-postgres` | PostgreSQL 16 nativo (sin Docker) | 192.168.40.10 | VLAN 40 (BD) | `provision_postgres.sh` |
 
 ---
 
-## Arranque del Entorno Completo
+## Comandos principales
 
 ```bash
-# Clonar el repositorio
-git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git
-cd TFG-Implantacion_Segura_y_Automatizada_de_Odoo
-
-# Configurar variables de entorno
-cp .env.example .env
-nano .env
-
-# Levantar las 3 VMs en orden
-vagrant up
+# Desde la raíz del repositorio
+vagrant up                    # Levantar las 3 VMs
+vagrant up vm-odoo            # Levantar solo vm-odoo
+vagrant provision vm-odoo     # Re-ejecutar el aprovisionamiento de vm-odoo
+vagrant ssh vm-odoo           # Conectarse a la VM de Odoo
+vagrant ssh vm-postgres       # Conectarse a la VM de PostgreSQL
+vagrant ssh vm-pfsense        # Conectarse a la VM de pfSense
+vagrant halt                  # Apagar todas las VMs
+vagrant destroy -f            # Destruir todas las VMs
+vagrant status                # Estado de todas las VMs
 ```
 
-> `vagrant up` levanta primero `vm-pfsense`, luego `vm-odoo` y por último `vm-postgres`.
-> El orden importa porque pfSense debe estar operativo antes de que las demás VMs configuren sus rutas.
-
 ---
 
-## Las 3 VMs del Proyecto
-
-| VM | Rol | IP Principal | VLAN | RAM recomendada |
-|:---|:----|:------------|:-----|:----------------|
-| `vm-pfsense` | Firewall / Router / NAT / DHCP | `192.168.10.1` / `192.168.30.1` / `192.168.40.1` | WAN + VLAN 10 + VLAN 30 + VLAN 40 | 512 MB |
-| `vm-odoo` | Debian 13 + Docker (Nginx + Odoo) | `192.168.30.10` | VLAN 30 (DMZ) | 2 GB |
-| `vm-postgres` | PostgreSQL 16 nativo | `192.168.40.10` | VLAN 40 (Admin/BD) | 1 GB |
-
----
-
-## Scripts de Aprovisionamiento
-
-### `provision_pfsense.sh`
-Aprovisiona la VM de pfSense:
-- Configura las 4 interfaces de red (WAN + VLAN 10 + VLAN 30 + VLAN 40)
-- Aplica DHCP en cada VLAN
-- Habilita NAT para salida a Internet desde VLAN 30
-- Prepara el entorno para la importación del `config.xml` generado por `scripts/deploy/generate_pfsense_config.sh`
+## Contenido de esta carpeta
 
 ### `provision_debian.sh`
-Aprovisiona `vm-odoo` (Debian 13 Trixie):
-- Configura IP estática en VLAN 30 (`192.168.30.10`)
-- Instala Docker CE + Docker Compose plugin (repositorio oficial Docker)
-- Instala Cockpit para administración web en `:9090`
-- Clona el repositorio en `/opt/odoo/`
-- Crea el archivo `.env` en la raíz del proyecto
-- Genera certificados SSL autofirmados con OpenSSL
-- Levanta el stack Docker (`odoo-web` + `nginx-proxy`)
-- Instala el cron de backups remotos (cada 4 horas) vía `install_cron.sh`
-- Instala el self-hosted runner de GitHub Actions como servicio systemd
 
-> ⚠️ Solo corren **2 contenedores**: `odoo-web` y `nginx-proxy`.
-> PostgreSQL **no** corre en Docker — está en `vm-postgres`.
-> LDAP fue descartado — ver `extras/ldap/`.
+Aprovisiona `vm-odoo` (Debian 13 Trixie). Realiza:
+
+1. Actualización del sistema (`apt update && upgrade`)
+2. Instalación de Docker CE desde el repositorio oficial (`docker-ce`, `containerd.io`, `docker-compose-plugin`)
+3. Instalación de Cockpit para administración web (`https://192.168.30.10:9090`)
+4. Creación de la red MACVLAN `macvlan_vlan30` con driver `macvlan` (IPs `192.168.30.20` y `192.168.30.21`)
+5. Clonación del repositorio en `/opt/erp-odoo`
+6. Generación del `.env` con las variables del `Vagrantfile`
+7. Generación de certificados SSL autofirmados
+8. Copia de `config_nginx/odoo_proxy.conf` al contenedor Nginx
+9. Primer arranque del stack Docker (`odoo-web` + `nginx-proxy`)
+10. Instalación del cron de backup vía `scripts/deploy/install_cron.sh`
+
+### `provision_pfsense.sh`
+
+Aprovisiona `vm-pfsense` (FreeBSD/pfSense). Realiza:
+
+1. Configuración de las 4 interfaces de red (WAN, VLAN 10, VLAN 30, VLAN 40)
+2. Configuración de reglas básicas de firewall
+3. Habilitación de NAT Port Forward (WAN:443 → 192.168.30.20:443)
+4. Configuración de DHCP en VLAN 10 y VLAN 30
+
+> **Nota:** La configuración completa de pfSense se puede generar con `scripts/deploy/generate_pfsense_config.sh` y aplicar desde el panel web de pfSense en `Diagnostics → Backup/Restore`.
 
 ### `provision_postgres.sh`
-Aprovisiona `vm-postgres` (Debian 13 Trixie):
-- Configura IP estática en VLAN 40 (`192.168.40.10`)
-- Instala PostgreSQL 16 desde el repositorio oficial PGDG
-- Crea el usuario `odoo` y la base de datos `odooerp`
-- Configura `postgresql.conf`: `listen_addresses = '192.168.40.10'`
-- Configura `pg_hba.conf`: acceso solo desde `192.168.30.0/24` (VLAN 30 — Odoo)
-- Aplica los triggers de auditoría (`sql/audit_triggers.sql`)
-- Configura UFW: solo acepta `:5432` desde `192.168.30.0/24`
 
-Ver [`Explicacion_provision_postgres.md`](Explicacion_provision_postgres.md) para el detalle técnico del aprovisionamiento de PostgreSQL.
+Aprovisiona `vm-postgres` (Debian 13 Trixie). Realiza:
+
+1. Instalación de PostgreSQL 16 desde el repositorio oficial
+2. Creación del usuario `odoo` y la base de datos `odooerp`
+3. Configuración de `pg_hba.conf` para aceptar conexiones desde `192.168.30.0/24` (VLAN 30)
+4. Configuración de `postgresql.conf` para escuchar en `0.0.0.0`
+5. Aplicación de los triggers de auditoría PL/pgSQL (`sql/audit_triggers.sql`)
+
+Ver también: [`Explicacion_provision_postgres.md`](Explicacion_provision_postgres.md)
+
+### `Explicacion_provision_postgres.md`
+
+Documento de referencia que explica en detalle el proceso de aprovisionamiento de PostgreSQL: por qué se decidió separar la BD en una VM externa, las implicaciones de seguridad y las diferencias con el diseño inicial (PostgreSQL en Docker).
 
 ---
 
-## Comandos Vagrant Útiles
+## Redes configuradas por Vagrant
 
-```bash
-# Estado de todas las VMs
-vagrant status
+El `Vagrantfile` configura las siguientes redes virtuales en VirtualBox:
 
-# Levantar una VM concreta
-vagrant up vm-odoo
+| Red | Tipo | Subred | Propósito |
+|:----|:-----|:-------|:----------|
+| `vboxnet0` | Host-only | `192.168.10.0/24` | VLAN 10 — Clientes |
+| `vboxnet1` | Host-only | `192.168.30.0/24` | VLAN 30 — DMZ (Odoo + Nginx) |
+| `vboxnet2` | Host-only | `192.168.40.0/24` | VLAN 40 — BD (PostgreSQL) |
 
-# Re-ejecutar el aprovisionamiento
-vagrant provision vm-odoo
+---
 
-# Conectarse por SSH
-vagrant ssh vm-odoo
-vagrant ssh vm-postgres
-vagrant ssh vm-pfsense
+## Requisitos
 
-# Apagar todas las VMs
-vagrant halt
-
-# Destruir todo (⚠️ elimina datos)
-vagrant destroy -f
-
-# Reiniciar y re-aprovisionar desde cero
-vagrant destroy -f && vagrant up
-```
+- **VirtualBox** 7.0+
+- **Vagrant** 2.3+
+- Al menos **8 GB de RAM** libre para las 3 VMs simultáneas
+- **20 GB de espacio en disco** libre
 
 ---
 
 ## Troubleshooting
 
-**Odoo no conecta con PostgreSQL tras `vagrant up`:**
+**`vm-odoo` no conecta con PostgreSQL:**
 ```bash
 vagrant ssh vm-odoo
 nc -zv 192.168.40.10 5432
-# Si falla: revisar que vm-postgres está en estado running y las reglas pfSense VLAN30→VLAN40
+# Si falla: revisar que vm-postgres está UP y la regla de pfSense VLAN30→VLAN40:5432
 ```
 
-**El runner de GitHub Actions no arranca:**
+**Re-aprovisionar una VM desde cero:**
 ```bash
-vagrant ssh vm-odoo
-sudo systemctl status actions.runner.*.service
+vagrant destroy vm-odoo -f
+vagrant up vm-odoo
 ```
 
-**PostgreSQL no acepta conexiones:**
+**Ver logs de aprovisionamiento:**
 ```bash
-vagrant ssh vm-postgres
-sudo systemctl status postgresql
-sudo cat /etc/postgresql/16/main/pg_hba.conf
+vagrant up vm-odoo --debug 2>&1 | tee vagrant_debug.log
 ```
 
 ---
 
-*Diagrama de red completo: [`docs/diagrama_red.md`](../docs/diagrama_red.md)*
-*Guía de instalación manual: [`docs/INSTALACION_COMPLETA.md`](../docs/INSTALACION_COMPLETA.md)*
+*TFG ASIR 2025/2026 — IES Cañaveral*

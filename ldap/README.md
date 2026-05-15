@@ -1,36 +1,36 @@
-# LDAP — Material Legacy
+# ldap/ — Directorio Legacy
 
-> ⚠️ **Esta carpeta es material de referencia histórica. LDAP no forma parte del despliegue activo del proyecto.**
-
----
-
-## ¿Por qué no se usa LDAP?
-
-LDAP fue descartado del despliegue principal por las siguientes razones:
-
-1. **Reducción de superficie de ataque:** Eliminar OpenLDAP elimina un servicio adicional expuesto en la DMZ (puertos `:389` y `:636`).
-2. **Complejidad de mantenimiento:** La integración LDAP en Odoo requiere mantener dos sistemas de usuarios sincronizados.
-3. **Alcance del TFG:** El objetivo principal es la seguridad perimetral y la automatización, no la gestión centralizada de identidades.
-4. **Alternativa más simple:** Odoo gestiona sus propios usuarios internamente con control de roles suficiente para el caso de uso.
+> [!WARNING]
+> **Este directorio es material legacy.**
+> Contiene la estructura base del directorio LDAP generada durante el diseño inicial del proyecto. OpenLDAP **no está activo** en el despliegue actual.
 
 ---
 
-## Contenido de esta carpeta
+## Contenido
 
 | Archivo | Descripción |
 |:--------|:------------|
-| `estructura.ldif` | Estructura base del directorio LDAP: unidades organizativas (`ou=usuarios`, `ou=grupos`), usuarios de ejemplo y grupos (`admin`, `tecnico`, `readonly`). Equivalente al archivo en `extras/ldap/`. |
+| `estructura.ldif` | Árbol LDIF con OUs y usuarios de ejemplo para TechSolutions S.L. |
+
+> Este fichero es idéntico al de `extras/ldap/estructura.ldif`.
+> La copia canónica y con documentación actualizada está en **`extras/ldap/`**.
 
 ---
 
-## Dónde está el material LDAP completo
+## Por qué existe esta carpeta
 
-Todo el material de LDAP como **mejora futura** está en:
-
-- [`extras/ldap/`](../extras/ldap/) — `estructura.ldif` + `README.md` con pasos de implementación
-- [`scripts/ldap/`](../scripts/ldap/) — Scripts de aprovisionamiento (`configurar_cliente_ldap.sh`, `ldap_crear_usuarios.sh`, `ldap_politica_acceso.sh`) marcados como desactivados
-- [`docs/CONTROL_ACCESO.md`](../docs/CONTROL_ACCESO.md) — Sección sobre LDAP como mejora futura
+Durante el desarrollo del proyecto se utilizó este directorio como espacio de trabajo para el diseño del directorio LDAP. Una vez descartado LDAP del despliegue principal, el material se consolidó en `extras/ldap/` y esta carpeta se conserva como referencia histórica.
 
 ---
 
-> Si en el futuro se quiere retomar la implementación de LDAP, el punto de partida es `extras/ldap/README.md`.
+## Referencia actualizada
+
+Para información completa sobre LDAP como mejora futura del proyecto, consultar:
+
+- [`extras/ldap/README.md`](../extras/ldap/README.md) — Documentación completa y guía de reactivación
+- [`docs/guias/INSTALACION_LDAP_CICD_HARDENING.md`](../docs/guias/INSTALACION_LDAP_CICD_HARDENING.md) — Parte 1: LDAP
+- [`scripts/ldap/`](../scripts/ldap/) — Scripts de configuración
+
+---
+
+*TFG ASIR 2025/2026 — IES Cañaveral*
