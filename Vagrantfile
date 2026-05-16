@@ -8,16 +8,23 @@
 #   vagrant plugin install vagrant-vmware-desktop
 #
 # VARIABLES DE ENTORNO (obligatorias para repo privado y runners):
-#   GH_PAT              → Personal Access Token con scope repo
-#   GH_RUNNER_TOKEN     → Registration token del repositorio
-#                         (GitHub → Settings → Actions → Runners → New → token)
+#   GH_PAT                → Personal Access Token con scope repo
+#   GH_RUNNER_TOKEN_ODOO  → Registration token para odoo-server
+#   GH_RUNNER_TOKEN_DB    → Registration token para db-server
+#                           (GitHub → Settings → Actions → Runners → New → token)
 #
 # VARIABLES DE ENTORNO (opcionales; si no se pasan, usa valores demo):
 #   POSTGRES_PASSWORD    → contraseña de la BD
 #   ODOO_MASTER_PASSWORD → contraseña maestra de Odoo
 #
 # Ejemplo de uso:
-#   GH_PAT=ghp_xxx GH_RUNNER_TOKEN=AXXXXX POSTGRES_PASSWORD=s3cr3t vagrant up
+#   $env:GH_PAT="ghp_xxx"
+#   $env:GH_RUNNER_TOKEN_ODOO="AXXXXX"
+#   $env:GH_RUNNER_TOKEN_DB="AYYYYY"
+#   $env:POSTGRES_PASSWORD="s3cr3t"
+#   vagrant up pfsense
+#   vagrant up db-server
+#   vagrant up odoo-server
 # ============================================================
 Vagrant.configure("2") do |config|
 
@@ -28,14 +35,14 @@ Vagrant.configure("2") do |config|
   # VM 1 — pfSense (Firewall / VPN / Router)
   # WAN: red pública
   # VMnet1 → VLAN 10: usuarios  (192.168.10.x)
-  # VMnet2 → VLAN 40: admin     (192.168.40.x)
+  # VMnet2 → VLAN 30: DMZ       (192.168.30.x)
+  # VMnet3 → VLAN 40: admin     (192.168.40.x)
   # --------------------------------------------------------
   config.vm.define "pfsense" do |pf|
     pf.vm.box              = "dlee35/pfsense"
     pf.vm.box_check_update = false
     pf.vm.hostname         = "pfsense-tfg"
 
-    # Fix: Desactivar la carpeta compartida por defecto para evitar que se quede colgado en FreeBSD
     pf.vm.synced_folder ".", "/vagrant", disabled: true
 
     pf.vm.network "private_network", ip: "192.168.10.1",
@@ -52,7 +59,6 @@ Vagrant.configure("2") do |config|
       v.gui    = true
     end
 
-    # Fix: Subir el script directamente y provisionar
     pf.vm.provision "file", source: "scripts/deploy/generate_pfsense_config.sh", destination: "/tmp/generate_pfsense_config.sh"
     pf.vm.provision "shell", path: "vagrant/provision_pfsense.sh"
   end
@@ -62,7 +68,8 @@ Vagrant.configure("2") do |config|
   # DMZ — VLAN 30
   #   nginx-proxy  192.168.30.20  → HTTPS :443
   #   odoo-web     192.168.30.21  → Odoo  :8069 (interno)
-  #   Cockpit      192.168.30.21  → panel :9090
+  #   Cockpit      192.168.30.10  → panel :9090
+  # Runner: odoo-runner (self-hosted, linux, odoo)
   # --------------------------------------------------------
   config.vm.define "odoo-server" do |deb|
     deb.vm.box              = "bento/debian-12"
@@ -79,7 +86,6 @@ Vagrant.configure("2") do |config|
       v.gui    = true
     end
 
-    # Desregistrar runner de GitHub antes de destruir la VM
     deb.trigger.before :destroy do |trigger|
       trigger.name = "Desregistrar odoo-runner de GitHub"
       trigger.run_remote = {
@@ -117,7 +123,7 @@ Vagrant.configure("2") do |config|
         "ODOO_MASTER_PASSWORD" => ENV["ODOO_MASTER_PASSWORD"] || "changeme_master",
         "POSTGRES_HOST"        => "192.168.40.10",
         "GH_PAT"               => ENV["GH_PAT"]               || "",
-        "GH_RUNNER_TOKEN"      => ENV["GH_RUNNER_TOKEN"]      || "",
+        "GH_RUNNER_TOKEN"      => ENV["GH_RUNNER_TOKEN_ODOO"] || "",
         "RUNNER_NAME"          => "odoo-runner"
       }
   end
@@ -128,6 +134,7 @@ Vagrant.configure("2") do |config|
   #   postgresql   192.168.40.10  → BD aislada :5432
   #   backups      /backups/      → copias automáticas
   #   Cockpit      192.168.40.10  → panel      :9090
+  # Runner: db-runner (self-hosted, linux, db)
   # --------------------------------------------------------
   config.vm.define "db-server" do |db|
     db.vm.box              = "bento/debian-12"
@@ -144,7 +151,6 @@ Vagrant.configure("2") do |config|
       v.gui    = true
     end
 
-    # Desregistrar runner de GitHub antes de destruir la VM
     db.trigger.before :destroy do |trigger|
       trigger.name = "Desregistrar db-runner de GitHub"
       trigger.run_remote = {
@@ -178,9 +184,9 @@ Vagrant.configure("2") do |config|
       path:       "vagrant/provision_postgres.sh",
       privileged: true,
       env: {
-        "POSTGRES_PASSWORD" => ENV["POSTGRES_PASSWORD"] || "changeme_db",
-        "GH_PAT"            => ENV["GH_PAT"]            || "",
-        "GH_RUNNER_TOKEN"   => ENV["GH_RUNNER_TOKEN"]   || "",
+        "POSTGRES_PASSWORD" => ENV["POSTGRES_PASSWORD"]   || "changeme_db",
+        "GH_PAT"            => ENV["GH_PAT"]              || "",
+        "GH_RUNNER_TOKEN"   => ENV["GH_RUNNER_TOKEN_DB"]  || "",
         "RUNNER_NAME"       => "db-runner"
       }
   end
