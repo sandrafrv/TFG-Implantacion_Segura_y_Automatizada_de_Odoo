@@ -36,11 +36,13 @@ for i in $(seq 1 12); do
 done
 
 export DEBIAN_FRONTEND=noninteractive
-APT_OPTS="-o Acquire::Check-Valid-Until=false \
-  -o Acquire::AllowInsecureRepositories=true \
-  -o Acquire::AllowDowngradeToInsecureRepositories=true \
-  -o Acquire::GPG::NoSign=true \
-  --allow-unauthenticated"
+APT_OPTS=(
+  -o Acquire::Check-Valid-Until=false
+  -o Acquire::AllowInsecureRepositories=true
+  -o Acquire::AllowDowngradeToInsecureRepositories=true
+  -o Acquire::GPG::NoSign=true
+  --allow-unauthenticated
+)
 
 # ── Corregir mirrors de la box ────────────────────────────────
 echo "  [APT] Corrigiendo mirrors obsoletos de la box..."
@@ -49,16 +51,16 @@ deb [trusted=yes] http://deb.debian.org/debian bookworm main contrib non-free no
 deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
 deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 SOURCES
-apt-get $APT_OPTS update -qq
+apt-get "${APT_OPTS[@]}" update -qq
 
 # --- Configurar teclado en español ---
-apt-get $APT_OPTS install -y keyboard-configuration console-setup --no-install-recommends
+apt-get "${APT_OPTS[@]}" install -y keyboard-configuration console-setup --no-install-recommends
 sed -i 's/XKBLAYOUT=.*/XKBLAYOUT="es"/' /etc/default/keyboard
 dpkg-reconfigure -f noninteractive keyboard-configuration
 invoke-rc.d keyboard-setup.sh restart || true
 
 # Dependencias base
-apt-get $APT_OPTS install -y curl ca-certificates gnupg --no-install-recommends
+apt-get "${APT_OPTS[@]}" install -y curl ca-certificates gnupg --no-install-recommends
 
 # ── Añadir repositorio oficial de PostgreSQL (pgdg) ──────────
 echo "  [PG] Añadiendo repositorio oficial de PostgreSQL..."
@@ -67,8 +69,8 @@ curl -fsSL --insecure https://www.postgresql.org/media/keys/ACCC4CF8.asc \
 echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg trusted=yes] \
 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
   > /etc/apt/sources.list.d/pgdg.list
-apt-get $APT_OPTS update -qq
-apt-get $APT_OPTS install -y postgresql-16 postgresql-client-16
+apt-get "${APT_OPTS[@]}" update -qq
+apt-get "${APT_OPTS[@]}" install -y postgresql-16 postgresql-client-16
 
 # Arrancar y habilitar el servicio
 systemctl enable --now postgresql

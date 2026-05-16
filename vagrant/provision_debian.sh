@@ -65,11 +65,13 @@ done
 
 # ── APT: corregir mirrors obsoletos de la box ─────────────────
 export DEBIAN_FRONTEND=noninteractive
-APT_OPTS="-o Acquire::Check-Valid-Until=false \
-  -o Acquire::AllowInsecureRepositories=true \
-  -o Acquire::AllowDowngradeToInsecureRepositories=true \
-  -o Acquire::GPG::NoSign=true \
-  --allow-unauthenticated"
+APT_OPTS=(
+  -o Acquire::Check-Valid-Until=false
+  -o Acquire::AllowInsecureRepositories=true
+  -o Acquire::AllowDowngradeToInsecureRepositories=true
+  -o Acquire::GPG::NoSign=true
+  --allow-unauthenticated
+)
 
 echo "  [APT] Corrigiendo mirrors obsoletos de la box..."
 cat > /etc/apt/sources.list <<'SOURCES'
@@ -77,16 +79,16 @@ deb [trusted=yes] http://deb.debian.org/debian bookworm main contrib non-free no
 deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
 deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 SOURCES
-apt-get $APT_OPTS update -qq
+apt-get "${APT_OPTS[@]}" update -qq
 
 # Configurar teclado en español
-apt-get $APT_OPTS install -y keyboard-configuration console-setup --no-install-recommends
+apt-get "${APT_OPTS[@]}" install -y keyboard-configuration console-setup --no-install-recommends
 sed -i 's/XKBLAYOUT=.*/XKBLAYOUT="es"/' /etc/default/keyboard
 dpkg-reconfigure -f noninteractive keyboard-configuration
 invoke-rc.d keyboard-setup.sh restart || true
 
 # Dependencias base
-apt-get $APT_OPTS install -y \
+apt-get "${APT_OPTS[@]}" install -y \
     git curl ca-certificates gnupg \
     openssl cockpit jq \
     --no-install-recommends
@@ -102,8 +104,8 @@ if ! command -v docker &>/dev/null; then
       "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg trusted=yes] \
 https://download.docker.com/linux/debian bookworm stable" \
       > /etc/apt/sources.list.d/docker.list
-    apt-get $APT_OPTS update -qq
-    apt-get $APT_OPTS install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    apt-get "${APT_OPTS[@]}" update -qq
+    apt-get "${APT_OPTS[@]}" install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
 
 # ── Repo oficial de PostgreSQL (cliente) ──────────────────────
@@ -114,8 +116,8 @@ if ! command -v psql &>/dev/null; then
     echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg trusted=yes] \
 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
       > /etc/apt/sources.list.d/pgdg.list
-    apt-get $APT_OPTS update -qq
-    apt-get $APT_OPTS install -y postgresql-client-16
+    apt-get "${APT_OPTS[@]}" update -qq
+    apt-get "${APT_OPTS[@]}" install -y postgresql-client-16
 fi
 
 systemctl enable --now docker
