@@ -2,9 +2,9 @@
 # ============================================================
 # SCRIPT: vagrant/provision_pfsense.sh
 # DESCRIPCION: Provisioning de la VM pfSense.
-#              Aplica la configuracion generada por
-#              generate_pfsense_config.sh si esta disponible.
-#              Si no, informa de la URL de configuracion manual.
+#              Aplica el config.xml subido directamente por Vagrant.
+#              El XML se genera en el PC antes del vagrant up con:
+#                bash scripts/deploy/generate_pfsense_config.sh
 # ============================================================
 set -e
 
@@ -12,22 +12,20 @@ echo "=========================================="
 echo " Provisioning pfSense..."
 echo "=========================================="
 
-# Generar config.xml a partir del script subido a /tmp
-if [ -f /tmp/generate_pfsense_config.sh ]; then
-    chmod +x /tmp/generate_pfsense_config.sh
-    /tmp/generate_pfsense_config.sh
-fi
-
-# Aplicar el config.xml generado (se guardara en /config/pfsense_config.xml al ejecutarse desde /tmp)
-if [ -f /config/pfsense_config.xml ]; then
-    cp /config/pfsense_config.xml /cf/conf/config.xml
+# El config.xml lo sube Vagrant directamente desde config/pfsense_config.xml
+# (generado previamente en el PC con generate_pfsense_config.sh)
+if [ -f /tmp/pfsense_config.xml ]; then
+    cp /tmp/pfsense_config.xml /cf/conf/config.xml
     echo "[OK] Configuracion pfSense aplicada desde config.xml."
-    # Se ejecuta en segundo plano para no colgar la conexion SSH de Vagrant al recargar la red
+    # En segundo plano para no colgar la conexion SSH de Vagrant al recargar la red
     nohup /etc/rc.reload_all > /dev/null 2>&1 &
 else
     echo ""
-    echo "[AVISO] No se encontro config.xml generado."
-    echo "        Configura pfSense manualmente:"
+    echo "[AVISO] No se encontro config.xml."
+    echo "        Asegurate de ejecutar antes del vagrant up:"
+    echo "          bash scripts/deploy/generate_pfsense_config.sh"
+    echo ""
+    echo "        O configura pfSense manualmente:"
     echo "          URL:  https://192.168.40.1"
     echo "          User: admin"
     echo "          Pass: pfsense (cambiar en el primer login)"

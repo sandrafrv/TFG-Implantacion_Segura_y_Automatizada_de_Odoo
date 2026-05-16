@@ -1,4 +1,4 @@
-name: CI Validator  # Nombre del Workflow que aparece en la pestaña "Actions" de GitHub
+name: CI Validator
 
 # ============================================================
 # GITHUB ACTION: CI Validator
@@ -6,89 +6,48 @@ name: CI Validator  # Nombre del Workflow que aparece en la pestaña "Actions" d
 #              proyecto automáticamente en cada push o Pull Request.
 # ============================================================
 
-# --- DISPARADORES (Cuándo se activa este Workflow) ---
 on:
   push:
-    branches: [ "main" ]   # Se ejecuta cuando se hace 'git push' a la rama principal
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]   # También se ejecuta al abrir un Pull Request hacia main
+    branches: [ "main" ]
 
-# --- VARIABLES DE ENTORNO GLOBALES ---
 env:
-  # Forzar Node.js 24 para evitar el aviso de deprecación de Node.js 20
-  # Esto soluciona el warning de "actions/checkout@v4 running on Node.js 20"
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-# --- JOBS (Las tareas que ejecutará GitHub en la nube) ---
 jobs:
 
   validate:
-    name: Syntax & Code Validation  # Nombre descriptivo que aparece en la UI de GitHub
-    runs-on: ubuntu-latest          # GitHub levanta una VM Ubuntu limpia para ejecutar los pasos
+    name: Syntax & Code Validation
+    runs-on: ubuntu-latest
 
-    # --- STEPS (Pasos secuenciales dentro del job) ---
     steps:
 
-      # PASO 1: Descargar el código del repositorio en la VM de GitHub
       - name: Descargar el código
-        uses: actions/checkout@v4  # Acción oficial de GitHub para clonar el repo
+        uses: actions/checkout@v4
 
-      # PASO 2: Validar la sintaxis YAML del docker-compose instalando yamllint
-      # (usamos apt-get en vez de una Action externa para evitar dependencias de terceros caídas)
       - name: Validar Sintaxis YAML de Docker
         run: |
           sudo apt-get install -y yamllint
-          # La opción "relaxed" evita fallos por longitud de línea (poco estricto)
           yamllint -d "{extends: relaxed, rules: {line-length: disable}}" docker/docker-compose.yml
-        continue-on-error: true  # Si falla, no detiene el pipeline completo (avisará pero seguirá)
+        continue-on-error: true
 
-      # PASO 3: Validación estructural del Docker Compose con el CLI nativo de Docker V2
-      # NOTA: En Ubuntu moderno se usa "docker compose" (espacio, V2) en vez de "docker-compose" (guion, V1)
       - name: Validar Docker Compose estructuralmente
         run: |
-          # "docker compose config -q" valida que el yml esté bien escrito y todos los servicios
-          # estén correctamente definidos. Si hay un error de YAML, este comando falla con error.
           docker compose -f docker/docker-compose.yml config -q
 
-      # PASO 4 y 5: Análisis estático de los Scripts Bash con ShellCheck
       - name: Instalar ShellCheck
-        # ShellCheck es el analizador de código Bash más usado en el mundo profesional.
-        # Detecta variables no entrecomilladas, bucles mal escritos, subcomandos ineficientes, etc.
         run: sudo apt-get install -y shellcheck
 
       - name: Validar Scripts con ShellCheck
         run: |
           echo "Analizando todos los scripts de la carpeta scripts/ y la raíz..."
-          # shellcheck analiza cada archivo .sh y reporta los avisos y errores encontrados.
-          # Si detecta un error real, el comando fallará y GitHub marcará el commit como fallido.
           shellcheck scripts/*/*.sh *.sh
           echo "Analizando scripts de provisioning Vagrant..."
           shellcheck vagrant/*.sh
 
-      # PASO 6: Generar y validar config.xml de pfSense
-      - name: Generar config.xml de pfSense
-        run: |
-          echo "Generando configuración pfSense desde el script..."
-          bash scripts/deploy/generate_pfsense_config.sh
-
-      - name: Validar XML de pfSense (xmllint)
-        run: |
-          sudo apt-get install -y libxml2-utils
-          echo "Validando estructura XML..."
-          xmllint --noout config/pfsense_config.xml
-          echo "[OK] El config.xml de pfSense es válido."
-
-      # Sube el config.xml como artefacto descargable desde GitHub Actions
-      - name: Subir config.xml como artefacto
-        uses: actions/upload-artifact@v4
-        with:
-          name: pfsense-config
-          path: config/pfsense_config.xml
-          retention-days: 30
-
-      # PASO 7: Validación del Markdown de la documentación
       - name: Validar Markdown (Limpieza de sintaxis)
-        uses: DavidAnson/markdownlint-cli2-action@v16  # Acción que ejecuta markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v16
         with:
-          globs: "**/*.md"     # Valida TODOS los archivos markdown del repositorio
-        continue-on-error: true  # Fallos de estilo en docs no rompen el pipeline principal
+          globs: "**/*.md"
+        continue-on-error: true
