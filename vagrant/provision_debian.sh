@@ -11,6 +11,16 @@
 #   POSTGRES_HOST    → IP del servidor PostgreSQL
 #   POSTGRES_PASSWORD
 #   ODOO_MASTER_PASSWORD
+#
+# ORDEN DE EJECUCION:
+#   1. Validaciones y espera de red
+#   2. APT: mirrors + dependencias base
+#   3. Docker + PostgreSQL client
+#   4. Crear usuario 'runner'  ← DEBE ir antes del git clone
+#   5. Git clone + chown al runner
+#   6. Generar .env, directorios, SSL, docker compose up
+#   7. Instalar y registrar GitHub Actions runner
+#   8. Configurar rutas de red permanentes via pfSense
 # ============================================================
 set -euo pipefail
 
@@ -52,7 +62,7 @@ if [ -z "${GH_RUNNER_TOKEN}" ]; then
   exit 1
 fi
 
-# ── Esperar a que la red NAT esté lista (solo para el provisioning) ──
+# ── Esperar a que la red NAT esté lista ──────────────────────
 echo "  [NET] Esperando conectividad de red..."
 for i in $(seq 1 12); do
   if curl -fsSL --max-time 5 http://deb.debian.org > /dev/null 2>&1; then
@@ -123,6 +133,15 @@ fi
 systemctl enable --now docker
 systemctl enable --now cockpit.socket
 
+# ── Crear usuario runner ANTES del git clone ─────────────────
+# IMPORTANTE: debe crearse aquí para que el chown posterior funcione.
+# Si se crea después del git clone, el 'chown runner:runner' falla
+# con "invalid user" porque el usuario todavía no existe.
+if ! id "$RUNNER_USER" &>/dev/null; then
+    useradd -m -s /bin/bash "$RUNNER_USER"
+fi
+usermod -aG docker "$RUNNER_USER"
+
 # ── Clonar repositorio privado via PAT ───────────────────────
 if [ ! -d "$PROJECT_DIR/.git" ]; then
     echo "  [GIT] Clonando repositorio privado..."
@@ -137,8 +156,8 @@ fi
 git -C "$PROJECT_DIR" remote set-url origin \
   "https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}.git"
 
-# Dar permisos al usuario runner sobre el proyecto
-# El runner necesita poder escribir en .git/config durante el CD
+# Dar permisos al runner sobre el proyecto
+# (runner ya existe en este punto, por eso el chown funciona)
 chown -R "${RUNNER_USER}:${RUNNER_USER}" "$PROJECT_DIR"
 
 cd "$PROJECT_DIR"
@@ -179,13 +198,10 @@ fi
 docker compose -f docker/docker-compose.yml up -d
 
 # ── Instalar GitHub Actions Runner ───────────────────────────
+# El usuario runner ya fue creado arriba; aquí solo se configura
+# el directorio del runner y se registra en GitHub.
 echo ""
 echo "  [RUNNER] Instalando GitHub Actions self-hosted runner..."
-
-if ! id "$RUNNER_USER" &>/dev/null; then
-    useradd -m -s /bin/bash "$RUNNER_USER"
-fi
-usermod -aG docker "$RUNNER_USER"
 
 mkdir -p "$RUNNER_DIR"
 chown -R "${RUNNER_USER}:${RUNNER_USER}" "$RUNNER_DIR"
@@ -219,13 +235,12 @@ cd "$RUNNER_DIR"
 ./svc.sh start
 
 # ── Configurar rutas de red permanentes ──────────────────────
-# El runner necesita salida a Internet por pfSense (VLAN 30) para
-# contactar con GitHub. Bajamos la ruta por defecto de la NAT de
-# Vagrant y usamos pfSense como gateway permanente.
+# El runner necesita salida a Internet via pfSense (VLAN 30) para
+# contactar con GitHub. Se elimina la ruta por defecto de la NAT
+# de Vagrant y se usa pfSense como gateway permanente.
 echo ""
 echo "  [NET] Configurando rutas permanentes via pfSense..."
 
-# Ruta permanente: todo el tráfico por pfSense en VLAN 30
 cat > /etc/network/interfaces.d/vlan30-routes <<NETEOF
 # Rutas permanentes VLAN 30 — pfSense como gateway
 # Generado por provision_debian.sh
@@ -239,13 +254,10 @@ iface ${VLAN_IFACE} inet static
     post-up ip route add default via ${VLAN_GW} dev ${VLAN_IFACE}
 NETEOF
 
-# Aplicar ahora sin reiniciar:
-# 1. Quitar ruta por defecto de la NAT
+# Aplicar ahora sin reiniciar
 ip route del default dev ${NAT_IFACE} 2>/dev/null || true
-# 2. Añadir ruta por defecto via pfSense
 ip route add default via ${VLAN_GW} dev ${VLAN_IFACE} 2>/dev/null || true
 
-# Verificar conectividad por la ruta nueva (el runner la necesita)
 echo "  [NET] Verificando conectividad via pfSense (${VLAN_GW})..."
 if ping -c 2 -W 3 ${VLAN_GW} > /dev/null 2>&1; then
     echo "  [NET] pfSense alcanzable. Ruta correcta."
