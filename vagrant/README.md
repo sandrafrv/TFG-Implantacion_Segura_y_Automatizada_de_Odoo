@@ -37,16 +37,14 @@ vagrant status                # Estado de todas las VMs
 
 Aprovisiona `vm-odoo` (Debian 13 Trixie). Realiza:
 
-1. Actualización del sistema (`apt update && upgrade`)
-2. Instalación de Docker CE desde el repositorio oficial (`docker-ce`, `containerd.io`, `docker-compose-plugin`)
-3. Instalación de Cockpit para administración web (`https://192.168.30.10:9090`)
-4. Creación de la red MACVLAN `macvlan_vlan30` con driver `macvlan` (IPs `192.168.30.20` y `192.168.30.21`)
-5. Clonación del repositorio en `/opt/erp-odoo`
-6. Generación del `.env` con las variables del `Vagrantfile`
-7. Generación de certificados SSL autofirmados
-8. Copia de `config_nginx/odoo_proxy.conf` al contenedor Nginx
-9. Primer arranque del stack Docker (`odoo-web` + `nginx-proxy`)
-10. Instalación del cron de backup vía `scripts/deploy/install_cron.sh`
+1. Corrección de mirrors obsoletos de Debian y configuración de teclado en español.
+2. Instalación de repositorios oficiales de Docker y cliente de PostgreSQL 16.
+3. Creación del usuario `runner` y clonación del repositorio de GitHub usando un Personal Access Token (PAT).
+4. Generación del archivo `.env` y creación de red MACVLAN (`macvlan_vlan30`).
+5. Generación de certificados SSL autofirmados para el proxy inverso.
+6. Levantamiento del stack de Docker (`odoo-web` + `nginx-proxy`).
+7. Descarga, registro y arranque del servicio del **Self-Hosted Runner de GitHub Actions** (`odoo-runner`).
+8. Modificación del enrutamiento permanente para usar pfSense (`192.168.30.1`) como gateway, eliminando la ruta NAT de Vagrant.
 
 ### `provision_pfsense.sh`
 

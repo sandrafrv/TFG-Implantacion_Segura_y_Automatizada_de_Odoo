@@ -159,15 +159,17 @@ El instalador hace: dependencias → Cockpit → Docker → estructura de dirs �
 > PostgreSQL reside en la **VM externa `vm-postgres`** (`192.168.40.10`, VLAN 40).
 > LDAP ha sido descartado del despliegue principal — ver `extras/ldap/` para más info.
 
-### 2.1 Arquitectura de Contenedores
+### 2.1 Arquitectura de Contenedores y Servicios
 
-```
+```text
 VM Debian (192.168.30.10) — VLAN 30 (DMZ)
   odoo-web  (Odoo 17)    MACVLAN: 192.168.30.21  →  192.168.40.10:5432 (PostgreSQL externo)
   nginx-proxy (Nginx)    MACVLAN: 192.168.30.20  →  proxy inverso SSL → odoo-web:8069
+  odoo-runner            Servicio systemd nativo →  GitHub Actions CI/CD (Self-hosted runner)
 
 VM PostgreSQL (192.168.40.10) — VLAN 40 (BD)
   PostgreSQL 16 nativo   puerto 5432
+  db-runner              Servicio systemd nativo →  GitHub Actions CI/CD (Self-hosted runner)
   Solo accesible desde VLAN 30 (regla pfSense explícita)
 ```
 
