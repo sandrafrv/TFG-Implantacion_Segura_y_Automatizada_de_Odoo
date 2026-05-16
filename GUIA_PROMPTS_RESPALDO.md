@@ -1,5 +1,8 @@
 # Guía de Prompts de Respaldo — Actualización de Documentación
 
+> [!WARNING]
+> **OBSOLETO:** Este archivo contiene prompts históricos utilizados durante el desarrollo. Ya no es necesario ejecutarlos.
+
 > **Propósito:** Si en algún momento la actualización de documentación falla o se interrumpe,
 > usa estos prompts para pedirle al asistente que retome el trabajo desde cualquier punto.
 > Están diseñados para ser autosuficientes: cada uno lleva el contexto necesario.

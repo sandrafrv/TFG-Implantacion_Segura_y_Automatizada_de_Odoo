@@ -1,3 +1,6 @@
+> [!WARNING]
+> **OBSOLETO:** Documento interno de seguimiento antiguo. No refleja la estructura final del proyecto.
+
 REHALIZADO 
 ----------------------------------------------
 - Acabar PDF

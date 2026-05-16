@@ -1,5 +1,8 @@
 # Gestión del Repositorio — TFG ASIR 2025/2026
 
+> [!WARNING]
+> **OBSOLETO:** Este documento ha sido archivado y no refleja la organización o arquitectura actual del repositorio (ej. Vagrant, eliminación de LDAP, etc.).
+
 **→ Guía de instalación completa:** [`docs/INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md)
 
 ---
