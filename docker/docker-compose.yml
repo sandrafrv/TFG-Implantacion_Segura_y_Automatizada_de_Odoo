@@ -18,51 +18,22 @@
 
 services:
 
-  # ------------------------------------------------------------------
-  # SERVICIO 1: Base de Datos PostgreSQL
-  # Contenedor que aloja el motor de base de datos relacional.
-  # Odoo intentará conectarse a él en el arranque.
-  # ------------------------------------------------------------------
-  #db:
-  # image: postgres:16
-  #  container_name: odoo_erp
-  #  restart: always
-#
-  #  environment:
-  #    - POSTGRES_DB=odoo_erp
-  #    - POSTGRES_USER=odoo
-  #    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-  #    - PGDATA=/var/lib/postgresql/data/pgdata
-#
- #   volumes:
-  #    - ../postgres-data:/var/lib/postgresql/data
-#
-#    healthcheck:
- #     test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
- #     interval: 10s
- #     timeout: 5s
- #     retries: 5
-#
- #   networks:
-  #    odoo_net:
+
 
   # ------------------------------------------------------------------
-  # SERVICIO 2: Aplicación Web Odoo
-  # El ERP propiamente dicho. Se conecta al contenedor "db" para leer
-  # y guardar datos, pero nunca está expuesto directamente a Internet.
+  # SERVICIO 1: Aplicación Web Odoo
+  # El ERP propiamente dicho. Se conecta a PostgreSQL en VLAN 40,
+  # pero nunca está expuesto directamente a Internet.
   # ------------------------------------------------------------------
   odoo:
     image: odoo:17
     container_name: odoo-web
     restart: always
 
-    #sobra
-    #depends_on:
-    #  db:
-    #    condition: service_healthy
+
 
     environment:
-      - HOST=192.168.40.10  #ip DE LA vm pOSTGREsql EB LA vlan 40
+      - HOST=192.168.40.10  # IP de la VM PostgreSQL nativo (VLAN 40)
       - USER=odoo
       - PASSWORD=${POSTGRES_PASSWORD}
 
