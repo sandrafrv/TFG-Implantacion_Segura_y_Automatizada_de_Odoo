@@ -20,15 +20,15 @@ Ubicadas en [`guias/`](guias/):
 
 | Archivo | Contenido |
 |:--------|:----------|
-| [`guias/INSTALACION_RED.md`](guias/INSTALACION_RED.md) | pfSense: VM, interfaces, DHCP, DNS, NAT, reglas de firewall por VLAN, aislamiento VLAN 40, autenticación LDAP en panel |
+| [`guias/INSTALACION_RED.md`](guias/INSTALACION_RED.md) | pfSense: VM, interfaces, DHCP, DNS, NAT, reglas de firewall por VLAN, aislamiento VLAN 40 |
 | [`guias/INSTALACION_SERVIDOR.md`](guias/INSTALACION_SERVIDOR.md) | Debian 13: IP estática, Docker, Cockpit, MACVLAN, SSL, stack Docker, post-instalación Odoo, módulos, auditoría SQL |
-| [`guias/INSTALACION_LDAP_CICD_HARDENING.md`](guias/INSTALACION_LDAP_CICD_HARDENING.md) | OpenLDAP: ACLs, usuarios, SSSD+PAM en clientes · GitHub Actions: runner, pipeline · Hardening: UFW, SSH por clave, headless |
+| [`guias/INSTALACION_LDAP_CICD_HARDENING.md`](guias/INSTALACION_LDAP_CICD_HARDENING.md) | Material LDAP de referencia (inactivo) · GitHub Actions: runner, pipeline · Hardening: UFW, SSH por clave, headless |
 
 ### Referencia Técnica
 
 | Archivo | Descripción |
 |:--------|:------------|
-| [`CONTROL_ACCESO.md`](CONTROL_ACCESO.md) | Modelo de seguridad en 3 capas: Nginx (rutas por VLAN) + Odoo (tipo de usuario) + LDAP (grupos por rol) |
+| [`CONTROL_ACCESO.md`](CONTROL_ACCESO.md) | Modelo de seguridad: Nginx (rutas por VLAN) + Odoo (tipo de usuario) |
 | [`reglas_pfsense.md`](reglas_pfsense.md) | Referencia completa de todas las reglas de firewall pfSense, NAT y DNS |
 | [`diagrama_red.md`](diagrama_red.md) | Diagramas Mermaid de la arquitectura: topología, zonas de seguridad, flujo de autenticación, red Docker |
 
@@ -55,7 +55,7 @@ docs/
 ├── README.md                       ← Este archivo (índice)
 ├── INSTALACION_COMPLETA.md         ← Guía maestra (entrada principal)
 ├── CHANGELOG.md                    ← Historial de versiones
-├── CONTROL_ACCESO.md               ← Modelo 3 capas de seguridad
+├── CONTROL_ACCESO.md               ← Modelo de seguridad
 ├── HISTORIAL_IMPLEMENTACION.md     ← Historia del desarrollo
 ├── diagrama_red.md                 ← Diagramas de arquitectura
 ├── reglas_pfsense.md               ← Referencia de reglas pfSense
@@ -65,7 +65,7 @@ docs/
 ├── guias/                          ← Sub-guías de instalación
 │   ├── INSTALACION_RED.md          (pfSense + VLAN 40)
 │   ├── INSTALACION_SERVIDOR.md     (Debian + Docker + Odoo)
-│   └── INSTALACION_LDAP_CICD_HARDENING.md (LDAP + CI/CD + Hardening)
+│   └── INSTALACION_LDAP_CICD_HARDENING.md (CI/CD + Hardening + Info LDAP legacy)
 │
 ├── archive/                        ← Documentos históricos de planificación
 └── mas_info/                       ← Investigación técnica y comparativa ERP
@@ -109,11 +109,8 @@ bash /opt/erp-odoo/scripts/mantenimiento/backup.sh
 # Restaurar backup
 bash /opt/erp-odoo/scripts/mantenimiento/restore.sh /opt/erp-odoo/backups/<archivo>.dump
 
-# Añadir usuario LDAP
-bash /opt/erp-odoo/scripts/ldap/ldap_crear_usuarios.sh
-
-# Configurar PC cliente VLAN 10 para login LDAP
-sudo bash /opt/erp-odoo/scripts/ldap/configurar_cliente_ldap.sh
+# Ver logs del contenedor odoo
+docker compose -f /opt/erp-odoo/docker/docker-compose.yml logs -f odoo-web
 ```
 
 Referencia completa de scripts: [`../scripts/README.md`](../scripts/README.md)
@@ -148,30 +145,11 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 
 - [ ] `nginx-proxy` → IP `192.168.30.20` en MACVLAN
 - [ ] `odoo-web` → IP `192.168.30.21` en MACVLAN
-- [ ] `openldap` → IP `192.168.30.22` en MACVLAN
 - [ ] `odoo_erp` → sin IP MACVLAN (solo red interna)
 - [ ] `docker run --rm --network macvlan_vlan30 alpine wget -qO- https://192.168.30.20` → `<title>Odoo</title>`
 - [ ] Captura de `docker network inspect macvlan_vlan30` → `screenshots/fase_B_macvlan/`
 
----
 
-### [Identidad] Autenticación Centralizada LDAP
-
-**Labels:** `ldap`, `autenticación`, `seguridad`
-
-**Objetivo:** Una cuenta LDAP permite login en PC Linux y en Odoo.
-
-- [ ] Contenedor OpenLDAP activo con IP `192.168.30.22`
-- [ ] ACLs aplicadas: readonly=lectura, tecnico=contraseñas, admin=escritura
-- [ ] Usuarios creados con `ldap_crear_usuarios.sh`
-- [ ] Módulo `auth_ldap` instalado en Odoo
-- [ ] Login en Odoo con credencial LDAP → OK
-- [ ] `getent passwd <uid>` en PC VLAN 10 → resuelve el usuario
-- [ ] Login en PC VLAN 10 con credencial LDAP → sesión abierta
-- [ ] `cn=readonly` intenta modificar → error 50 (Insufficient access)
-- [ ] Captura → `screenshots/fase_C_ldap/`
-
----
 
 ### [SecOps] Hardening SSH + Headless
 
@@ -217,12 +195,7 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 - [ ] OPT2 (VLAN 40): IP `192.168.40.1/24`, DHCP `40.10–50`
 - [ ] Regla OPT2: `VLAN40 → This Firewall :443 → PASS`
 - [ ] Acceso panel desde VLAN 40: `https://192.168.40.1` → OK
-- [ ] Servidor LDAP configurado en User Manager → Authentication Servers
-- [ ] Grupo `admin` en pfSense con `WebCfg - All pages`
-- [ ] Authentication Server cambiado a `OpenLDAP DMZ`
 - [ ] Anti-Lockout desactivado (System → Advanced → Admin Access)
-- [ ] Login con `dba` → **denegado** ✅
-- [ ] Login con `admin` → **concedido** ✅
 - [ ] Panel desde VLAN 10 → **no accesible** ✅
 
 ---
@@ -249,8 +222,7 @@ git status
 ```
 screenshots/
 ├── fase_A_vlan/       → Reglas pfSense, nc timeout, curl 200
-├── fase_B_macvlan/    → docker network inspect, IPs .20/.21/.22
-├── fase_C_ldap/       → Login LDAP en Odoo, login LDAP en PC
+├── fase_B_macvlan/    → docker network inspect, IPs .20/.21
 ├── fase_D_headless/   → SSH activo, Cockpit, sin GUI
 └── fase_E_cicd/       → Pipeline GitHub Actions ejecutándose
 ```
