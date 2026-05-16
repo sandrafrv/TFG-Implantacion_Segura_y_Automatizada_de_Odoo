@@ -28,8 +28,6 @@ ODOO_MASTER_PASSWORD="${ODOO_MASTER_PASSWORD:-changeme_master}"
 RUNNER_NAME="${RUNNER_NAME:-odoo-runner}"
 RUNNER_USER="runner"
 RUNNER_DIR="/home/${RUNNER_USER}/actions-runner"
-
-# Versión del runner (comprueba la última en https://github.com/actions/runner/releases)
 RUNNER_VERSION="2.317.0"
 
 echo "=========================================="
@@ -49,23 +47,75 @@ if [ -z "${GH_RUNNER_TOKEN}" ]; then
 fi
 
 # ── Dependencias del sistema ─────────────────────────────────
-export DEBIAN_FRONTEND=noninteractive
+# ── Esperar a que la red NAT de VMware esté lista ────────────
+echo "  [NET] Esperando conectividad de red..."
+for i in $(seq 1 12); do
+  if curl -fsSL --max-time 5 http://deb.debian.org > /dev/null 2>&1; then
+    echo "  [NET] Red lista."
+    break
+  fi
+  echo "  [NET] Intento $i/12 — esperando 5s..."
+  sleep 5
+done
 
-apt-get update -qq
+# ── Limpiar mirrors obsoletos de la box bento/debian-12 ──────
+export DEBIAN_FRONTEND=noninteractive
+APT_OPTS="-o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true -o Acquire::GPG::NoSign=true --allow-unauthenticated"
+echo "  [APT] Corrigiendo mirrors obsoletos de la box..."
+cat > /etc/apt/sources.list <<'SOURCES'
+deb [trusted=yes] http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
+deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+SOURCES
+apt-get ${APT_OPTS} update -qq
 
 # Configurar teclado en español
-apt-get install -y keyboard-configuration console-setup --no-install-recommends
+apt-get ${APT_OPTS} install -y keyboard-configuration console-setup --no-install-recommends
 sed -i 's/XKBLAYOUT=.*/XKBLAYOUT="es"/' /etc/default/keyboard
 dpkg-reconfigure -f noninteractive keyboard-configuration
 invoke-rc.d keyboard-setup.sh restart || true
 
-apt-get install -y \
-    git curl ca-certificates \
-    docker.io docker-compose-v2 \
-    openssl cockpit \
-    postgresql-client-16 \
-    jq \
+# Dependencias base
+apt-get ${APT_OPTS} install -y \
+    git curl ca-certificates gnupg \
+    openssl cockpit jq \
     --no-install-recommends
+
+# ── Repo oficial de Docker ────────────────────────────────────
+if ! command -v docker &>/dev/null; then
+    echo "  [DOCKER] Añadiendo repositorio oficial de Docker..."
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL --insecure https://download.docker.com/linux/debian/gpg \
+      | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg trusted=yes] \
+https://download.docker.com/linux/debian bookworm stable" \
+      > /etc/apt/sources.list.d/docker.list
+    apt-get ${APT_OPTS} update -qq
+    apt-get ${APT_OPTS} install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+fi
+
+# ── Limpiar mirrors obsoletos de la box bento/debian-12 ──────
+echo "  [APT] Limpiando mirrors obsoletos..."
+cat > /etc/apt/sources.list <<'SOURCES'
+deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+SOURCES
+apt-get ${APT_OPTS} update -qq
+
+# ── Repo oficial de PostgreSQL (cliente) ──────────────────────
+if ! command -v psql &>/dev/null; then
+    echo "  [PG] Añadiendo repositorio oficial de PostgreSQL..."
+    curl -fsSL --insecure https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+      | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+    echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg trusted=yes] \
+https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list
+    apt-get ${APT_OPTS} update -qq
+    apt-get ${APT_OPTS} install -y postgresql-client-16
+fi
 
 systemctl enable --now docker
 systemctl enable --now cockpit.socket
@@ -76,13 +126,15 @@ if [ ! -d "$PROJECT_DIR/.git" ]; then
     git clone "$REPO" "$PROJECT_DIR"
 else
     echo "  [GIT] Repositorio ya clonado; actualizando..."
-    # Actualizar remote por si el PAT cambió
     git -C "$PROJECT_DIR" remote set-url origin "$REPO"
     git -C "$PROJECT_DIR" pull --ff-only origin main
 fi
 
 # Borrar el PAT de la URL del remote una vez clonado (seguridad)
 git -C "$PROJECT_DIR" remote set-url origin "https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}.git"
+
+# Dar permisos al usuario runner sobre el proyecto
+chown -R runner:runner "$PROJECT_DIR" 2>/dev/null || true
 
 cd "$PROJECT_DIR"
 
@@ -127,23 +179,22 @@ docker compose -f docker/docker-compose.yml up -d
 echo ""
 echo "  [RUNNER] Instalando GitHub Actions self-hosted runner..."
 
-# Crear usuario dedicado sin contraseña para el runner
+# Crear usuario dedicado para el runner
 if ! id "$RUNNER_USER" &>/dev/null; then
     useradd -m -s /bin/bash "$RUNNER_USER"
-    usermod -aG docker "$RUNNER_USER"   # el runner puede ejecutar docker
 fi
+usermod -aG docker "$RUNNER_USER"
 
 mkdir -p "$RUNNER_DIR"
 chown -R "${RUNNER_USER}:${RUNNER_USER}" "$RUNNER_DIR"
 
 # Descargar el runner si no está ya instalado
 if [ ! -f "${RUNNER_DIR}/run.sh" ]; then
-    RUNNER_ARCH="x64"
-    RUNNER_PKG="actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz"
-    RUNNER_URL="https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/${RUNNER_PKG}"
-
+    RUNNER_PKG="actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
     echo "  [RUNNER] Descargando ${RUNNER_PKG}..."
-    curl -fsSL "$RUNNER_URL" -o "/tmp/${RUNNER_PKG}"
+    curl -fsSL \
+      "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/${RUNNER_PKG}" \
+      -o "/tmp/${RUNNER_PKG}"
     tar -xzf "/tmp/${RUNNER_PKG}" -C "$RUNNER_DIR"
     rm -f "/tmp/${RUNNER_PKG}"
     chown -R "${RUNNER_USER}:${RUNNER_USER}" "$RUNNER_DIR"
@@ -157,7 +208,7 @@ sudo -u "$RUNNER_USER" bash -c "
     --url '${REPO_URL}' \
     --token '${GH_RUNNER_TOKEN}' \
     --name '${RUNNER_NAME}' \
-    --labels 'self-hosted,linux' \
+    --labels 'self-hosted,linux,odoo' \
     --work '_work' \
     --unattended \
     --replace
