@@ -2,7 +2,6 @@
 # ============================================================
 # SCRIPT: vagrant/provision_debian.sh
 # DESCRIPCION: Provisioning de la VM Debian - Odoo 17 + Nginx
-#              Se ejecuta automaticamente por Vagrant al crear la VM.
 #              PostgreSQL reside en VM externa (VLAN 40 - 192.168.40.10).
 #
 # VARIABLES REQUERIDAS (inyectadas por el Vagrantfile):
@@ -30,6 +29,13 @@ RUNNER_USER="runner"
 RUNNER_DIR="/home/${RUNNER_USER}/actions-runner"
 RUNNER_VERSION="2.317.0"
 
+# Interfaz NAT de Vagrant (siempre eth0 en bento/debian-12)
+NAT_IFACE="eth0"
+# Interfaz de la VLAN 30 (segunda interfaz añadida por Vagrant)
+VLAN_IFACE="eth1"
+# Gateway de pfSense en VLAN 30
+VLAN_GW="192.168.30.1"
+
 echo "=========================================="
 echo " Provisioning servidor Odoo + Nginx..."
 echo " POSTGRES_HOST : $POSTGRES_HOST"
@@ -46,8 +52,7 @@ if [ -z "${GH_RUNNER_TOKEN}" ]; then
   exit 1
 fi
 
-# ── Dependencias del sistema ─────────────────────────────────
-# ── Esperar a que la red NAT de VMware esté lista ────────────
+# ── Esperar a que la red NAT esté lista (solo para el provisioning) ──
 echo "  [NET] Esperando conectividad de red..."
 for i in $(seq 1 12); do
   if curl -fsSL --max-time 5 http://deb.debian.org > /dev/null 2>&1; then
@@ -58,25 +63,30 @@ for i in $(seq 1 12); do
   sleep 5
 done
 
-# ── Limpiar mirrors obsoletos de la box bento/debian-12 ──────
+# ── APT: corregir mirrors obsoletos de la box ─────────────────
 export DEBIAN_FRONTEND=noninteractive
-APT_OPTS="-o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true -o Acquire::GPG::NoSign=true --allow-unauthenticated"
+APT_OPTS="-o Acquire::Check-Valid-Until=false \
+  -o Acquire::AllowInsecureRepositories=true \
+  -o Acquire::AllowDowngradeToInsecureRepositories=true \
+  -o Acquire::GPG::NoSign=true \
+  --allow-unauthenticated"
+
 echo "  [APT] Corrigiendo mirrors obsoletos de la box..."
 cat > /etc/apt/sources.list <<'SOURCES'
 deb [trusted=yes] http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
 deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
 deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 SOURCES
-apt-get ${APT_OPTS} update -qq
+apt-get $APT_OPTS update -qq
 
 # Configurar teclado en español
-apt-get ${APT_OPTS} install -y keyboard-configuration console-setup --no-install-recommends
+apt-get $APT_OPTS install -y keyboard-configuration console-setup --no-install-recommends
 sed -i 's/XKBLAYOUT=.*/XKBLAYOUT="es"/' /etc/default/keyboard
 dpkg-reconfigure -f noninteractive keyboard-configuration
 invoke-rc.d keyboard-setup.sh restart || true
 
 # Dependencias base
-apt-get ${APT_OPTS} install -y \
+apt-get $APT_OPTS install -y \
     git curl ca-certificates gnupg \
     openssl cockpit jq \
     --no-install-recommends
@@ -92,18 +102,9 @@ if ! command -v docker &>/dev/null; then
       "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg trusted=yes] \
 https://download.docker.com/linux/debian bookworm stable" \
       > /etc/apt/sources.list.d/docker.list
-    apt-get ${APT_OPTS} update -qq
-    apt-get ${APT_OPTS} install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    apt-get $APT_OPTS update -qq
+    apt-get $APT_OPTS install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
-
-# ── Limpiar mirrors obsoletos de la box bento/debian-12 ──────
-echo "  [APT] Limpiando mirrors obsoletos..."
-cat > /etc/apt/sources.list <<'SOURCES'
-deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
-deb http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
-SOURCES
-apt-get ${APT_OPTS} update -qq
 
 # ── Repo oficial de PostgreSQL (cliente) ──────────────────────
 if ! command -v psql &>/dev/null; then
@@ -113,8 +114,8 @@ if ! command -v psql &>/dev/null; then
     echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg trusted=yes] \
 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
       > /etc/apt/sources.list.d/pgdg.list
-    apt-get ${APT_OPTS} update -qq
-    apt-get ${APT_OPTS} install -y postgresql-client-16
+    apt-get $APT_OPTS update -qq
+    apt-get $APT_OPTS install -y postgresql-client-16
 fi
 
 systemctl enable --now docker
@@ -130,8 +131,9 @@ else
     git -C "$PROJECT_DIR" pull --ff-only origin main
 fi
 
-# Borrar el PAT de la URL del remote una vez clonado (seguridad)
-git -C "$PROJECT_DIR" remote set-url origin "https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}.git"
+# Borrar el PAT de la URL del remote (seguridad)
+git -C "$PROJECT_DIR" remote set-url origin \
+  "https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}.git"
 
 # Dar permisos al usuario runner sobre el proyecto
 chown -R runner:runner "$PROJECT_DIR" 2>/dev/null || true
@@ -152,14 +154,12 @@ chmod -R 777 odoo-data/ odoo_sessions/ backups/
 find scripts/ -name "*.sh" -exec chmod +x {} + 2>/dev/null || true
 
 # ── Crear red MACVLAN para VLAN 30 ───────────────────────────
-IFACE=$(ip route | awk '/default/ {print $5; exit}')
-
 docker network inspect macvlan_vlan30 > /dev/null 2>&1 || \
   docker network create \
     --driver macvlan \
     --subnet=192.168.30.0/24 \
     --gateway=192.168.30.1 \
-    -o "parent=${IFACE}.30" \
+    -o "parent=${VLAN_IFACE}.30" \
     macvlan_vlan30
 
 # ── Generar certificado SSL autofirmado ──────────────────────
@@ -179,7 +179,6 @@ docker compose -f docker/docker-compose.yml up -d
 echo ""
 echo "  [RUNNER] Instalando GitHub Actions self-hosted runner..."
 
-# Crear usuario dedicado para el runner
 if ! id "$RUNNER_USER" &>/dev/null; then
     useradd -m -s /bin/bash "$RUNNER_USER"
 fi
@@ -188,7 +187,6 @@ usermod -aG docker "$RUNNER_USER"
 mkdir -p "$RUNNER_DIR"
 chown -R "${RUNNER_USER}:${RUNNER_USER}" "$RUNNER_DIR"
 
-# Descargar el runner si no está ya instalado
 if [ ! -f "${RUNNER_DIR}/run.sh" ]; then
     RUNNER_PKG="actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
     echo "  [RUNNER] Descargando ${RUNNER_PKG}..."
@@ -200,7 +198,6 @@ if [ ! -f "${RUNNER_DIR}/run.sh" ]; then
     chown -R "${RUNNER_USER}:${RUNNER_USER}" "$RUNNER_DIR"
 fi
 
-# Registrar el runner en el repositorio
 echo "  [RUNNER] Registrando runner '${RUNNER_NAME}'..."
 sudo -u "$RUNNER_USER" bash -c "
   cd '${RUNNER_DIR}'
@@ -214,10 +211,44 @@ sudo -u "$RUNNER_USER" bash -c "
     --replace
 "
 
-# Instalar y arrancar el runner como servicio systemd
 cd "$RUNNER_DIR"
 ./svc.sh install "$RUNNER_USER"
 ./svc.sh start
+
+# ── Configurar rutas de red permanentes ──────────────────────
+# El runner necesita salida a Internet por pfSense (VLAN 30) para
+# contactar con GitHub. Bajamos la ruta por defecto de la NAT de
+# Vagrant y usamos pfSense como gateway permanente.
+echo ""
+echo "  [NET] Configurando rutas permanentes via pfSense..."
+
+# Ruta permanente: todo el tráfico por pfSense en VLAN 30
+cat > /etc/network/interfaces.d/vlan30-routes <<NETEOF
+# Rutas permanentes VLAN 30 — pfSense como gateway
+# Generado por provision_debian.sh
+
+auto ${VLAN_IFACE}
+iface ${VLAN_IFACE} inet static
+    address 192.168.30.10
+    netmask 255.255.255.0
+    gateway ${VLAN_GW}
+    post-up ip route del default via \$(ip route | awk '/default.*${NAT_IFACE}/ {print \$3}') dev ${NAT_IFACE} 2>/dev/null || true
+    post-up ip route add default via ${VLAN_GW} dev ${VLAN_IFACE}
+NETEOF
+
+# Aplicar ahora sin reiniciar:
+# 1. Quitar ruta por defecto de la NAT
+ip route del default dev ${NAT_IFACE} 2>/dev/null || true
+# 2. Añadir ruta por defecto via pfSense
+ip route add default via ${VLAN_GW} dev ${VLAN_IFACE} 2>/dev/null || true
+
+# Verificar conectividad por la ruta nueva (el runner la necesita)
+echo "  [NET] Verificando conectividad via pfSense (${VLAN_GW})..."
+if ping -c 2 -W 3 ${VLAN_GW} > /dev/null 2>&1; then
+    echo "  [NET] pfSense alcanzable. Ruta correcta."
+else
+    echo "  [AVISO] pfSense no responde. Comprueba que la VM pfSense está activa."
+fi
 
 echo ""
 echo "=========================================="
@@ -225,4 +256,6 @@ echo " [OK] Odoo:    https://192.168.30.21"
 echo " [OK] Cockpit: https://192.168.30.21:9090"
 echo " [DB]          192.168.40.10:5432 (externa)"
 echo " [RUNNER]      '${RUNNER_NAME}' activo en ${REPO_URL}"
+echo " [RED]         Gateway → pfSense ${VLAN_GW} (VLAN 30)"
+echo " [RED]         NAT Vagrant desactivada como ruta por defecto"
 echo "=========================================="

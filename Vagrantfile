@@ -21,6 +21,9 @@
 # ============================================================
 Vagrant.configure("2") do |config|
 
+  GH_PAT  = ENV["GH_PAT"] || ""
+  GH_REPO = "sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
+
   # --------------------------------------------------------
   # VM 1 — pfSense (Firewall / VPN / Router)
   # WAN: red pública
@@ -76,6 +79,36 @@ Vagrant.configure("2") do |config|
       v.gui    = true
     end
 
+    # Desregistrar runner de GitHub antes de destruir la VM
+    deb.trigger.before :destroy do |trigger|
+      trigger.name = "Desregistrar odoo-runner de GitHub"
+      trigger.run_remote = {
+        inline: <<-SHELL
+          RUNNER_NAME="odoo-runner"
+          GH_PAT="#{GH_PAT}"
+          GH_REPO="#{GH_REPO}"
+
+          RUNNER_ID=$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GH_REPO}/actions/runners" \
+            | grep -B1 '"name": "'${RUNNER_NAME}'"' \
+            | grep '"id"' | grep -o '[0-9]*')
+
+          if [ -n "$RUNNER_ID" ]; then
+            echo "  [RUNNER] Desregistrando '${RUNNER_NAME}' (ID: ${RUNNER_ID})..."
+            curl -fsSL -X DELETE \
+              -H "Authorization: Bearer ${GH_PAT}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GH_REPO}/actions/runners/${RUNNER_ID}"
+            echo "  [RUNNER] Runner eliminado de GitHub."
+          else
+            echo "  [RUNNER] '${RUNNER_NAME}' no encontrado en GitHub, nada que eliminar."
+          fi
+        SHELL
+      }
+    end
+
     deb.vm.provision "shell",
       path:       "vagrant/provision_debian.sh",
       privileged: true,
@@ -110,6 +143,37 @@ Vagrant.configure("2") do |config|
       v.cpus   = 1
       v.gui    = true
     end
+
+    # Desregistrar runner de GitHub antes de destruir la VM
+    db.trigger.before :destroy do |trigger|
+      trigger.name = "Desregistrar db-runner de GitHub"
+      trigger.run_remote = {
+        inline: <<-SHELL
+          RUNNER_NAME="db-runner"
+          GH_PAT="#{GH_PAT}"
+          GH_REPO="#{GH_REPO}"
+
+          RUNNER_ID=$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GH_REPO}/actions/runners" \
+            | grep -B1 '"name": "'${RUNNER_NAME}'"' \
+            | grep '"id"' | grep -o '[0-9]*')
+
+          if [ -n "$RUNNER_ID" ]; then
+            echo "  [RUNNER] Desregistrando '${RUNNER_NAME}' (ID: ${RUNNER_ID})..."
+            curl -fsSL -X DELETE \
+              -H "Authorization: Bearer ${GH_PAT}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GH_REPO}/actions/runners/${RUNNER_ID}"
+            echo "  [RUNNER] Runner eliminado de GitHub."
+          else
+            echo "  [RUNNER] '${RUNNER_NAME}' no encontrado en GitHub, nada que eliminar."
+          fi
+        SHELL
+      }
+    end
+
     db.vm.provision "shell",
       path:       "vagrant/provision_postgres.sh",
       privileged: true,
@@ -120,5 +184,5 @@ Vagrant.configure("2") do |config|
         "RUNNER_NAME"       => "db-runner"
       }
   end
- 
+
 end
