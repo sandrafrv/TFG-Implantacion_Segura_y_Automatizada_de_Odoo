@@ -138,7 +138,8 @@ git -C "$PROJECT_DIR" remote set-url origin \
   "https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}.git"
 
 # Dar permisos al usuario runner sobre el proyecto
-chown -R runner:runner "$PROJECT_DIR" 2>/dev/null || true
+# El runner necesita poder escribir en .git/config durante el CD
+chown -R "${RUNNER_USER}:${RUNNER_USER}" "$PROJECT_DIR"
 
 cd "$PROJECT_DIR"
 
