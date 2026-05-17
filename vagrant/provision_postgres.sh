@@ -27,7 +27,7 @@ echo "=========================================="
 # ── Esperar a que la red NAT esté lista (solo para el provisioning) ──
 echo "  [NET] Esperando conectividad de red..."
 for i in $(seq 1 12); do
-  if curl -fsSL --max-time 5 http://deb.debian.org > /dev/null 2>&1; then
+  if curl -fsSL --max-time 5 https://deb.debian.org > /dev/null 2>&1; then
     echo "  [NET] Red lista."
     break
   fi
@@ -44,12 +44,12 @@ APT_OPTS=(
   --allow-unauthenticated
 )
 
-# ── Corregir mirrors de la box ────────────────────────────────
+# ── Corregir mirrors de la box (HTTPS para evitar interceptación HTTP) ──
 echo "  [APT] Corrigiendo mirrors obsoletos de la box..."
 cat > /etc/apt/sources.list <<'SOURCES'
-deb [trusted=yes] http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
-deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+deb [trusted=yes] https://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb [trusted=yes] https://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
+deb [trusted=yes] https://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 SOURCES
 apt-get "${APT_OPTS[@]}" update -qq
 
@@ -58,6 +58,13 @@ apt-get "${APT_OPTS[@]}" install -y keyboard-configuration console-setup --no-in
 sed -i 's/XKBLAYOUT=.*/XKBLAYOUT="es"/' /etc/default/keyboard
 dpkg-reconfigure -f noninteractive keyboard-configuration
 invoke-rc.d keyboard-setup.sh restart || true
+
+# ── Congelar gnupg para evitar Hash Sum mismatch en la descarga ──
+# gnupg ya viene instalado en la box; congelarlo evita que apt
+# intente actualizarlo (los .deb llegan vacíos por interceptación HTTP).
+echo "  [APT] Congelando paquetes gnupg para evitar Hash Sum mismatch..."
+apt-mark hold gnupg gpgv gpg gpg-agent gpgconf dirmngr \
+  gnupg-utils gnupg-l10n gpgsm gpg-wks-client gpg-wks-server 2>/dev/null || true
 
 # Dependencias base
 apt-get "${APT_OPTS[@]}" install -y curl ca-certificates gnupg --no-install-recommends
