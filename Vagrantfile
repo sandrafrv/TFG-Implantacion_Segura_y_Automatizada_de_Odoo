@@ -31,6 +31,22 @@ Vagrant.configure("2") do |config|
   GH_PAT  = ENV["GH_PAT"] || ""
   GH_REPO = "sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
 
+  # ── Fijar subredes VMnets antes de levantar cualquier VM ─────
+  # Evita que tras un destroy+up las VMnets queden con subredes
+  # incorrectas y se pierda el acceso desde Windows a las VMs.
+  # El script comprueba primero si ya están bien — si lo están,
+  # no reinicia servicios VMware ni toca nada.
+  config.trigger.before :up do |trigger|
+    trigger.name = "Configurar VMnets"
+    trigger.run  = {
+      inline: "powershell -ExecutionPolicy Bypass " \
+              "-Command \"Start-Process powershell " \
+              "-ArgumentList '-ExecutionPolicy Bypass " \
+              "-File scripts/setup_vmnet.ps1' " \
+              "-Verb RunAs -Wait\""
+    }
+  end
+
   # --------------------------------------------------------
   # VM 1 — pfSense (Firewall / VPN / Router)
   # WAN: red pública
@@ -44,6 +60,10 @@ Vagrant.configure("2") do |config|
     pf.vm.hostname         = "pfsense-tfg"
 
     pf.vm.synced_folder ".", "/vagrant", disabled: true
+    # pfSense no tiene usuario vagrant con SSH funcional.
+    # El config.xml se importa manualmente desde la WebGUI:
+    #   https://192.168.40.1 → Diagnostics → Backup/Restore
+    pf.vm.communicator = "none"
 
     pf.vm.network "private_network", ip: "192.168.10.1",
       vmware__vmnet: "VMnet1", auto_config: false
@@ -58,9 +78,6 @@ Vagrant.configure("2") do |config|
       v.cpus   = 1
       v.gui    = true
     end
-
-    pf.vm.provision "file", source: "scripts/deploy/generate_pfsense_config.sh", destination: "/tmp/generate_pfsense_config.sh"
-    pf.vm.provision "shell", path: "vagrant/provision_pfsense.sh"
   end
 
   # --------------------------------------------------------
