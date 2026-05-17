@@ -65,7 +65,7 @@ Vagrant.configure("2") do |config|
     pf.vm.synced_folder ".", "/vagrant", disabled: true
 
     # Sin communicator — Vagrant no intenta SSH ni provisioning
-    pf.vm.communicator = :none
+    pf.vm.communicator = "none"
 
     pf.vm.network "private_network", ip: "192.168.10.1",
       vmware__vmnet: "VMnet1", auto_config: false
