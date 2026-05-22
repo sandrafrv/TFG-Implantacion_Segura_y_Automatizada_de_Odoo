@@ -15,6 +15,38 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ---
 
+## [v1.8 — 2026-05-22]
+
+### Corregido
+
+- **BUG-08 `scripts/deploy/generate_pfsense_config.sh` — DNS Host Override apuntaba al host Debian en vez de nginx-proxy** (🔴 CRÍTICA):
+  La variable `DNS_TARGET` usaba `$SERVER_IP` (`192.168.30.10`, servidor Debian), pero el DNS debe resolver
+  a `$NGINX_IP` (`192.168.30.20`, `nginx-proxy` MACVLAN), que es el único punto de entrada HTTPS.
+  Corrección: `DNS_TARGET="$NGINX_IP"`.
+
+- **BUG-09 `generate_pfsense_config.sh` — Orden incorrecto de reglas en OPT1/DMZ** (🔴 CRÍTICA):
+  La regla `PASS Odoo→PostgreSQL` se generaba **antes** de los bloqueos anti-pivoting.
+  En pfSense el orden de evaluación es de arriba hacia abajo: colocar el PASS primero significaba que
+  **cualquier** host de la DMZ podría haber alcanzado `192.168.40.10:5432`, no solo `odoo-web`.
+  Orden correcto ahora: Bloqueo VLAN10 (Pos.1) → Bloqueo pfSense-LAN (Pos.2) → **PASS Odoo→PG (Pos.3)** → Bloqueo VLAN40 (Pos.4).
+
+- **BUG-10 `generate_pfsense_config.sh` — Regla DBA PostgreSQL ausente en OPT2/VLAN 40** (🟠 MEDIA):
+  El XML generado no incluía la regla que permite a los administradores de la VLAN 40 conectarse
+  directamente a PostgreSQL (`192.168.40.10:5432`). Esta regla sí estaba documentada en `docs/reglas_pfsense.md`
+  (Pos.5 de OPT2) pero no se generaba en el `config.xml`. Añadida.
+
+- **BUG-11 `generate_pfsense_config.sh` — Aliases incompletos** (🟡 BAJA):
+  Faltaban los aliases `Odoo_Web` (para `192.168.30.21`) y `PostgreSQL_VM` (para `192.168.40.10`).
+  Añadidos para facilitar la lectura de reglas en la interfaz web de pfSense.
+
+### Modificado
+
+- **`docs/reglas_pfsense.md`**: añadida advertencia explícita en la sección DNS Resolver y en el checklist
+  final indicando que el Host Override debe apuntar a `192.168.30.20` (nginx-proxy), no a `192.168.30.10`.
+  Añadida cabecera con versión y fecha de última actualización.
+
+---
+
 ## [v1.7 — 2026-05-15]
 
 > Revisión IaC completa del repositorio. Se auditaron estáticamente todos los scripts y archivos de configuración. Se identificaron y corrigieron 7 bugs.

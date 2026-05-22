@@ -37,7 +37,7 @@ DOMAIN="tfg.com"
 TIMEZONE="Europe/Madrid"
 DNS_HOST="erp.odoo"
 DNS_DOMAIN="tfg.com"
-DNS_TARGET="$SERVER_IP"
+DNS_TARGET="$NGINX_IP"    # nginx-proxy MACVLAN — punto de entrada HTTP/HTTPS
 
 # ── Contraseña admin (hash bcrypt de "pfsense") ──
 # IMPORTANTE: Cambiar en el primer login
@@ -255,15 +255,26 @@ cat << XMLEOF
       <name>Servidor_Debian</name>
       <type>host</type>
       <address>${SERVER_IP}</address>
-      <descr><![CDATA[Servidor Debian DMZ]]></descr>
+      <descr><![CDATA[Servidor Debian DMZ (192.168.30.10)]]></descr>
     </alias>
     <alias>
       <name>Nginx_Proxy</name>
       <type>host</type>
       <address>${NGINX_IP}</address>
-      <descr><![CDATA[Nginx Reverse Proxy]]></descr>
+      <descr><![CDATA[Nginx Reverse Proxy MACVLAN (192.168.30.20)]]></descr>
     </alias>
-
+    <alias>
+      <name>Odoo_Web</name>
+      <type>host</type>
+      <address>${ODOO_IP}</address>
+      <descr><![CDATA[Odoo ERP MACVLAN (192.168.30.21)]]></descr>
+    </alias>
+    <alias>
+      <name>PostgreSQL_VM</name>
+      <type>host</type>
+      <address>192.168.40.10</address>
+      <descr><![CDATA[PostgreSQL 16 nativo VLAN 40 (192.168.40.10)]]></descr>
+    </alias>
     <alias>
       <name>VLAN_Clientes</name>
       <type>network</type>
@@ -274,7 +285,7 @@ cat << XMLEOF
       <name>VLAN_Admin</name>
       <type>network</type>
       <address>192.168.40.0/24</address>
-      <descr><![CDATA[Red VLAN 40 - Administracion]]></descr>
+      <descr><![CDATA[Red VLAN 40 - Administracion y BD]]></descr>
     </alias>
   </aliases>
 XMLEOF
@@ -415,7 +426,31 @@ cat << XMLEOF
     </rule>
 
     <!-- ===================== OPT1 / DMZ (VLAN 30) ===================== -->
-    <!-- DMZ Pos.0: Odoo -> PostgreSQL -->
+    <!-- ORDEN CRITICO: bloqueos anti-pivoting PRIMERO, luego PASS Odoo→PG, luego bloqueo VLAN40 -->
+
+    <!-- DMZ Pos.1: Anti-pivoting a VLAN 10 ← PRIMERO -->
+    <rule>
+      <type>block</type>
+      <ipprotocol>inet</ipprotocol>
+      <interface>opt1</interface>
+      <source><network>opt1</network></source>
+      <destination>
+        <address>192.168.10.0/24</address>
+      </destination>
+      <descr><![CDATA[DMZ NO puede atacar VLAN 10 (anti-pivoting)]]></descr>
+    </rule>
+    <!-- DMZ Pos.2: DMZ no accede a pfSense LAN -->
+    <rule>
+      <type>block</type>
+      <ipprotocol>inet</ipprotocol>
+      <interface>opt1</interface>
+      <source><network>opt1</network></source>
+      <destination>
+        <address>${LAN_IP}</address>
+      </destination>
+      <descr><![CDATA[DMZ NO puede acceder a pfSense (192.168.10.1)]]></descr>
+    </rule>
+    <!-- DMZ Pos.3: PASS Odoo-web -> PostgreSQL externo ← excepcion explicita antes del bloqueo VLAN40 -->
     <rule>
       <type>pass</type>
       <ipprotocol>inet</ipprotocol>
@@ -428,31 +463,9 @@ cat << XMLEOF
         <address>192.168.40.10</address>
         <port>5432</port>
       </destination>
-      <descr><![CDATA[Odoo a PostgreSQL (Admin VLAN)]]></descr>
+      <descr><![CDATA[Odoo-web (192.168.30.21) -> PostgreSQL VLAN 40 (192.168.40.10:5432)]]></descr>
     </rule>
-    <!-- DMZ Pos.1: Anti-pivoting a VLAN 10 -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>opt1</interface>
-      <source><network>opt1</network></source>
-      <destination>
-        <address>192.168.10.0/24</address>
-      </destination>
-      <descr><![CDATA[DMZ NO puede atacar VLAN 10]]></descr>
-    </rule>
-    <!-- DMZ Pos.2: DMZ no accede a pfSense LAN -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>opt1</interface>
-      <source><network>opt1</network></source>
-      <destination>
-        <address>${LAN_IP}</address>
-      </destination>
-      <descr><![CDATA[DMZ NO puede acceder a pfSense LAN]]></descr>
-    </rule>
-    <!-- DMZ Pos.3: Anti-pivoting a VLAN Admin -->
+    <!-- DMZ Pos.4: Anti-pivoting a VLAN Admin ← despues del PASS Odoo→PG -->
     <rule>
       <type>block</type>
       <ipprotocol>inet</ipprotocol>
@@ -461,9 +474,9 @@ cat << XMLEOF
       <destination>
         <address>192.168.40.0/24</address>
       </destination>
-      <descr><![CDATA[DMZ NO puede acceder a VLAN Admin]]></descr>
+      <descr><![CDATA[DMZ NO puede acceder a VLAN Admin (excepto regla Odoo->PG)]]></descr>
     </rule>
-    <!-- DMZ Pos.4: Actualizaciones HTTP -->
+    <!-- DMZ Pos.5: Actualizaciones HTTP -->
     <rule>
       <type>pass</type>
       <ipprotocol>inet</ipprotocol>
@@ -474,9 +487,9 @@ cat << XMLEOF
         <any/>
         <port>80</port>
       </destination>
-      <descr><![CDATA[Actualizaciones HTTP]]></descr>
+      <descr><![CDATA[Actualizaciones HTTP (DMZ)]]></descr>
     </rule>
-    <!-- DMZ Pos.5: Actualizaciones HTTPS -->
+    <!-- DMZ Pos.6: Actualizaciones HTTPS -->
     <rule>
       <type>pass</type>
       <ipprotocol>inet</ipprotocol>
@@ -487,9 +500,9 @@ cat << XMLEOF
         <any/>
         <port>443</port>
       </destination>
-      <descr><![CDATA[Actualizaciones HTTPS]]></descr>
+      <descr><![CDATA[Actualizaciones HTTPS (DMZ)]]></descr>
     </rule>
-    <!-- DMZ Pos.6: DNS resolucion -->
+    <!-- DMZ Pos.7: DNS resolucion -->
     <rule>
       <type>pass</type>
       <ipprotocol>inet</ipprotocol>
@@ -500,16 +513,16 @@ cat << XMLEOF
         <any/>
         <port>53</port>
       </destination>
-      <descr><![CDATA[DNS resolucion de nombres]]></descr>
+      <descr><![CDATA[DNS resolucion de nombres (DMZ)]]></descr>
     </rule>
-    <!-- DMZ Pos.7: Deny all -->
+    <!-- DMZ Pos.8: Deny all ← ULTIMO -->
     <rule>
       <type>block</type>
       <ipprotocol>inet</ipprotocol>
       <interface>opt1</interface>
       <source><any/></source>
       <destination><any/></destination>
-      <descr><![CDATA[Bloquear todo lo demas DMZ]]></descr>
+      <descr><![CDATA[Bloquear todo lo demas DMZ (deny-all)]]></descr>
     </rule>
 
     <!-- ===================== OPT2 / VLAN 40 (Admin) ===================== -->
@@ -563,10 +576,23 @@ cat << XMLEOF
         <address>${NGINX_IP}</address>
         <port>443</port>
       </destination>
-      <descr><![CDATA[Nginx/Odoo admin completo]]></descr>
+      <descr><![CDATA[Nginx/Odoo admin completo (MACVLAN 192.168.30.20)]]></descr>
+    </rule>
+    <!-- ADMIN Pos.5: DBA acceso directo a PostgreSQL -->
+    <rule>
+      <type>pass</type>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <interface>opt2</interface>
+      <source><network>opt2</network></source>
+      <destination>
+        <address>192.168.40.10</address>
+        <port>5432</port>
+      </destination>
+      <descr><![CDATA[Acceso DBA directo a PostgreSQL (192.168.40.10:5432)]]></descr>
     </rule>
 
-    <!-- ADMIN Pos.7: Internet + DNS -->
+    <!-- ADMIN Pos.6: Internet + DNS -->
     <rule>
       <type>pass</type>
       <ipprotocol>inet</ipprotocol>

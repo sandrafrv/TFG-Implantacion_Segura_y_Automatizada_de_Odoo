@@ -1,5 +1,7 @@
 # Configuración de Reglas en pfSense (Firewall y NAT)
 
+> **Última actualización:** Mayo 2026 — v1.7 (arquitectura con 3 VMs Vagrant, PostgreSQL en VLAN 40, sin LDAP)
+
 Este documento detalla todas las reglas configuradas en pfSense para la arquitectura de red del proyecto TFG.
 La infraestructura cuenta con **cuatro interfaces**: **WAN** (red pública), **LAN/VLAN 10** (clientes 192.168.10.0/24), **OPT1/DMZ/VLAN 30** (zona desmilitarizada 192.168.30.0/24) y **OPT2/VLAN 40** (administración y base de datos 192.168.40.0/24).
 
@@ -274,6 +276,9 @@ Con el modo automático pfSense aplica NAT a todas las subnets internas. Si usas
 | IP Address | `192.168.30.20` |
 | Description | `nginx-proxy Odoo ERP — DMZ MACVLAN` |
 
+> **⚠️ Importante:** La IP debe apuntar a `192.168.30.20` (`nginx-proxy` MACVLAN), **no** a `192.168.30.10` (servidor Debian host).
+> Es Nginx quien termina SSL y redirige a Odoo. Apuntar al host Debian haría que el DNS resolviese a una IP que no escucha en 443 directamente.
+
 ### Flujo completo de resolución DNS
 
 ```
@@ -398,7 +403,7 @@ nc -zv 192.168.40.10 5432            # → Timeout ✅ (BD no accesible)
 
 ✅ DNS Resolver
    ├─ Habilitado en LAN, OPT1, OPT2, Localhost
-   └─ Host Override: erp.odoo.tfg.com → 192.168.30.20 (nginx-proxy MACVLAN)
+   └─ Host Override: erp.odoo.tfg.com → 192.168.30.20 (nginx-proxy MACVLAN) ← NO apuntar a .30.10
 
 ✅ System → Advanced → Admin Access
    └─ Disable anti-lockout rule (tras confirmar acceso desde VLAN 40)
