@@ -13,9 +13,19 @@
 
 ## Prerequisitos
 
-- VirtualBox ≥ 6.1 instalado en el equipo de laboratorio
-- Vagrant ≥ 2.3 instalado en el equipo anfitrión
-- ISOs disponibles en `ISOs/`: Debian 13 netinst + pfSense 2.7.x
+- **VMware Workstation** instalado en el equipo anfitrión (Windows)
+- **Vagrant ≥ 2.3** + plugin `vagrant-vmware-desktop`:
+  ```powershell
+  winget install HashiCorp.Vagrant
+  vagrant plugin install vagrant-vmware-desktop
+  ```
+- Variables de entorno configuradas en PowerShell antes de `vagrant up`:
+  ```powershell
+  $env:GH_PAT="ghp_tutoken"                 # Personal Access Token (scope: repo)
+  $env:GH_RUNNER_TOKEN_ODOO="AXXXXX"         # Runner token para odoo-server
+  $env:GH_RUNNER_TOKEN_DB="AYYYYY"           # Runner token para db-server
+  $env:POSTGRES_PASSWORD="tu_password_seguro"
+  ```
 - Conexión a Internet en el equipo anfitrión
 - Repositorio clonado localmente
 
@@ -75,9 +85,12 @@ vagrant up             # Levanta las 3 VMs automáticamente
 
 | VM Vagrant | Rol | IP | Provision script |
 |---|---|---|---|
-| `vm-pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | `vagrant/provision_pfsense.sh` |
-| `vm-odoo` | Debian 13 + Docker (Nginx + Odoo) | 192.168.30.10 | `vagrant/provision_debian.sh` |
-| `vm-postgres` | PostgreSQL 16 nativo | 192.168.40.10 | `vagrant/provision_postgres.sh` |
+| `pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | `vagrant/provision_pfsense.sh` |
+| `odoo-server` | Debian 12 + Docker (Nginx + Odoo) | 192.168.30.10 | `vagrant/provision_debian.sh` |
+| `db-server` | PostgreSQL 16 nativo | 192.168.40.10 | `vagrant/provision_postgres.sh` |
+
+> **Nota:** pfSense (`pfsense`) usa `communicator: none` — Vagrant solo levanta la VM.
+> La config se importa manualmente via `Diagnostics → Backup/Restore` (ver FASE 1).
 
 ---
 

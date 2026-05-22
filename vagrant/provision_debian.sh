@@ -268,7 +268,7 @@ fi
 echo ""
 echo "=========================================="
 echo " [OK] Odoo:    https://192.168.30.21"
-echo " [OK] Cockpit: https://192.168.30.21:9090"
+echo " [OK] Cockpit: https://192.168.30.10:9090"
 echo " [DB]          192.168.40.10:5432 (externa)"
 echo " [RUNNER]      '${RUNNER_NAME}' activo en ${REPO_URL}"
 echo " [RED]         Gateway → pfSense ${VLAN_GW} (VLAN 30)"

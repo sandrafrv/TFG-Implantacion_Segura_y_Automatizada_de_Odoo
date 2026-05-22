@@ -137,9 +137,11 @@ vagrant up             # Levanta las 3 VMs automáticamente
 
 | VM Vagrant | Rol | IP | VLAN |
 |---|---|---|---|
-| `vm-pfsense` | Firewall / Router | 192.168.10.1 / 30.1 / 40.1 | WAN + 10 + 30 + 40 |
-| `vm-odoo` | Debian + Docker (Nginx + Odoo) | 192.168.30.10 | VLAN 30 |
-| `vm-postgres` | PostgreSQL 16 nativo | 192.168.40.10 | VLAN 40 |
+| `pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | WAN + VMnet1 + VMnet2 + VMnet3 |
+| `odoo-server` | Debian 12 + Docker (Nginx + Odoo) | 192.168.30.10 | VMnet2 (VLAN 30 — DMZ) |
+| `db-server` | PostgreSQL 16 nativo | 192.168.40.10 | VMnet3 (VLAN 40 — Admin) |
+
+> **Prerrequisitos:** VMware Workstation + `vagrant plugin install vagrant-vmware-desktop` + variables de entorno `GH_PAT` y `GH_RUNNER_TOKEN_ODOO`/`GH_RUNNER_TOKEN_DB`.
 
 ---
 
@@ -147,17 +149,18 @@ vagrant up             # Levanta las 3 VMs automáticamente
 
 | Capa | Tecnología |
 | :--- | :--- |
-| Infraestructura como Código | **Vagrant + VirtualBox** |
+| Infraestructura como Código | **Vagrant + VMware Workstation** (`vagrant-vmware-desktop`) |
+| Automatización VMware | `scripts/setup_vmnet.ps1` — configura VMnet1/2/3 antes de `vagrant up` |
 | Redes / Seguridad | pfSense (FreeBSD), UFW |
-| Virtualización / Orquestación | Docker Engine, Docker Compose |
-| Sistema Operativo Base | **Debian 13 Server (Trixie)** con Cockpit |
-| Proxy Inverso | Nginx (Alpine Linux) — contenedor Docker con MACVLAN |
-| ERP / CRM | Odoo 17 CE — contenedor Docker con MACVLAN |
-| Base de Datos | PostgreSQL 16 — **VM externa** (VLAN 40, `192.168.40.10`) |
-| Certificados | OpenSSL (autofirmados TLS) |
+| Virtualización / Orquestación | Docker CE, Docker Compose plugin |
+| Sistema Operativo Base | **Debian 12 (Bookworm)** con Cockpit (`bento/debian-12`) |
+| Proxy Inverso | Nginx Alpine — contenedor Docker con red MACVLAN |
+| ERP / CRM | Odoo 17 CE — contenedor Docker con red MACVLAN |
+| Base de Datos | PostgreSQL 16 — **VM `db-server`** nativa (VLAN 40, `192.168.40.10`) |
+| Certificados | OpenSSL (autofirmados TLS, 365 días) |
 | Scripting | GNU Bash, ANSI SQL & PL/pgSQL |
 | Control de Versiones | Git + GitHub |
-| Integración Continua | GitHub Actions (`shellcheck`, `yamllint`, `docker compose config`) |
+| CI/CD | GitHub Actions + 2 self-hosted runners (`odoo-runner` en vm-odoo, `db-runner` en db-server) |
 
 ---
 
@@ -185,18 +188,20 @@ vagrant up             # Levanta las 3 VMs automáticamente
 
 ## 🔒 Variables de Entorno
 
-Copiar `.env.example` a `.env` en la raíz del proyecto (nunca dentro de `docker/`):
+Copiar `.env.example` a `.env` en la **raíz** del proyecto (nunca dentro de `docker/`):
 
 ```env
-ODOO_ADMIN_PASSWD=cambia_esto
-DB_HOST=192.168.40.10
-DB_PORT=5432
-DB_USER=odoo
-DB_PASSWORD=cambia_esto
-DOMAIN=tu_dominio_o_ip
+# Credenciales PostgreSQL — VM db-server (192.168.40.10)
+POSTGRES_USER=odoo
+POSTGRES_PASSWORD=cambia_esto
+POSTGRES_DB=odoo_erp
+
+# Contraseña maestra de Odoo (acceso a /web/database)
+ODOO_MASTER_PASSWORD=cambia_esto
 ```
 
-> Las variables de LDAP han sido eliminadas. Ver `extras/ldap/README.md` si se quiere retomar en el futuro.
+> Las variables de LDAP han sido **eliminadas** — ver `extras/ldap/README.md` si se retoman en el futuro.
+> Vagrant también requiere las variables `GH_PAT`, `GH_RUNNER_TOKEN_ODOO` y `GH_RUNNER_TOKEN_DB` en el entorno del sistema anfitrión (no en `.env`).
 
 ---
 

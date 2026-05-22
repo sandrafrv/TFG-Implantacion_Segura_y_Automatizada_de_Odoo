@@ -14,29 +14,32 @@
 
 ---
 
-## 1. Crear la VM pfSense en VirtualBox
+## 1. Crear la VM pfSense en VMware Workstation
 
 ### Parámetros de la VM
 
 | Campo | Valor |
 |:------|:------|
-| Nombre | `pfSense-TFG` |
-| Tipo | BSD → FreeBSD (64-bit) |
+| Nombre | `TFG-pfSense` |
+| Tipo | FreeBSD 64-bit |
 | RAM | 1024 MB |
 | CPU | 1 core |
-| Disco | 10 GB (VDI, dinámico) |
+| Disco | 10 GB |
 
-### Adaptadores de red (¡orden importante!)
+> **Con Vagrant** (`vagrant up pfsense`), la VM se crea automáticamente con la box `dlee35/pfsense`.
+> El script `scripts/setup_vmnet.ps1` configura las VMnets antes del `vagrant up`.
 
-| Adaptador | Modo VirtualBox | Interfaz pfSense | Subred |
-|:----------|:----------------|:-----------------|:-------|
-| Adaptador 1 | **NAT** | `vtnet0` → **WAN** | Internet |
-| Adaptador 2 | **Red Interna** → `LAN_10` | `vtnet1` → **LAN** | VLAN 10 clientes (192.168.10.0/24) |
-| Adaptador 3 | **Red Interna** → `DMZ_30` | `vtnet2` → **OPT1** | VLAN 30 DMZ (192.168.30.0/24) |
-| Adaptador 4 | **Red Interna** → `ADMIN_40` | `vtnet3` → **OPT2** | VLAN 40 admin+BD (192.168.40.0/24) |
+### Adaptadores de red — VMware Workstation
+
+| Adaptador | Modo VMware | Interfaz pfSense | Subred |
+|:----------|:------------|:-----------------|:-------|
+| Adaptador 1 | **NAT** | `em0` → **WAN** | Internet |
+| Adaptador 2 | **Host-only** `VMnet1` | `em1` → **LAN** | VLAN 10 clientes (192.168.10.0/24) |
+| Adaptador 3 | **Host-only** `VMnet2` | `em2` → **OPT1 (DMZ)** | VLAN 30 DMZ (192.168.30.0/24) |
+| Adaptador 4 | **Host-only** `VMnet3` | `em3` → **OPT2 (Admin)** | VLAN 40 admin+BD (192.168.40.0/24) |
 
 > [!NOTE]
-> Las otras VMs deben usar los **mismos nombres** de red interna (`LAN_10`, `DMZ_30`, `ADMIN_40`) para que estén en la misma red virtual.
+> El script `scripts/setup_vmnet.ps1` configura automáticamente VMnet1, VMnet2 y VMnet3 con las subredes correctas.
 
 ---
 
@@ -55,24 +58,24 @@ Al arrancar aparece el asistente de texto. Opción **1 (Assign Interfaces)**:
 
 ```
 Should VLANs be set up now? → n
-Enter the WAN interface name:      vtnet0
-Enter the LAN interface name:      vtnet1
-Enter the Optional 1 interface:    vtnet2
-Enter the Optional 2 interface:    vtnet3
+Enter the WAN interface name:      em0
+Enter the LAN interface name:      em1
+Enter the Optional 1 interface:    em2
+Enter the Optional 2 interface:    em3
 Do you want to proceed? → y
 ```
 
 Opción **2 (Set Interface IP Addresses)**:
-- **LAN** → IP `192.168.10.1`, máscara `/24`, habilitar DHCP: SÍ, rango `192.168.10.100–200`
+- **LAN** → IP `192.168.10.1`, máscara `/24`, habilitar DHCP: Sí, rango `192.168.10.100–200`
 - **OPT1 (DMZ)** → IP `192.168.30.1`, máscara `/24`, DHCP: NO
 
-La WAN recibe IP por DHCP de VirtualBox automáticamente.
+La WAN recibe IP por DHCP de VMware NAT automáticamente.
 
 ---
 
 ## 4. Acceso a la Interfaz Web
 
-Desde una VM conectada a `LAN_10`:
+Desde una VM conectada a `VMnet1`:
 ```
 URL:      https://192.168.10.1
 Usuario:  admin
@@ -85,7 +88,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 
 ## 5. Configurar Interfaz OPT2 (VLAN 40 — Administración + BD)
 
-*Interfaces → Assignments → añadir `vtnet3` → Guardar*
+*Interfaces → Assignments → añadir `em3` → Guardar*
 
 Ir a *Interfaces → OPT2*:
 
@@ -268,16 +271,16 @@ Recuerda añadir también las reglas de firewall correspondientes (ver `extras/l
 
 ### Paso a paso (desde el PC de administración)
 
-**Desde el PC actual (aún en VLAN 10):**
+**Desde el PC actual (aún en VMnet1):**
 
-1. *Interfaces → Assignments* → añadir `vtnet3` como OPT2
+1. *Interfaces → Assignments* → añadir `em3` como OPT2
 2. *Interfaces → OPT2* → habilitar, descripción `VLAN_ADMIN_BD`, IP `192.168.40.1/24` → Save
 3. *Services → DHCP Server → OPT2* → habilitar, rango `192.168.40.10–50` → Save
 4. *Firewall → Rules → OPT2* → añadir regla temporal: Pass, Any, OPT2 subnets → Any → Save
 
-**Mover el PC de administración a la red ADMIN_40 en VirtualBox:**
+**Mover el PC de administración a VMnet3 en VMware:**
 
-5. En VirtualBox: configuración de red del PC admin → cambiar a `ADMIN_40`
+5. En VMware Workstation: configuración de red del PC admin → cambiar a `VMnet3`
 6. En el PC admin, refrescar IP:
    ```bash
    sudo dhclient -r && sudo dhclient

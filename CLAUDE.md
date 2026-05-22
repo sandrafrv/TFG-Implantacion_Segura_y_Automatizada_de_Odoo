@@ -17,11 +17,11 @@ Este archivo define cómo cualquier agente IA (Claude, Copilot, etc.) o colabora
 
 | VM Vagrant | Rol | IP | VLAN |
 |---|---|---|---|
-| `vm-pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | WAN + 10 + 30 + 40 |
-| `vm-odoo` | Debian 13 + Docker | 192.168.30.10 | VLAN 30 (DMZ) |
-| `vm-postgres` | PostgreSQL 16 nativo | 192.168.40.10 | VLAN 40 (BD) |
+| `pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | WAN + VMnet1 + VMnet2 + VMnet3 |
+| `odoo-server` | Debian 12 + Docker | 192.168.30.10 | VMnet2 (VLAN 30 — DMZ) |
+| `db-server` | PostgreSQL 16 nativo | 192.168.40.10 | VMnet3 (VLAN 40 — Admin/BD) |
 
-**Contenedores Docker activos** (solo en `vm-odoo`):
+**Contenedores Docker activos** (solo en `odoo-server`):
 - `odoo-web` — Odoo 17, MACVLAN `192.168.30.21`
 - `nginx-proxy` — Nginx Alpine, MACVLAN `192.168.30.20`
 
@@ -33,11 +33,12 @@ Este archivo define cómo cualquier agente IA (Claude, Copilot, etc.) o colabora
 
 ```
 TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
-├── Vagrantfile                        # Define las 3 VMs y sus redes
+├── Vagrantfile                        # Define las 3 VMs y sus redes (VMware)
+├── scripts/setup_vmnet.ps1            # Configura VMnet1/2/3 antes de vagrant up
 ├── vagrant/                           # Scripts de aprovisionamiento
-│   ├── provision_debian.sh             # Aprovisiona vm-odoo (Docker, Nginx, SSL)
-│   ├── provision_pfsense.sh            # Aprovisiona vm-pfsense
-│   ├── provision_postgres.sh           # Aprovisiona vm-postgres
+│   ├── provision_debian.sh             # Aprovisiona odoo-server (Docker, Nginx, SSL, runner)
+│   ├── provision_pfsense.sh            # Aprovisiona pfsense
+│   ├── provision_postgres.sh           # Aprovisiona db-server (PG16, runner)
 │   └── Explicacion_provision_postgres.md
 ├── docker/
 │   ├── docker-compose.yml              # Solo odoo-web + nginx-proxy
@@ -50,7 +51,7 @@ TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
 │   │   ├── install_cron.sh             # Cron cada 4h + /etc/backup_odoo.env
 │   │   └── generate_pfsense_config.sh  # Genera config.xml para pfSense
 │   ├── mantenimiento/
-│   │   ├── backup_postgres.sh          # NUEVO: pg_dump remoto a 192.168.40.10
+│   │   ├── backup_postgres.sh          # pg_dump remoto a 192.168.40.10
 │   │   ├── backup.sh                   # Backup legacy (referencia)
 │   │   ├── restore.sh                  # Restaura en BD externa
 │   │   ├── monitor.sh                  # Solo odoo-web + nginx-proxy
@@ -187,11 +188,13 @@ DB_PASSWORD=...
 
 1. **Bash:** Todos los scripts deben pasar `shellcheck` sin errores.
 2. **Variables de entorno:** Usar `.env` en raíz. Nunca hardcodear credenciales.
-3. **PostgreSQL:** Siempre apuntar a `192.168.40.10`. Nunca usar `localhost` ni contenedor `db`.
+3. **PostgreSQL:** Siempre apuntar a `192.168.40.10`. Nunca usar `localhost` ni contenedor `db`. Base de datos: `odoo_erp`.
 4. **LDAP:** No añadir dependencias LDAP al despliegue principal. Todo va en `extras/ldap/`.
 5. **Logs de backup:** El cron escribe en `/var/log/backup_odoo.log`, rotado por logrotate.
-6. **Idioma:** Toda la documentación en español.
-7. **Tono:** Técnico pero claro — orientado al tutor del TFG.
+6. **VMware / Vagrant:** El hipervisor es **VMware Workstation** con plugin `vagrant-vmware-desktop`. Las subredes VMnet1/2/3 las gestiona `scripts/setup_vmnet.ps1`.
+7. **Runners CI/CD:** `odoo-runner` en `odoo-server` (labels: `self-hosted,linux,odoo`) y `db-runner` en `db-server` (labels: `self-hosted,linux,db`).
+8. **Idioma:** Toda la documentación en español.
+9. **Tono:** Técnico pero claro — orientado al tutor del TFG.
 
 ---
 
