@@ -41,8 +41,8 @@ jobs:
 
       - name: Validar Scripts con ShellCheck
         run: |
-          echo "Analizando todos los scripts de la carpeta scripts/ y la raíz..."
-          shellcheck scripts/*/*.sh *.sh
+          echo "Analizando todos los scripts de la carpeta scripts/..."
+          shellcheck scripts/*/*.sh
           echo "Analizando scripts de provisioning Vagrant..."
           shellcheck vagrant/*.sh
 

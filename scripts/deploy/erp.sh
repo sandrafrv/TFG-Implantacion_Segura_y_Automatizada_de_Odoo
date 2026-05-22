@@ -135,9 +135,9 @@ opcion_reiniciar() {
 opcion_backup() {
     cabecera
     echo -e "${BOLD}  ── Backup de Base de Datos ───────────────────────────────${NC}"
-    info "Ejecutando backup.sh..."
-    log "INFO" "Lanzando backup.sh"
-    if bash "$PROJECT_DIR/scripts/mantenimiento/backup.sh"; then
+    info "Ejecutando backup_postgres.sh..."
+    log "INFO" "Lanzando backup_postgres.sh"
+    if bash "$PROJECT_DIR/scripts/mantenimiento/backup_postgres.sh"; then
         ok "Backup completado."
     else
         error "El backup falló. Revisa $LOG_FILE para más detalles."
