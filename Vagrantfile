@@ -87,10 +87,6 @@ Vagrant.configure("2") do |config|
       pf.ssh.host        = "192.168.40.1"
       pf.ssh.port        = 22
 
-      pf.vm.network "private_network", ip: "192.168.10.1", auto_config: false
-      pf.vm.network "private_network", ip: "192.168.30.1", auto_config: false
-      pf.vm.network "private_network", ip: "192.168.40.1", auto_config: false
-
       pf.vm.provider "vmware_desktop" do |v|
         v.vmx["displayName"] = "TFG-pfSense"
         v.memory = 1024
@@ -98,34 +94,40 @@ Vagrant.configure("2") do |config|
         v.gui    = true
 
         # ── Optimizaciones VMware para pfSense / FreeBSD ──────
-        # Guest OS: FreeBSD 14 64-bit (mejora compatibilidad drivers em0-em3)
-        v.vmx["guestOS"]                    = "freebsd-64"
-        # BIOS EFI — el instalador de pfSense 2.7+ lo requiere
-        v.vmx["firmware"]                   = "efi"
-        # Desactivar VMware tools check (pfSense no los tiene)
-        v.vmx["tools.syncTime"]             = "FALSE"
-        v.vmx["tools.upgrade.policy"]       = "manual"
-        # UUID de disco estable — evita que pfSense renombre interfaces tras reboot
-        v.vmx["disk.EnableUUID"]            = "TRUE"
-        # Red: forzar vmxnet3 en todos los adaptadores (mayor rendimiento en FreeBSD)
-        v.vmx["ethernet0.virtualDev"]       = "vmxnet3"
-        v.vmx["ethernet1.virtualDev"]       = "vmxnet3"
-        v.vmx["ethernet2.virtualDev"]       = "vmxnet3"
-        v.vmx["ethernet3.virtualDev"]       = "vmxnet3"
-        # Suprimir advertencias de VMware sobre guest OS no soportado
-        v.vmx["msg.autoanswer"]             = "TRUE"
+        v.vmx["guestOS"]              = "freebsd-64"
+        v.vmx["firmware"]             = "efi"
+        v.vmx["tools.syncTime"]       = "FALSE"
+        v.vmx["tools.upgrade.policy"] = "manual"
+        v.vmx["disk.EnableUUID"]      = "TRUE"
+        v.vmx["msg.autoanswer"]       = "TRUE"
 
-        # ── LAN Segments (pvn) ────────────────────────────────
-        # ethernet0 = WAN/NAT (gestionado por Vagrant, no se toca)
+        # ethernet0 = WAN/NAT (gestionado por Vagrant)
+        v.vmx["ethernet0.virtualDev"] = "vmxnet3"
+
+        # ── LAN Segments via VMX puro (sin vm.network) ─────────────
+        # Al declarar los adaptadores solo aquí, el plugin NO los
+        # procesa y NO sobreescribe connectionType a 'custom'.
         # ethernet1 = VLAN 10 — Usuarios
-        # ethernet2 = VLAN 30 — DMZ/Odoo
-        # ethernet3 = VLAN 40 — Admin/PostgreSQL
+        v.vmx["ethernet1.present"]        = "TRUE"
+        v.vmx["ethernet1.virtualDev"]     = "vmxnet3"
         v.vmx["ethernet1.connectionType"] = "pvn"
         v.vmx["ethernet1.pvnID"]          = PVNID_VLAN10
+        v.vmx["ethernet1.addressType"]    = "generated"
+        v.vmx["ethernet1.startConnected"] = "TRUE"
+        # ethernet2 = VLAN 30 — DMZ/Odoo
+        v.vmx["ethernet2.present"]        = "TRUE"
+        v.vmx["ethernet2.virtualDev"]     = "vmxnet3"
         v.vmx["ethernet2.connectionType"] = "pvn"
         v.vmx["ethernet2.pvnID"]          = PVNID_VLAN30
+        v.vmx["ethernet2.addressType"]    = "generated"
+        v.vmx["ethernet2.startConnected"] = "TRUE"
+        # ethernet3 = VLAN 40 — Admin/PostgreSQL
+        v.vmx["ethernet3.present"]        = "TRUE"
+        v.vmx["ethernet3.virtualDev"]     = "vmxnet3"
         v.vmx["ethernet3.connectionType"] = "pvn"
         v.vmx["ethernet3.pvnID"]          = PVNID_VLAN40
+        v.vmx["ethernet3.addressType"]    = "generated"
+        v.vmx["ethernet3.startConnected"] = "TRUE"
       end
 
       # Transferir el XML generado por generate_pfsense_config.sh
@@ -148,33 +150,37 @@ Vagrant.configure("2") do |config|
       pf.vm.synced_folder ".", "/vagrant", disabled: true
       pf.vm.communicator = "none"   # Sin SSH → sin provisioning
 
-      pf.vm.network "private_network", ip: "192.168.10.1", auto_config: false
-      pf.vm.network "private_network", ip: "192.168.30.1", auto_config: false
-      pf.vm.network "private_network", ip: "192.168.40.1", auto_config: false
-
       pf.vm.provider "vmware_desktop" do |v|
         v.vmx["displayName"] = "TFG-pfSense"
         v.memory = 1024
         v.cpus   = 1
         v.gui    = true
-        # Mismas optimizaciones FreeBSD que en el bloque de box propia
         v.vmx["guestOS"]              = "freebsd-64"
         v.vmx["firmware"]             = "efi"
         v.vmx["tools.syncTime"]       = "FALSE"
         v.vmx["tools.upgrade.policy"] = "manual"
         v.vmx["disk.EnableUUID"]      = "TRUE"
-        v.vmx["ethernet0.virtualDev"] = "vmxnet3"
-        v.vmx["ethernet1.virtualDev"] = "vmxnet3"
-        v.vmx["ethernet2.virtualDev"] = "vmxnet3"
-        v.vmx["ethernet3.virtualDev"] = "vmxnet3"
         v.vmx["msg.autoanswer"]       = "TRUE"
-        # ── LAN Segments (pvn) — mismos IDs que el bloque de box propia
+        v.vmx["ethernet0.virtualDev"] = "vmxnet3"
+        # ── LAN Segments via VMX puro (mismos IDs que bloque de box propia)
+        v.vmx["ethernet1.present"]        = "TRUE"
+        v.vmx["ethernet1.virtualDev"]     = "vmxnet3"
         v.vmx["ethernet1.connectionType"] = "pvn"
         v.vmx["ethernet1.pvnID"]          = PVNID_VLAN10
+        v.vmx["ethernet1.addressType"]    = "generated"
+        v.vmx["ethernet1.startConnected"] = "TRUE"
+        v.vmx["ethernet2.present"]        = "TRUE"
+        v.vmx["ethernet2.virtualDev"]     = "vmxnet3"
         v.vmx["ethernet2.connectionType"] = "pvn"
         v.vmx["ethernet2.pvnID"]          = PVNID_VLAN30
+        v.vmx["ethernet2.addressType"]    = "generated"
+        v.vmx["ethernet2.startConnected"] = "TRUE"
+        v.vmx["ethernet3.present"]        = "TRUE"
+        v.vmx["ethernet3.virtualDev"]     = "vmxnet3"
         v.vmx["ethernet3.connectionType"] = "pvn"
         v.vmx["ethernet3.pvnID"]          = PVNID_VLAN40
+        v.vmx["ethernet3.addressType"]    = "generated"
+        v.vmx["ethernet3.startConnected"] = "TRUE"
       end
     end
 
@@ -194,19 +200,20 @@ Vagrant.configure("2") do |config|
     deb.vm.box_check_update = false
     deb.vm.hostname         = "odoo-server-tfg"
 
-    deb.vm.network "private_network", ip: "192.168.30.10",
-      auto_config: false               # provision_debian.sh gestiona la red
-
     deb.vm.provider "vmware_desktop" do |v|
       v.vmx["displayName"] = "TFG-Odoo-Server"
       v.memory = 4096
       v.cpus   = 2
       v.gui    = true
-      # ── LAN Segment VLAN 30 — mismo PVN ID que pfSense ethernet2
-      # ethernet0 = NAT Vagrant (SSH/provisioning)
-      # ethernet1 = VLAN 30 DMZ/Odoo
+      # ethernet0 = NAT Vagrant (SSH/provisioning) — gestionado por Vagrant
+      # ethernet1 = VLAN 30 DMZ/Odoo — LAN Segment via VMX puro (sin vm.network)
+      # Al no declararlo con vm.network, el plugin NO sobreescribe connectionType.
+      v.vmx["ethernet1.present"]        = "TRUE"
+      v.vmx["ethernet1.virtualDev"]     = "vmxnet3"
       v.vmx["ethernet1.connectionType"] = "pvn"
       v.vmx["ethernet1.pvnID"]          = PVNID_VLAN30
+      v.vmx["ethernet1.addressType"]    = "generated"
+      v.vmx["ethernet1.startConnected"] = "TRUE"
     end
 
     deb.trigger.before :destroy do |trigger|
@@ -248,19 +255,20 @@ Vagrant.configure("2") do |config|
     db.vm.box_check_update = false
     db.vm.hostname         = "db-server-tfg"
 
-    db.vm.network "private_network", ip: "192.168.40.10",
-      auto_config: false               # provision_postgres.sh gestiona la red
-
     db.vm.provider "vmware_desktop" do |v|
       v.vmx["displayName"] = "TFG-DB-Server"
       v.memory = 2048
       v.cpus   = 1
       v.gui    = true
-      # ── LAN Segment VLAN 40 — mismo PVN ID que pfSense ethernet3
-      # ethernet0 = NAT Vagrant (SSH/provisioning)
-      # ethernet1 = VLAN 40 Admin/PostgreSQL
+      # ethernet0 = NAT Vagrant (SSH/provisioning) — gestionado por Vagrant
+      # ethernet1 = VLAN 40 Admin/PG — LAN Segment via VMX puro (sin vm.network)
+      # Al no declararlo con vm.network, el plugin NO sobreescribe connectionType.
+      v.vmx["ethernet1.present"]        = "TRUE"
+      v.vmx["ethernet1.virtualDev"]     = "vmxnet3"
       v.vmx["ethernet1.connectionType"] = "pvn"
       v.vmx["ethernet1.pvnID"]          = PVNID_VLAN40
+      v.vmx["ethernet1.addressType"]    = "generated"
+      v.vmx["ethernet1.startConnected"] = "TRUE"
     end
 
     db.trigger.before :destroy do |trigger|
