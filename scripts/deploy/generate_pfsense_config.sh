@@ -10,17 +10,26 @@
 set -eu
 
 # ── Variables de red ──
+# Las siguientes variables se usan dentro de heredocs (cat <<XMLEOF).
+# ShellCheck no analiza el contenido de los heredocs, por eso las
+# marca como "no usadas" (SC2034). El disable cubre todo el bloque.
+# shellcheck disable=SC2034
 WAN_IF="em0"
+# shellcheck disable=SC2034
 LAN_IF="em1"
+# shellcheck disable=SC2034
 DMZ_IF="em2"
+# shellcheck disable=SC2034
 ADMIN_IF="em3"
 
 LAN_IP="192.168.10.1"
+# shellcheck disable=SC2034
 LAN_SUBNET="24"
 LAN_DHCP_START="192.168.10.100"
 LAN_DHCP_END="192.168.10.200"
 
 DMZ_IP="192.168.30.1"
+# shellcheck disable=SC2034
 DMZ_SUBNET="24"
 SERVER_IP="192.168.30.10"
 NGINX_IP="192.168.30.20"
@@ -28,20 +37,26 @@ NGINX_IP="192.168.30.20"
 ODOO_IP="192.168.30.21"
 
 ADMIN_IP="192.168.40.1"
+# shellcheck disable=SC2034
 ADMIN_SUBNET="24"
 ADMIN_DHCP_START="192.168.40.10"
 ADMIN_DHCP_END="192.168.40.50"
 
+# shellcheck disable=SC2034
 HOSTNAME="pfsense"
+# shellcheck disable=SC2034
 DOMAIN="tfg.com"
+# shellcheck disable=SC2034
 TIMEZONE="Europe/Madrid"
+# shellcheck disable=SC2034
 DNS_HOST="erp.odoo"
+# shellcheck disable=SC2034
 DNS_DOMAIN="tfg.com"
 DNS_TARGET="$NGINX_IP"    # nginx-proxy MACVLAN — punto de entrada HTTP/HTTPS
 
 # ── Contraseña admin (hash bcrypt de "pfsense") ──
 # IMPORTANTE: Cambiar en el primer login
-# shellcheck disable=SC2016
+# shellcheck disable=SC2034,SC2016
 ADMIN_HASH='$2b$10$XnBAqMBPIZoGweMJsHLx9OFXzO/UMMBNkSYUFODjWsXsgYyMoGxIy'
 
 # ── Archivo de salida ──
@@ -51,10 +66,6 @@ OUTPUT_FILE="$OUTPUT_DIR/pfsense_config.xml"
 
 echo "=== Generador de config.xml para pfSense ==="
 echo "Archivo de salida: $OUTPUT_FILE"
-
-# ── Timestamp ──
-# shellcheck disable=SC2034
-TS=$(date +%s)
 
 cat > "$OUTPUT_FILE" << 'XMLEOF'
 <?xml version="1.0"?>
@@ -526,7 +537,7 @@ cat << XMLEOF
     </rule>
 
     <!-- ===================== OPT2 / VLAN 40 (Admin) ===================== -->
-    <!-- ADMIN Pos.1: Panel pfSense -->
+    <!-- ADMIN Pos.1: Panel pfSense (HTTPS) -->
     <rule>
       <type>pass</type>
       <ipprotocol>inet</ipprotocol>
@@ -538,6 +549,19 @@ cat << XMLEOF
         <port>443</port>
       </destination>
       <descr><![CDATA[Panel pfSense - acceso exclusivo VLAN 40]]></descr>
+    </rule>
+    <!-- ADMIN Pos.1b: SSH al propio pfSense (para Vagrant provisioning desde VMnet3) -->
+    <rule>
+      <type>pass</type>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <interface>opt2</interface>
+      <source><network>opt2</network></source>
+      <destination>
+        <network>(self)</network>
+        <port>22</port>
+      </destination>
+      <descr><![CDATA[SSH a pfSense - Vagrant provisioning desde VLAN 40 (VMnet3)]]></descr>
     </rule>
     <!-- ADMIN Pos.2: SSH al servidor Debian -->
     <rule>
