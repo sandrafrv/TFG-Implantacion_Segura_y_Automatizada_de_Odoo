@@ -184,7 +184,9 @@ Vagrant.configure("2") do |config|
     deb.vm.hostname         = "odoo-server-tfg"
 
     deb.vm.network "private_network", ip: "192.168.30.10",
-      vmware__vmnet: "VMnet2"
+      vmware__vmnet: "VMnet2",
+      netmask: "255.255.255.0",
+      gateway: "192.168.30.1"
 
     deb.vm.provider "vmware_desktop" do |v|
       v.vmx["displayName"] = "TFG-Odoo-Server"
@@ -233,7 +235,9 @@ Vagrant.configure("2") do |config|
     db.vm.hostname         = "db-server-tfg"
 
     db.vm.network "private_network", ip: "192.168.40.10",
-      vmware__vmnet: "VMnet3"
+      vmware__vmnet: "VMnet3",
+      netmask: "255.255.255.0",
+      gateway: "192.168.40.1"
 
     db.vm.provider "vmware_desktop" do |v|
       v.vmx["displayName"] = "TFG-DB-Server"
