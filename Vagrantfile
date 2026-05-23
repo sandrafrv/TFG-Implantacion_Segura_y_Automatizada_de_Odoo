@@ -32,6 +32,15 @@ Vagrant.configure("2") do |config|
   GH_PAT  = ENV["GH_PAT"] || ""
   GH_REPO = "sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
 
+  # ── PVN IDs — identificadores de LAN Segment ─────────────────
+  # Cada LAN Segment tiene un ID de 16 bytes único.
+  # Todas las VMs que comparten el mismo PVN ID quedan en el mismo
+  # LAN Segment (tráfico solo entre VMs, sin adaptador en el host).
+  # vagrant-vmware-desktop los aplica vía v.vmx en el provider block.
+  PVNID_VLAN10 = "52 54 AB 10 00 00 00 00-00 00 00 00 00 00 00 10"  # VLAN 10 — Usuarios
+  PVNID_VLAN30 = "52 54 AB 30 00 00 00 00-00 00 00 00 00 00 00 30"  # VLAN 30 — DMZ/Odoo
+  PVNID_VLAN40 = "52 54 AB 40 00 00 00 00-00 00 00 00 00 00 00 40"  # VLAN 40 — Admin/PG
+
   # ── Fijar subredes VMnets antes de levantar cualquier VM ─────
   config.trigger.before :up do |trigger|
     trigger.name = "Configurar VMnets"
@@ -89,12 +98,9 @@ Vagrant.configure("2") do |config|
       pf.ssh.host        = "192.168.40.1"
       pf.ssh.port        = 22
 
-      pf.vm.network "private_network", ip: "192.168.10.1",
-        vmware__vmnet: "VMnet1", auto_config: false
-      pf.vm.network "private_network", ip: "192.168.30.1",
-        vmware__vmnet: "VMnet2", auto_config: false
-      pf.vm.network "private_network", ip: "192.168.40.1",
-        vmware__vmnet: "VMnet3", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.10.1", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.30.1", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.40.1", auto_config: false
 
       pf.vm.provider "vmware_desktop" do |v|
         v.vmx["displayName"] = "TFG-pfSense"
@@ -119,6 +125,18 @@ Vagrant.configure("2") do |config|
         v.vmx["ethernet3.virtualDev"]       = "vmxnet3"
         # Suprimir advertencias de VMware sobre guest OS no soportado
         v.vmx["msg.autoanswer"]             = "TRUE"
+
+        # ── LAN Segments (pvn) ────────────────────────────────
+        # ethernet0 = WAN/NAT (gestionado por Vagrant, no se toca)
+        # ethernet1 = VLAN 10 — Usuarios
+        # ethernet2 = VLAN 30 — DMZ/Odoo
+        # ethernet3 = VLAN 40 — Admin/PostgreSQL
+        v.vmx["ethernet1.connectionType"] = "pvn"
+        v.vmx["ethernet1.pvnID"]          = PVNID_VLAN10
+        v.vmx["ethernet2.connectionType"] = "pvn"
+        v.vmx["ethernet2.pvnID"]          = PVNID_VLAN30
+        v.vmx["ethernet3.connectionType"] = "pvn"
+        v.vmx["ethernet3.pvnID"]          = PVNID_VLAN40
       end
 
       # Transferir el XML generado por generate_pfsense_config.sh
@@ -141,12 +159,9 @@ Vagrant.configure("2") do |config|
       pf.vm.synced_folder ".", "/vagrant", disabled: true
       pf.vm.communicator = "none"   # Sin SSH → sin provisioning
 
-      pf.vm.network "private_network", ip: "192.168.10.1",
-        vmware__vmnet: "VMnet1", auto_config: false
-      pf.vm.network "private_network", ip: "192.168.30.1",
-        vmware__vmnet: "VMnet2", auto_config: false
-      pf.vm.network "private_network", ip: "192.168.40.1",
-        vmware__vmnet: "VMnet3", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.10.1", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.30.1", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.40.1", auto_config: false
 
       pf.vm.provider "vmware_desktop" do |v|
         v.vmx["displayName"] = "TFG-pfSense"
@@ -164,6 +179,13 @@ Vagrant.configure("2") do |config|
         v.vmx["ethernet2.virtualDev"] = "vmxnet3"
         v.vmx["ethernet3.virtualDev"] = "vmxnet3"
         v.vmx["msg.autoanswer"]       = "TRUE"
+        # ── LAN Segments (pvn) — mismos IDs que el bloque de box propia
+        v.vmx["ethernet1.connectionType"] = "pvn"
+        v.vmx["ethernet1.pvnID"]          = PVNID_VLAN10
+        v.vmx["ethernet2.connectionType"] = "pvn"
+        v.vmx["ethernet2.pvnID"]          = PVNID_VLAN30
+        v.vmx["ethernet3.connectionType"] = "pvn"
+        v.vmx["ethernet3.pvnID"]          = PVNID_VLAN40
       end
     end
 
@@ -192,6 +214,11 @@ Vagrant.configure("2") do |config|
       v.memory = 4096
       v.cpus   = 2
       v.gui    = true
+      # ── LAN Segment VLAN 30 — mismo PVN ID que pfSense ethernet2
+      # ethernet0 = NAT Vagrant (SSH/provisioning)
+      # ethernet1 = VLAN 30 DMZ/Odoo
+      v.vmx["ethernet1.connectionType"] = "pvn"
+      v.vmx["ethernet1.pvnID"]          = PVNID_VLAN30
     end
 
     deb.trigger.before :destroy do |trigger|
@@ -242,6 +269,11 @@ Vagrant.configure("2") do |config|
       v.memory = 2048
       v.cpus   = 1
       v.gui    = true
+      # ── LAN Segment VLAN 40 — mismo PVN ID que pfSense ethernet3
+      # ethernet0 = NAT Vagrant (SSH/provisioning)
+      # ethernet1 = VLAN 40 Admin/PostgreSQL
+      v.vmx["ethernet1.connectionType"] = "pvn"
+      v.vmx["ethernet1.pvnID"]          = PVNID_VLAN40
     end
 
     db.trigger.before :destroy do |trigger|
