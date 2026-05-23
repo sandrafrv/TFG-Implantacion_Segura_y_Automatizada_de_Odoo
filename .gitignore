@@ -15,6 +15,11 @@ data/
 # Config generado de pfSense (se genera con el script, no commitear)
 config/pfsense_config.xml
 
+# Vagrant boxes (.box) — demasiado grandes para Git
+# Se distribuyen via GitHub Releases: docs/guias/CREAR_BOX_PFSENSE.md
+config/*.box
+*.box
+
 # Copias de seguridad locales
 backups/
 

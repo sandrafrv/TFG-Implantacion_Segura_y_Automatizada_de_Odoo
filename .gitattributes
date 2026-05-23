@@ -1,0 +1,39 @@
+# .gitattributes — TFG ASIR
+# Fuerza line endings LF en todos los scripts para evitar SC1017 en ShellCheck.
+# Ref: https://www.shellcheck.net/wiki/SC1017
+
+# Texto genérico: normalizar a LF en el repo, checkout según OS
+* text=auto
+
+# Scripts de shell: SIEMPRE LF (nunca CRLF aunque se editen en Windows)
+*.sh text eol=lf
+
+# Vagrantfile y Ruby: LF
+Vagrantfile text eol=lf
+*.rb text eol=lf
+
+# YAML/JSON/XML: LF
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.xml text eol=lf
+
+# SQL: LF
+*.sql text eol=lf
+
+# Markdown: LF
+*.md text eol=lf
+
+# Archivos de configuración: LF
+*.conf text eol=lf
+*.env text eol=lf
+.env.example text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Binarios: sin conversión
+*.box binary
+*.iso binary
+*.png binary
+*.jpg binary
+*.pdf binary

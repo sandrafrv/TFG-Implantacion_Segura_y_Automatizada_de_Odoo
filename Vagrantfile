@@ -46,41 +46,129 @@ Vagrant.configure("2") do |config|
 
   # --------------------------------------------------------
   # VM 1 — pfSense (Firewall / VPN / Router)
-  # WAN: red pública
+  # WAN: red pública (NAT VMware)
   # VMnet1 → VLAN 10: usuarios  (192.168.10.x)
   # VMnet2 → VLAN 30: DMZ       (192.168.30.x)
   # VMnet3 → VLAN 40: admin     (192.168.40.x)
   #
-  # NOTA: pfSense no tiene SSH funcional con la box dlee35/pfsense.
-  #       Vagrant solo levanta la VM, sin provisioning automatico.
-  #       La config se importa manualmente UNA VEZ:
-  #         1. bash scripts/deploy/generate_pfsense_config.sh
-  #         2. https://192.168.40.1 → Diagnostics → Backup/Restore
+  # BOX PROPIA (recomendado):
+  #   Crear la box siguiendo: docs/guias/CREAR_BOX_PFSENSE.md
+  #   Subir a GitHub Releases y actualizar PFSENSE_BOX_URL abajo.
+  #   La config.xml se importa automáticamente en el vagrant up.
+  #     1. bash scripts/deploy/generate_pfsense_config.sh
+  #     2. vagrant up pfsense
+  #
+  # BOX PÚBLICA (fallback, sin SSH ni provisioning automático):
+  #   Poner USE_CUSTOM_BOX="" en el entorno o comentar la variable.
+  #   La config se importa manualmente: Diagnostics → Backup/Restore.
   # --------------------------------------------------------
+
+  # URL de la box propia en GitHub Releases
+  # Actualizar cuando se publique una nueva versión de la box
+  PFSENSE_BOX_URL = "https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfg.box"
+  USE_CUSTOM_BOX  = ENV.fetch("USE_CUSTOM_BOX", "1")  # "1" = box propia | "" = dlee35/pfsense
+
   config.vm.define "pfsense" do |pf|
-    pf.vm.box              = "dlee35/pfsense"
-    pf.vm.box_check_update = false
-    pf.vm.hostname         = "pfsense-tfg"
 
-    pf.vm.synced_folder ".", "/vagrant", disabled: true
+    if USE_CUSTOM_BOX == "1"
+      # ── BOX PROPIA — con SSH y provisioning automático ──────
+      pf.vm.box              = "tfg/pfsense"
+      pf.vm.box_url          = PFSENSE_BOX_URL
+      pf.vm.box_check_update = false
+      pf.vm.hostname         = "pfsense-tfg"
+      pf.vm.synced_folder ".", "/vagrant", disabled: true
 
-    # Sin communicator — Vagrant no intenta SSH ni provisioning
-    pf.vm.communicator = "none"
+      pf.vm.communicator = "ssh"
+      pf.ssh.username    = "vagrant"
+      pf.ssh.password    = "vagrant"
+      pf.ssh.shell       = "sh"
+      pf.ssh.insert_key  = true
+      # ⚠️ CRÍTICO VMware: Vagrant usa por defecto el adaptador 0 (WAN/NAT).
+      # Nuestras ACLs bloquean SSH desde WAN → apuntamos a OPT2 (VLAN 40).
+      # El host Windows tiene adaptador virtual en VMnet3 y alcanza 192.168.40.1.
+      pf.ssh.host        = "192.168.40.1"
+      pf.ssh.port        = 22
 
-    pf.vm.network "private_network", ip: "192.168.10.1",
-      vmware__vmnet: "VMnet1", auto_config: false
-    pf.vm.network "private_network", ip: "192.168.30.1",
-      vmware__vmnet: "VMnet2", auto_config: false
-    pf.vm.network "private_network", ip: "192.168.40.1",
-      vmware__vmnet: "VMnet3", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.10.1",
+        vmware__vmnet: "VMnet1", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.30.1",
+        vmware__vmnet: "VMnet2", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.40.1",
+        vmware__vmnet: "VMnet3", auto_config: false
 
-    pf.vm.provider "vmware_desktop" do |v|
-      v.vmx["displayName"] = "TFG-pfSense"
-      v.memory = 1024
-      v.cpus   = 1
-      v.gui    = true
+      pf.vm.provider "vmware_desktop" do |v|
+        v.vmx["displayName"] = "TFG-pfSense"
+        v.memory = 1024
+        v.cpus   = 1
+        v.gui    = true
+
+        # ── Optimizaciones VMware para pfSense / FreeBSD ──────
+        # Guest OS: FreeBSD 14 64-bit (mejora compatibilidad drivers em0-em3)
+        v.vmx["guestOS"]                    = "freebsd-64"
+        # BIOS EFI — el instalador de pfSense 2.7+ lo requiere
+        v.vmx["firmware"]                   = "efi"
+        # Desactivar VMware tools check (pfSense no los tiene)
+        v.vmx["tools.syncTime"]             = "FALSE"
+        v.vmx["tools.upgrade.policy"]       = "manual"
+        # UUID de disco estable — evita que pfSense renombre interfaces tras reboot
+        v.vmx["disk.EnableUUID"]            = "TRUE"
+        # Red: forzar vmxnet3 en todos los adaptadores (mayor rendimiento en FreeBSD)
+        v.vmx["ethernet0.virtualDev"]       = "vmxnet3"
+        v.vmx["ethernet1.virtualDev"]       = "vmxnet3"
+        v.vmx["ethernet2.virtualDev"]       = "vmxnet3"
+        v.vmx["ethernet3.virtualDev"]       = "vmxnet3"
+        # Suprimir advertencias de VMware sobre guest OS no soportado
+        v.vmx["msg.autoanswer"]             = "TRUE"
+      end
+
+      # Transferir el XML generado por generate_pfsense_config.sh
+      pf.vm.provision "file",
+        source:      "config/pfsense_config.xml",
+        destination: "/tmp/pfsense_config.xml"
+
+      # Aplicar la configuración completa (ACLs, NAT, DNS, DHCP)
+      pf.vm.provision "shell",
+        path:       "vagrant/provision_pfsense.sh",
+        privileged: true
+
+    else
+      # ── BOX PÚBLICA — sin SSH, configuración manual ─────────
+      # Usar cuando la box propia no está disponible (primer despliegue).
+      # Configurar pfSense manualmente: docs/guias/CONFIGURACION_PFSENSE_MANUAL.md
+      pf.vm.box              = "dlee35/pfsense"
+      pf.vm.box_check_update = false
+      pf.vm.hostname         = "pfsense-tfg"
+      pf.vm.synced_folder ".", "/vagrant", disabled: true
+      pf.vm.communicator = "none"   # Sin SSH → sin provisioning
+
+      pf.vm.network "private_network", ip: "192.168.10.1",
+        vmware__vmnet: "VMnet1", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.30.1",
+        vmware__vmnet: "VMnet2", auto_config: false
+      pf.vm.network "private_network", ip: "192.168.40.1",
+        vmware__vmnet: "VMnet3", auto_config: false
+
+      pf.vm.provider "vmware_desktop" do |v|
+        v.vmx["displayName"] = "TFG-pfSense"
+        v.memory = 1024
+        v.cpus   = 1
+        v.gui    = true
+        # Mismas optimizaciones FreeBSD que en el bloque de box propia
+        v.vmx["guestOS"]              = "freebsd-64"
+        v.vmx["firmware"]             = "efi"
+        v.vmx["tools.syncTime"]       = "FALSE"
+        v.vmx["tools.upgrade.policy"] = "manual"
+        v.vmx["disk.EnableUUID"]      = "TRUE"
+        v.vmx["ethernet0.virtualDev"] = "vmxnet3"
+        v.vmx["ethernet1.virtualDev"] = "vmxnet3"
+        v.vmx["ethernet2.virtualDev"] = "vmxnet3"
+        v.vmx["ethernet3.virtualDev"] = "vmxnet3"
+        v.vmx["msg.autoanswer"]       = "TRUE"
+      end
     end
+
   end
+
 
   # --------------------------------------------------------
   # VM 2 — Debian 12 (Odoo 17 + Nginx)
