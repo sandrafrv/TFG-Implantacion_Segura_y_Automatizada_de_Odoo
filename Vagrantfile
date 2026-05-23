@@ -41,24 +41,13 @@ Vagrant.configure("2") do |config|
   PVNID_VLAN30 = "52 54 AB 30 00 00 00 00-00 00 00 00 00 00 00 30"  # VLAN 30 — DMZ/Odoo
   PVNID_VLAN40 = "52 54 AB 40 00 00 00 00-00 00 00 00 00 00 00 40"  # VLAN 40 — Admin/PG
 
-  # ── Fijar subredes VMnets antes de levantar cualquier VM ─────
-  config.trigger.before :up do |trigger|
-    trigger.name = "Configurar VMnets"
-    trigger.run  = {
-      inline: "powershell -ExecutionPolicy Bypass " \
-              "-Command \"Start-Process powershell " \
-              "-ArgumentList '-ExecutionPolicy Bypass " \
-              "-File scripts/setup_vmnet.ps1' " \
-              "-Verb RunAs -Wait\""
-    }
-  end
 
   # --------------------------------------------------------
   # VM 1 — pfSense (Firewall / VPN / Router)
   # WAN: red pública (NAT VMware)
-  # VMnet1 → VLAN 10: usuarios  (192.168.10.x)
-  # VMnet2 → VLAN 30: DMZ       (192.168.30.x)
-  # VMnet3 → VLAN 40: admin     (192.168.40.x)
+  # LAN Segment 1 → VLAN 10: usuarios  (192.168.10.x)
+  # LAN Segment 2 → VLAN 30: DMZ       (192.168.30.x)
+  # LAN Segment 3 → VLAN 40: admin     (192.168.40.x)
   #
   # BOX PROPIA (recomendado):
   #   Crear la box siguiendo: docs/guias/CREAR_BOX_PFSENSE.md
