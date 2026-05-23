@@ -185,8 +185,7 @@ Vagrant.configure("2") do |config|
 
     deb.vm.network "private_network", ip: "192.168.30.10",
       vmware__vmnet: "VMnet2",
-      netmask: "255.255.255.0",
-      gateway: "192.168.30.1"
+      auto_config: false               # provision_debian.sh gestiona la red
 
     deb.vm.provider "vmware_desktop" do |v|
       v.vmx["displayName"] = "TFG-Odoo-Server"
@@ -236,8 +235,7 @@ Vagrant.configure("2") do |config|
 
     db.vm.network "private_network", ip: "192.168.40.10",
       vmware__vmnet: "VMnet3",
-      netmask: "255.255.255.0",
-      gateway: "192.168.40.1"
+      auto_config: false               # provision_postgres.sh gestiona la red
 
     db.vm.provider "vmware_desktop" do |v|
       v.vmx["displayName"] = "TFG-DB-Server"
