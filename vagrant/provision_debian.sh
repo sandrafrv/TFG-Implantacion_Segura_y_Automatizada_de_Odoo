@@ -13,14 +13,15 @@
 #   ODOO_MASTER_PASSWORD
 #
 # ORDEN DE EJECUCION:
-#   1. Validaciones y espera de red
-#   2. APT: mirrors + dependencias base
-#   3. Docker + PostgreSQL client
-#   4. Crear usuario 'runner'  ← DEBE ir antes del git clone
-#   5. Git clone + chown al runner
-#   6. Generar .env, directorios, SSL, docker compose up
-#   7. Instalar y registrar GitHub Actions runner
-#   8. Configurar rutas de red permanentes via pfSense
+#   1. Validaciones
+#   2. Configurar gateway pfSense (ANTES de cualquier acceso a internet)
+#   3. Espera de red (verifica que la ruta ya funciona)
+#   4. APT: mirrors + dependencias base
+#   5. Docker + PostgreSQL client
+#   6. Crear usuario 'runner'  ← DEBE ir antes del git clone
+#   7. Git clone + chown al runner
+#   8. Generar .env, directorios, SSL, docker compose up
+#   9. Instalar y registrar GitHub Actions runner
 # ============================================================
 set -euo pipefail
 
@@ -62,7 +63,14 @@ if [ -z "${GH_RUNNER_TOKEN}" ]; then
   exit 1
 fi
 
-# ── Esperar a que la red NAT esté lista ──────────────────────
+# ── Configurar gateway pfSense ANTES de cualquier descarga ──
+# CRÍTICO: debe hacerse aquí para que APT, Docker, git clone y el
+# runner puedan salir a internet a través de pfSense desde el inicio.
+echo "  [NET] Configurando gateway pfSense (${VLAN_GW}) en ${VLAN_IFACE}..."
+ip route del default dev "${NAT_IFACE}" 2>/dev/null || true
+ip route add default via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
+
+# ── Esperar a que la red esté lista (via pfSense) ────────────
 echo "  [NET] Esperando conectividad de red..."
 for i in $(seq 1 12); do
   if curl -fsSL --max-time 5 http://deb.debian.org > /dev/null 2>&1; then
@@ -176,12 +184,14 @@ chmod -R 777 odoo-data/ odoo_sessions/ backups/
 find scripts/ -name "*.sh" -exec chmod +x {} + 2>/dev/null || true
 
 # ── Crear red MACVLAN para VLAN 30 ───────────────────────────
+# NOTA: parent=${VLAN_IFACE} (sin .30) porque en VMware con LAN Segment
+# la interfaz llega sin VLAN tag — no existe eth1.30 como subinterfaz.
 docker network inspect macvlan_vlan30 > /dev/null 2>&1 || \
   docker network create \
     --driver macvlan \
     --subnet=192.168.30.0/24 \
     --gateway=192.168.30.1 \
-    -o "parent=${VLAN_IFACE}.30" \
+    -o "parent=${VLAN_IFACE}" \
     macvlan_vlan30
 
 # ── Generar certificado SSL autofirmado ──────────────────────
@@ -234,12 +244,11 @@ cd "$RUNNER_DIR"
 ./svc.sh install "$RUNNER_USER"
 ./svc.sh start
 
-# ── Configurar rutas de red permanentes ──────────────────────
-# El runner necesita salida a Internet via pfSense (VLAN 30) para
-# contactar con GitHub. Se elimina la ruta por defecto de la NAT
-# de Vagrant y se usa pfSense como gateway permanente.
+# ── Persistir rutas de red (ya aplicadas al inicio del script) ──
+# Las rutas ya fueron aplicadas al principio. Aquí solo se persisten
+# en /etc/network/interfaces.d/ para que sobrevivan reinicios.
 echo ""
-echo "  [NET] Configurando rutas permanentes via pfSense..."
+echo "  [NET] Persistiendo rutas permanentes via pfSense..."
 
 cat > /etc/network/interfaces.d/vlan30-routes <<NETEOF
 # Rutas permanentes VLAN 30 — pfSense como gateway
@@ -254,8 +263,7 @@ iface ${VLAN_IFACE} inet static
     post-up ip route add default via ${VLAN_GW} dev ${VLAN_IFACE}
 NETEOF
 
-# Aplicar ahora sin reiniciar
-ip route del default dev ${NAT_IFACE} 2>/dev/null || true
+# Verificar que la ruta sigue activa (idempotente)
 ip route add default via ${VLAN_GW} dev ${VLAN_IFACE} 2>/dev/null || true
 
 echo "  [NET] Verificando conectividad via pfSense (${VLAN_GW})..."

@@ -3,7 +3,7 @@
 # Provisioning VM PostgreSQL — TFG Odoo
 # VLAN 40 — 192.168.40.10
 # ============================================================
-set -e
+set -euo pipefail
 
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-changeme_db}"
 RUNNER_NAME="${RUNNER_NAME:-db-runner}"
@@ -24,7 +24,14 @@ echo "=========================================="
 echo " Instalando PostgreSQL 16..."
 echo "=========================================="
 
-# ── Esperar a que la red NAT esté lista (solo para el provisioning) ──
+# ── Configurar gateway pfSense ANTES de cualquier descarga ──
+# CRÍTICO: debe hacerse aquí para que APT, PostgreSQL, y el runner
+# puedan salir a internet a través de pfSense desde el inicio.
+echo "  [NET] Configurando gateway pfSense (${VLAN_GW}) en ${VLAN_IFACE}..."
+ip route del default dev "${NAT_IFACE}" 2>/dev/null || true
+ip route add default via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
+
+# ── Esperar a que la red esté lista (via pfSense) ────────────
 echo "  [NET] Esperando conectividad de red..."
 for i in $(seq 1 12); do
   if curl -fsSL --max-time 5 https://deb.debian.org > /dev/null 2>&1; then
@@ -67,7 +74,10 @@ apt-mark hold gnupg gpgv gpg gpg-agent gpgconf dirmngr \
   gnupg-utils gnupg-l10n gpgsm gpg-wks-client gpg-wks-server 2>/dev/null || true
 
 # Dependencias base
-apt-get "${APT_OPTS[@]}" install -y curl ca-certificates gnupg --no-install-recommends
+apt-get "${APT_OPTS[@]}" install -y curl ca-certificates gnupg cockpit --no-install-recommends
+
+# Habilitar Cockpit (acceso previsto en 192.168.40.10:9090 según ACLs del TFG)
+systemctl enable --now cockpit.socket
 
 # ── Añadir repositorio oficial de PostgreSQL (pgdg) ──────────
 echo "  [PG] Añadiendo repositorio oficial de PostgreSQL..."
@@ -152,11 +162,11 @@ cd "$RUNNER_DIR"
 ./svc.sh install "$RUNNER_USER"
 ./svc.sh start
 
-# ── Configurar rutas de red permanentes ──────────────────────
-# Bajamos la ruta por defecto de la NAT de Vagrant y usamos
-# pfSense (192.168.40.1) como gateway permanente en VLAN 40.
+# ── Persistir rutas de red (ya aplicadas al inicio del script) ──
+# Las rutas ya fueron aplicadas al principio. Aquí solo se persisten
+# en /etc/network/interfaces.d/ para que sobrevivan reinicios.
 echo ""
-echo "  [NET] Configurando rutas permanentes via pfSense..."
+echo "  [NET] Persistiendo rutas permanentes via pfSense..."
 
 cat > /etc/network/interfaces.d/vlan40-routes <<NETEOF
 # Rutas permanentes VLAN 40 — pfSense como gateway
@@ -171,8 +181,7 @@ iface ${VLAN_IFACE} inet static
     post-up ip route add default via ${VLAN_GW} dev ${VLAN_IFACE}
 NETEOF
 
-# Aplicar ahora sin reiniciar
-ip route del default dev ${NAT_IFACE} 2>/dev/null || true
+# Verificar que la ruta sigue activa (idempotente)
 ip route add default via ${VLAN_GW} dev ${VLAN_IFACE} 2>/dev/null || true
 
 echo "  [NET] Verificando conectividad via pfSense (${VLAN_GW})..."
