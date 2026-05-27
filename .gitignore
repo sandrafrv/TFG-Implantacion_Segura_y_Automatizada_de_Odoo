@@ -40,3 +40,6 @@ docs/mas info/*
 
 # Vagrant metadata maquinas virtuales
 .vagrant
+
+# Directorio local de empaquetado de pfSense
+pfsense_packer/

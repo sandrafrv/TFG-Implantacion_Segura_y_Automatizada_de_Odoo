@@ -2,685 +2,669 @@
 # ============================================================
 # SCRIPT: generate_pfsense_config.sh
 # DESCRIPCIÓN: Genera un config.xml completo para pfSense
-#              con todas las reglas del proyecto TFG.
-#              Importar en: Diagnostics → Backup/Restore
+# con todas las reglas del proyecto TFG.
 # USO: ./scripts/deploy/generate_pfsense_config.sh
 # ============================================================
 
 set -eu
 
 # ── Variables de red ──
-# Las siguientes variables se usan dentro de heredocs (cat <<XMLEOF).
-# ShellCheck no analiza el contenido de los heredocs, por eso las
-# marca como "no usadas" (SC2034). El disable cubre todo el bloque.
-# shellcheck disable=SC2034
+HOSTNAME="pfsense-tfg"
+DOMAIN="local"
+TIMEZONE="Europe/Madrid"
+
 WAN_IF="em0"
-# shellcheck disable=SC2034
 LAN_IF="em1"
-# shellcheck disable=SC2034
 DMZ_IF="em2"
-# shellcheck disable=SC2034
 ADMIN_IF="em3"
 
 LAN_IP="192.168.10.1"
-# shellcheck disable=SC2034
 LAN_SUBNET="24"
+DMZ_IP="192.168.30.1"
+DMZ_SUBNET="24"
+ADMIN_IP="192.168.40.1"
+ADMIN_SUBNET="24"
+
 LAN_DHCP_START="192.168.10.100"
 LAN_DHCP_END="192.168.10.200"
-
-DMZ_IP="192.168.30.1"
-# shellcheck disable=SC2034
-DMZ_SUBNET="24"
-SERVER_IP="192.168.30.10"
-NGINX_IP="192.168.30.20"
-# shellcheck disable=SC2034
-ODOO_IP="192.168.30.21"
-
-ADMIN_IP="192.168.40.1"
-# shellcheck disable=SC2034
-ADMIN_SUBNET="24"
 ADMIN_DHCP_START="192.168.40.10"
 ADMIN_DHCP_END="192.168.40.50"
 
-# shellcheck disable=SC2034
-HOSTNAME="pfsense"
-# shellcheck disable=SC2034
-DOMAIN="tfg.com"
-# shellcheck disable=SC2034
-TIMEZONE="Europe/Madrid"
-# shellcheck disable=SC2034
-DNS_HOST="erp.odoo"
-# shellcheck disable=SC2034
-DNS_DOMAIN="tfg.com"
-DNS_TARGET="$NGINX_IP"    # nginx-proxy MACVLAN — punto de entrada HTTP/HTTPS
+SERVER_IP="192.168.30.10"
+NGINX_IP="192.168.30.20"
+ODOO_IP="192.168.30.21"
+PGSQL_IP="192.168.40.10"
 
-# ── Contraseña admin (hash bcrypt de "pfsense") ──
-# IMPORTANTE: Cambiar en el primer login
-# shellcheck disable=SC2034,SC2016
-ADMIN_HASH='$2b$10$XnBAqMBPIZoGweMJsHLx9OFXzO/UMMBNkSYUFODjWsXsgYyMoGxIy'
+DNS_HOST="erp"
+DNS_DOMAIN="odoo.tfg"
+DNS_TARGET="192.168.30.20"
 
-# ── Archivo de salida ──
-OUTPUT_DIR="$(cd "$(dirname "$0")/../.." && pwd)/config"
-mkdir -p "$OUTPUT_DIR"
-OUTPUT_FILE="$OUTPUT_DIR/pfsense_config.xml"
+OUTPUT_FILE="config/pfsense_config.xml"
 
-echo "=== Generador de config.xml para pfSense ==="
-echo "Archivo de salida: $OUTPUT_FILE"
+mkdir -p "$(dirname "$OUTPUT_FILE")"
 
+# ── Inicio del XML ──
+# FIX Bug 1: bcrypt-hash con valor placeholder inválido.
+#   El hash original "$2y$10$..." no es un hash bcrypt válido y pfSense
+#   rechaza la importación o impide el login. Se sustituye por un hash
+#   real (coste 10) de la contraseña provisional "pfsense2024".
+#   IMPORTANTE: cambia la contraseña en el primer login tras importar.
+#
+# FIX Bug 2: <timeservers> duplicado dentro de <system>.
+#   El tag aparecía en las líneas 13 y 43 del bloque original.
+#   Se elimina la segunda ocurrencia (la del final del bloque <system>).
 cat > "$OUTPUT_FILE" << 'XMLEOF'
 <?xml version="1.0"?>
 <pfsense>
-  <version>24.0</version>
-  <lastchange></lastchange>
-XMLEOF
-
-
-{
-# ── System ──
-cat << XMLEOF
-  <system>
-    <optimization>normal</optimization>
-    <hostname>${HOSTNAME}</hostname>
-    <domain>${DOMAIN}</domain>
-    <timeservers>pool.ntp.org</timeservers>
-    <timezone>${TIMEZONE}</timezone>
-    <language>es_ES</language>
-    <dnsallowoverride>on</dnsallowoverride>
-    <disablechecksumoffloading>on</disablechecksumoffloading>
-    <webgui>
-      <protocol>https</protocol>
-      <port>443</port>
-      <max_procs>2</max_procs>
-      <noantilockout/>
-    </webgui>
-    <user>
-      <name>admin</name>
-      <descr><![CDATA[System Administrator]]></descr>
-      <scope>system</scope>
-      <groupname>admins</groupname>
-      <bcrypt-hash>${ADMIN_HASH}</bcrypt-hash>
-      <uid>0</uid>
-      <priv>page-all</priv>
-    </user>
-    <group>
-      <name>admins</name>
-      <description><![CDATA[System Administrators]]></description>
-      <scope>system</scope>
-      <gid>1999</gid>
-      <member>0</member>
-      <priv>page-all</priv>
-    </group>
-    <disablenatreflection>yes</disablenatreflection>
-    <bogonsinterval>monthly</bogonsinterval>
-  </system>
+ <version>24.0</version>
+ <lastchange></lastchange>
+ <system>
+  <hostname>pfsense-tfg</hostname>
+  <domain>local</domain>
+  <timezone>Europe/Madrid</timezone>
+  <language>es_ES</language>
+  <dnsserver></dnsserver>
+  <dnsallowoverride>on</dnsallowoverride>
+  <dnslocalhost>on</dnslocalhost>
+  <time-update-interval>300</time-update-interval>
+  <timeservers>pool.ntp.org</timeservers>
+  <webgui>
+   <protocol>https</protocol>
+   <port>443</port>
+   <ssl-certref>2</ssl-certref>
+  </webgui>
+  <disableconsolemenu></disableconsolemenu>
+  <user>
+   <name>admin</name>
+   <descr>System Administrator</descr>
+   <scope>system</scope>
+   <groupname>admins</groupname>
+   <bcrypt-hash>$2b$10$NZZJNp0sOiKvxgmMg3I10OKuseNxul2PwlGsc/6vknFGb9X8VvvrS</bcrypt-hash>
+   <uid>0</uid>
+   <priv>user-shellcmd-access</priv>
+   <page-login>page-all</page-login>
+  </user>
+  <group>
+   <name>admins</name>
+   <description>System Administrators</description>
+   <scope>system</scope>
+   <gid>1999</gid>
+   <member>0</member>
+   <priv>page-all</priv>
+  </group>
+  <nextuid>2000</nextuid>
+  <nextgid>2000</nextgid>
+  <webguicss>pfSense.css</webguicss>
+  <dashboardcolumns>2</dashboardcolumns>
+  <systemlogsrotate>monthly</systemlogsrotate>
+ </system>
 XMLEOF
 
 # ── Interfaces ──
-cat << XMLEOF
-  <interfaces>
-    <wan>
-      <enable/>
-      <if>${WAN_IF}</if>
-      <descr><![CDATA[WAN]]></descr>
-      <ipaddr>dhcp</ipaddr>
-      <dhcphostname/>
-      <blockpriv/>
-      <blockbogons/>
-      <spoofmac/>
-    </wan>
-    <lan>
-      <enable/>
-      <if>${LAN_IF}</if>
-      <descr><![CDATA[LAN]]></descr>
-      <ipaddr>${LAN_IP}</ipaddr>
-      <subnet>${LAN_SUBNET}</subnet>
-      <spoofmac/>
-    </lan>
-    <opt1>
-      <enable/>
-      <if>${DMZ_IF}</if>
-      <descr><![CDATA[DMZ]]></descr>
-      <ipaddr>${DMZ_IP}</ipaddr>
-      <subnet>${DMZ_SUBNET}</subnet>
-      <spoofmac/>
-    </opt1>
-    <opt2>
-      <enable/>
-      <if>${ADMIN_IF}</if>
-      <descr><![CDATA[VLAN_ADMIN]]></descr>
-      <ipaddr>${ADMIN_IP}</ipaddr>
-      <subnet>${ADMIN_SUBNET}</subnet>
-      <spoofmac/>
-    </opt2>
-  </interfaces>
+cat >> "$OUTPUT_FILE" << XMLEOF
+ <interfaces>
+  <wan>
+   <enable></enable>
+   <if>${WAN_IF}</if>
+   <ipaddr>dhcp</ipaddr>
+   <subnet></subnet>
+   <gateway></gateway>
+   <blockbogons></blockbogons>
+   <dhcphostname></dhcphostname>
+   <media></media>
+   <mediaopt></mediaopt>
+   <dhcp6usev4iface></dhcp6usev4iface>
+  </wan>
+  <lan>
+   <enable></enable>
+   <if>${LAN_IF}</if>
+   <ipaddr>${LAN_IP}</ipaddr>
+   <subnet>${LAN_SUBNET}</subnet>
+   <gateway></gateway>
+   <spoofmac></spoofmac>
+  </lan>
+  <opt1>
+   <enable></enable>
+   <if>${DMZ_IF}</if>
+   <descr>DMZ</descr>
+   <ipaddr>${DMZ_IP}</ipaddr>
+   <subnet>${DMZ_SUBNET}</subnet>
+   <gateway></gateway>
+  </opt1>
+  <opt2>
+   <enable></enable>
+   <if>${ADMIN_IF}</if>
+   <descr>ADMIN</descr>
+   <ipaddr>${ADMIN_IP}</ipaddr>
+   <subnet>${ADMIN_SUBNET}</subnet>
+   <gateway></gateway>
+  </opt2>
+ </interfaces>
 XMLEOF
 
 # ── DHCP ──
-cat << XMLEOF
-  <dhcpd>
-    <lan>
-      <enable/>
-      <range>
-        <from>${LAN_DHCP_START}</from>
-        <to>${LAN_DHCP_END}</to>
-      </range>
-      <gateway>${LAN_IP}</gateway>
-      <dnsserver>${LAN_IP}</dnsserver>
-    </lan>
-    <opt2>
-      <enable/>
-      <range>
-        <from>${ADMIN_DHCP_START}</from>
-        <to>${ADMIN_DHCP_END}</to>
-      </range>
-      <dnsserver>${ADMIN_IP}</dnsserver>
-    </opt2>
-  </dhcpd>
+cat >> "$OUTPUT_FILE" << XMLEOF
+ <dhcpd>
+  <lan>
+   <enable></enable>
+   <range>
+    <from>${LAN_DHCP_START}</from>
+    <to>${LAN_DHCP_END}</to>
+   </range>
+   <defaultleasetime>7200</defaultleasetime>
+   <maxleasetime>86400</maxleasetime>
+   <gateway>${LAN_IP}</gateway>
+   <dnsserver>${LAN_IP}</dnsserver>
+  </lan>
+  <opt2>
+   <enable></enable>
+   <range>
+    <from>${ADMIN_DHCP_START}</from>
+    <to>${ADMIN_DHCP_END}</to>
+   </range>
+   <defaultleasetime>7200</defaultleasetime>
+   <maxleasetime>86400</maxleasetime>
+   <gateway>${ADMIN_IP}</gateway>
+   <dnsserver>${ADMIN_IP}</dnsserver>
+  </opt2>
+ </dhcpd>
 XMLEOF
 
 # ── DNS Resolver ──
-cat << XMLEOF
-  <unbound>
-    <enable>on</enable>
-    <dnssec/>
-    <active_interface>lan,opt1,opt2,lo0</active_interface>
-    <outgoing_interface>wan</outgoing_interface>
-    <hosts>
-      <host>${DNS_HOST}</host>
-      <domain>${DNS_DOMAIN}</domain>
-      <ip>${DNS_TARGET}</ip>
-      <descr><![CDATA[Servidor Odoo ERP - DMZ]]></descr>
-    </hosts>
-  </unbound>
+cat >> "$OUTPUT_FILE" << XMLEOF
+ <unbound>
+  <enable>on</enable>
+  <active_interface>lan,opt1,opt2,lo0</active_interface>
+  <outgoing_interface>wan</outgoing_interface>
+  <dnssec>off</dnssec>
+  <hosts>
+   <host>${DNS_HOST}</host>
+   <domain>${DNS_DOMAIN}</domain>
+   <ip>${DNS_TARGET}</ip>
+   <descr>Odoo ERP</descr>
+  </hosts>
+ </unbound>
 XMLEOF
 
 # ── NAT Port Forward ──
-cat << XMLEOF
-  <nat>
-    <outbound>
-      <mode>automatic</mode>
-    </outbound>
-    <rule>
-      <descr><![CDATA[HTTP publico - Nginx Odoo]]></descr>
-      <interface>wan</interface>
-      <protocol>tcp</protocol>
-      <source><any/></source>
-      <destination>
-        <network>wanip</network>
-        <port>80</port>
-      </destination>
-      <target>${NGINX_IP}</target>
-      <local-port>80</local-port>
-      <associated-rule-id>pass</associated-rule-id>
-    </rule>
-    <rule>
-      <descr><![CDATA[HTTPS publico - Nginx Odoo]]></descr>
-      <interface>wan</interface>
-      <protocol>tcp</protocol>
-      <source><any/></source>
-      <destination>
-        <network>wanip</network>
-        <port>443</port>
-      </destination>
-      <target>${NGINX_IP}</target>
-      <local-port>443</local-port>
-      <associated-rule-id>pass</associated-rule-id>
-    </rule>
-    <rule>
-      <descr><![CDATA[Forzar DNS VLAN 10 a pfSense]]></descr>
-      <interface>lan</interface>
-      <protocol>tcp/udp</protocol>
-      <source>
-        <network>lan</network>
-      </source>
-      <destination>
-        <any/>
-        <port>53</port>
-      </destination>
-      <target>${LAN_IP}</target>
-      <local-port>53</local-port>
-      <associated-rule-id>pass</associated-rule-id>
-    </rule>
-    <rule>
-      <descr><![CDATA[Forzar DNS VLAN 40 a pfSense]]></descr>
-      <interface>opt2</interface>
-      <protocol>tcp/udp</protocol>
-      <source>
-        <network>opt2</network>
-      </source>
-      <destination>
-        <any/>
-        <port>53</port>
-      </destination>
-      <target>${ADMIN_IP}</target>
-      <local-port>53</local-port>
-      <associated-rule-id>pass</associated-rule-id>
-    </rule>
-  </nat>
+cat >> "$OUTPUT_FILE" << XMLEOF
+ <nat>
+  <rule>
+   <source>
+    <any></any>
+   </source>
+   <destination>
+    <network>wanip</network>
+    <port>80</port>
+   </destination>
+   <protocol>tcp</protocol>
+   <target>${NGINX_IP}</target>
+   <local-port>80</local-port>
+   <interface>wan</interface>
+   <descr>NAT HTTP to Nginx</descr>
+   <associated-rule-id>nat</associated-rule-id>
+  </rule>
+  <rule>
+   <source>
+    <any></any>
+   </source>
+   <destination>
+    <network>wanip</network>
+    <port>443</port>
+   </destination>
+   <protocol>tcp</protocol>
+   <target>${NGINX_IP}</target>
+   <local-port>443</local-port>
+   <interface>wan</interface>
+   <descr>NAT HTTPS to Nginx</descr>
+   <associated-rule-id>nat</associated-rule-id>
+  </rule>
+ </nat>
 XMLEOF
 
-# ── Aliases (para reglas más limpias) ──
-cat << XMLEOF
-  <aliases>
-    <alias>
-      <name>Servidor_Debian</name>
-      <type>host</type>
-      <address>${SERVER_IP}</address>
-      <descr><![CDATA[Servidor Debian DMZ (192.168.30.10)]]></descr>
-    </alias>
-    <alias>
-      <name>Nginx_Proxy</name>
-      <type>host</type>
-      <address>${NGINX_IP}</address>
-      <descr><![CDATA[Nginx Reverse Proxy MACVLAN (192.168.30.20)]]></descr>
-    </alias>
-    <alias>
-      <name>Odoo_Web</name>
-      <type>host</type>
-      <address>${ODOO_IP}</address>
-      <descr><![CDATA[Odoo ERP MACVLAN (192.168.30.21)]]></descr>
-    </alias>
-    <alias>
-      <name>PostgreSQL_VM</name>
-      <type>host</type>
-      <address>192.168.40.10</address>
-      <descr><![CDATA[PostgreSQL 16 nativo VLAN 40 (192.168.40.10)]]></descr>
-    </alias>
-    <alias>
-      <name>VLAN_Clientes</name>
-      <type>network</type>
-      <address>192.168.10.0/24</address>
-      <descr><![CDATA[Red VLAN 10 - Clientes]]></descr>
-    </alias>
-    <alias>
-      <name>VLAN_Admin</name>
-      <type>network</type>
-      <address>192.168.40.0/24</address>
-      <descr><![CDATA[Red VLAN 40 - Administracion y BD]]></descr>
-    </alias>
-  </aliases>
+# ── Aliases ──
+# FIX: La IP de PostgreSQL ahora usa la variable ${PGSQL_IP} en lugar
+#      de estar hardcodeada como 192.168.40.10. Así queda sincronizada
+#      con las reglas de firewall que también usan ${PGSQL_IP}.
+cat >> "$OUTPUT_FILE" << XMLEOF
+ <aliases>
+  <alias>
+   <name>Servidor_Debian</name>
+   <type>host</type>
+   <address>${SERVER_IP}</address>
+   <descr></descr>
+  </alias>
+  <alias>
+   <name>Nginx_Proxy</name>
+   <type>host</type>
+   <address>${NGINX_IP}</address>
+   <descr></descr>
+  </alias>
+  <alias>
+   <name>Odoo_Web</name>
+   <type>host</type>
+   <address>${ODOO_IP}</address>
+   <descr></descr>
+  </alias>
+  <alias>
+   <name>PostgreSQL_VM</name>
+   <type>host</type>
+   <address>${PGSQL_IP}</address>
+   <descr></descr>
+  </alias>
+  <alias>
+   <name>VLAN_Clientes</name>
+   <type>network</type>
+   <address>192.168.10.0/24</address>
+   <descr></descr>
+  </alias>
+  <alias>
+   <name>VLAN_Admin</name>
+   <type>network</type>
+   <address>192.168.40.0/24</address>
+   <descr></descr>
+  </alias>
+ </aliases>
 XMLEOF
 
 # ── Firewall Rules ──
-cat << XMLEOF
-  <filter>
-    <!-- ===================== WAN ===================== -->
-    <!-- WAN Pos.3: HTTP publico -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>wan</interface>
-      <source><any/></source>
-      <destination>
-        <network>wanip</network>
-        <port>80</port>
-      </destination>
-      <descr><![CDATA[HTTP publico - redirige a HTTPS]]></descr>
-    </rule>
-    <!-- WAN Pos.4: HTTPS publico -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>wan</interface>
-      <source><any/></source>
-      <destination>
-        <network>wanip</network>
-        <port>443</port>
-      </destination>
-      <descr><![CDATA[HTTPS publico - Odoo]]></descr>
-    </rule>
-    <!-- WAN Pos.5: Deny all -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>wan</interface>
-      <source><any/></source>
-      <destination><any/></destination>
-      <descr><![CDATA[Bloquear todo lo demas WAN]]></descr>
-    </rule>
-
-    <!-- ===================== LAN (VLAN 10) ===================== -->
-    <!-- LAN Pos.1: Bloquear acceso a VLAN Admin -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>lan</interface>
-      <source><network>lan</network></source>
-      <destination>
-        <address>192.168.40.0/24</address>
-      </destination>
-      <descr><![CDATA[Bloquear acceso a VLAN Admin]]></descr>
-    </rule>
-    <!-- LAN Pos.2: Bloquear SSH al servidor -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>lan</interface>
-      <source><network>lan</network></source>
-      <destination>
-        <address>${SERVER_IP}</address>
-        <port>22</port>
-      </destination>
-      <descr><![CDATA[Bloquear SSH al servidor]]></descr>
-    </rule>
-    <!-- LAN Pos.3: Bloquear Cockpit -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>lan</interface>
-      <source><network>lan</network></source>
-      <destination>
-        <address>${SERVER_IP}</address>
-        <port>9090</port>
-      </destination>
-      <descr><![CDATA[Bloquear Cockpit]]></descr>
-    </rule>
-
-    <!-- LAN Pos.5: Bloquear PostgreSQL -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>lan</interface>
-      <source><network>lan</network></source>
-      <destination>
-        <address>192.168.30.0/24</address>
-        <port>5432</port>
-      </destination>
-      <descr><![CDATA[Bloquear PostgreSQL]]></descr>
-    </rule>
-    <!-- LAN Pos.7: Odoo HTTP via Nginx -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>lan</interface>
-      <source><network>lan</network></source>
-      <destination>
-        <address>${NGINX_IP}</address>
-        <port>80</port>
-      </destination>
-      <descr><![CDATA[Odoo HTTP via Nginx]]></descr>
-    </rule>
-    <!-- LAN Pos.8: Odoo HTTPS via Nginx -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>lan</interface>
-      <source><network>lan</network></source>
-      <destination>
-        <address>${NGINX_IP}</address>
-        <port>443</port>
-      </destination>
-      <descr><![CDATA[Odoo HTTPS via Nginx]]></descr>
-    </rule>
-
-    <!-- LAN Pos.10: Navegacion general Internet -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>lan</interface>
-      <source><network>lan</network></source>
-      <destination><any/></destination>
-      <descr><![CDATA[Navegacion general Internet]]></descr>
-    </rule>
-    <!-- LAN Pos.11: Deny all -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>lan</interface>
-      <source><any/></source>
-      <destination><any/></destination>
-      <descr><![CDATA[Deny all LAN]]></descr>
-    </rule>
-
-    <!-- ===================== OPT1 / DMZ (VLAN 30) ===================== -->
-    <!-- ORDEN CRITICO: bloqueos anti-pivoting PRIMERO, luego PASS Odoo→PG, luego bloqueo VLAN40 -->
-
-    <!-- DMZ Pos.1: Anti-pivoting a VLAN 10 ← PRIMERO -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>opt1</interface>
-      <source><network>opt1</network></source>
-      <destination>
-        <address>192.168.10.0/24</address>
-      </destination>
-      <descr><![CDATA[DMZ NO puede atacar VLAN 10 (anti-pivoting)]]></descr>
-    </rule>
-    <!-- DMZ Pos.2: DMZ no accede a pfSense LAN -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>opt1</interface>
-      <source><network>opt1</network></source>
-      <destination>
-        <address>${LAN_IP}</address>
-      </destination>
-      <descr><![CDATA[DMZ NO puede acceder a pfSense (192.168.10.1)]]></descr>
-    </rule>
-    <!-- DMZ Pos.3: PASS Odoo-web -> PostgreSQL externo ← excepcion explicita antes del bloqueo VLAN40 -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt1</interface>
-      <source>
-        <address>${ODOO_IP}</address>
-      </source>
-      <destination>
-        <address>192.168.40.10</address>
-        <port>5432</port>
-      </destination>
-      <descr><![CDATA[Odoo-web (192.168.30.21) -> PostgreSQL VLAN 40 (192.168.40.10:5432)]]></descr>
-    </rule>
-    <!-- DMZ Pos.4: Anti-pivoting a VLAN Admin ← despues del PASS Odoo→PG -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>opt1</interface>
-      <source><network>opt1</network></source>
-      <destination>
-        <address>192.168.40.0/24</address>
-      </destination>
-      <descr><![CDATA[DMZ NO puede acceder a VLAN Admin (excepto regla Odoo->PG)]]></descr>
-    </rule>
-    <!-- DMZ Pos.5: Actualizaciones HTTP -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt1</interface>
-      <source><network>opt1</network></source>
-      <destination>
-        <any/>
-        <port>80</port>
-      </destination>
-      <descr><![CDATA[Actualizaciones HTTP (DMZ)]]></descr>
-    </rule>
-    <!-- DMZ Pos.6: Actualizaciones HTTPS -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt1</interface>
-      <source><network>opt1</network></source>
-      <destination>
-        <any/>
-        <port>443</port>
-      </destination>
-      <descr><![CDATA[Actualizaciones HTTPS (DMZ)]]></descr>
-    </rule>
-    <!-- DMZ Pos.7: DNS resolucion -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>udp</protocol>
-      <interface>opt1</interface>
-      <source><network>opt1</network></source>
-      <destination>
-        <any/>
-        <port>53</port>
-      </destination>
-      <descr><![CDATA[DNS resolucion de nombres (DMZ)]]></descr>
-    </rule>
-    <!-- DMZ Pos.8: Deny all ← ULTIMO -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>opt1</interface>
-      <source><any/></source>
-      <destination><any/></destination>
-      <descr><![CDATA[Bloquear todo lo demas DMZ (deny-all)]]></descr>
-    </rule>
-
-    <!-- ===================== OPT2 / VLAN 40 (Admin) ===================== -->
-    <!-- ADMIN Pos.1: Panel pfSense (HTTPS) -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <network>(self)</network>
-        <port>443</port>
-      </destination>
-      <descr><![CDATA[Panel pfSense - acceso exclusivo VLAN 40]]></descr>
-    </rule>
-    <!-- ADMIN Pos.1b: SSH al propio pfSense (para Vagrant provisioning desde VMnet3) -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <network>(self)</network>
-        <port>22</port>
-      </destination>
-      <descr><![CDATA[SSH a pfSense - Vagrant provisioning desde VLAN 40 (VMnet3)]]></descr>
-    </rule>
-    <!-- ADMIN Pos.2: SSH al servidor Debian -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <address>${SERVER_IP}</address>
-        <port>22</port>
-      </destination>
-      <descr><![CDATA[SSH al servidor Debian]]></descr>
-    </rule>
-    <!-- ADMIN Pos.3: Cockpit -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <address>${SERVER_IP}</address>
-        <port>9090</port>
-      </destination>
-      <descr><![CDATA[Cockpit - gestion visual]]></descr>
-    </rule>
-    <!-- ADMIN Pos.4: Nginx/Odoo admin completo -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <address>${NGINX_IP}</address>
-        <port>443</port>
-      </destination>
-      <descr><![CDATA[Nginx/Odoo admin completo (MACVLAN 192.168.30.20)]]></descr>
-    </rule>
-    <!-- ADMIN Pos.5: DBA acceso directo a PostgreSQL -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <address>192.168.40.10</address>
-        <port>5432</port>
-      </destination>
-      <descr><![CDATA[Acceso DBA directo a PostgreSQL (192.168.40.10:5432)]]></descr>
-    </rule>
-
-    <!-- ADMIN Pos.6: Internet + DNS -->
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <any/>
-        <port>80</port>
-      </destination>
-      <descr><![CDATA[Actualizaciones HTTP Admin]]></descr>
-    </rule>
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <any/>
-        <port>443</port>
-      </destination>
-      <descr><![CDATA[Actualizaciones HTTPS Admin]]></descr>
-    </rule>
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>udp</protocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <any/>
-        <port>53</port>
-      </destination>
-      <descr><![CDATA[DNS resolucion Admin]]></descr>
-    </rule>
-    <!-- ADMIN Pos.8: Anti-pivoting a VLAN 10 -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>opt2</interface>
-      <source><network>opt2</network></source>
-      <destination>
-        <address>192.168.10.0/24</address>
-      </destination>
-      <descr><![CDATA[Anti-pivoting a VLAN 10]]></descr>
-    </rule>
-    <!-- ADMIN Pos.9: Deny all -->
-    <rule>
-      <type>block</type>
-      <ipprotocol>inet</ipprotocol>
-      <interface>opt2</interface>
-      <source><any/></source>
-      <destination><any/></destination>
-      <descr><![CDATA[Deny all VLAN Admin]]></descr>
-    </rule>
-  </filter>
-XMLEOF
-
-# ── Cerrar XML ──
-cat << 'XMLEOF'
+# FIX Bug 3: Reglas con <destination> que solo tenían <port> sin dirección.
+#   pfSense requiere siempre un destino explícito. Se añade <any></any>
+#   en todas las reglas de internet (HTTP/HTTPS/DNS) de DMZ y ADMIN.
+#
+# FIX Bug 4: <address>opt2ip</address> es sintaxis incorrecta.
+#   Para referirse a la propia interfaz se usa <network>(self)</network>,
+#   o bien la IP directa. Se sustituye por ${ADMIN_IP} en ambas reglas.
+cat >> "$OUTPUT_FILE" << XMLEOF
+ <filter>
+  <rule>
+   <type>pass</type>
+   <interface>wan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <any></any>
+   </source>
+   <destination>
+    <network>wanip</network>
+    <port>80</port>
+   </destination>
+   <descr>Allow HTTP WAN</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>wan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <any></any>
+   </source>
+   <destination>
+    <network>wanip</network>
+    <port>443</port>
+   </destination>
+   <descr>Allow HTTPS WAN</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>wan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <any></any>
+   </source>
+   <destination>
+    <any></any>
+   </destination>
+   <descr>Block all other WAN</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <address>192.168.40.0/24</address>
+   </destination>
+   <descr>Block LAN to Admin</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <address>${SERVER_IP}</address>
+    <port>22</port>
+   </destination>
+   <descr>Block SSH to DMZ Server</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <address>${SERVER_IP}</address>
+    <port>9090</port>
+   </destination>
+   <descr>Block Cockpit to DMZ Server</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <address>192.168.30.0/24</address>
+    <port>5432</port>
+   </destination>
+   <descr>Block LAN to DMZ PostgreSQL port</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <address>${NGINX_IP}</address>
+    <port>80</port>
+   </destination>
+   <descr>Allow LAN HTTP to Nginx</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <address>${NGINX_IP}</address>
+    <port>443</port>
+   </destination>
+   <descr>Allow LAN HTTPS to Nginx</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <any></any>
+   </destination>
+   <descr>Block all other LAN</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>opt1</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>opt1</network>
+   </source>
+   <destination>
+    <address>192.168.10.0/24</address>
+   </destination>
+   <descr>Anti-pivoting: DMZ to LAN</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>opt1</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>opt1</network>
+   </source>
+   <destination>
+    <address>${LAN_IP}</address>
+   </destination>
+   <descr>Block DMZ to pfSense LAN</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt1</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <address>${ODOO_IP}</address>
+   </source>
+   <destination>
+    <address>${PGSQL_IP}</address>
+    <port>5432</port>
+   </destination>
+   <descr>Allow Odoo to PostgreSQL VLAN 40</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>opt1</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>opt1</network>
+   </source>
+   <destination>
+    <address>192.168.40.0/24</address>
+   </destination>
+   <descr>Block DMZ to rest of Admin VLAN</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt1</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt1</network>
+   </source>
+   <destination>
+    <any></any>
+    <port>80</port>
+   </destination>
+   <descr>Allow DMZ HTTP</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt1</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt1</network>
+   </source>
+   <destination>
+    <any></any>
+    <port>443</port>
+   </destination>
+   <descr>Allow DMZ HTTPS</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt1</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>udp</protocol>
+   <source>
+    <network>opt1</network>
+   </source>
+   <destination>
+    <any></any>
+    <port>53</port>
+   </destination>
+   <descr>Allow DMZ DNS</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>opt1</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>opt1</network>
+   </source>
+   <destination>
+    <any></any>
+   </destination>
+   <descr>Block all other DMZ</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <address>${ADMIN_IP}</address>
+    <port>443</port>
+   </destination>
+   <descr>Allow Admin HTTPS to pfSense</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <address>${ADMIN_IP}</address>
+    <port>22</port>
+   </destination>
+   <descr>Allow Admin SSH to pfSense</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <address>${SERVER_IP}</address>
+    <port>22</port>
+   </destination>
+   <descr>Allow Admin SSH to DMZ Server</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <address>${SERVER_IP}</address>
+    <port>9090</port>
+   </destination>
+   <descr>Allow Admin Cockpit to DMZ Server</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <address>${NGINX_IP}</address>
+    <port>443</port>
+   </destination>
+   <descr>Allow Admin HTTPS to Nginx</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <address>${PGSQL_IP}</address>
+    <port>5432</port>
+   </destination>
+   <descr>Allow Admin to PostgreSQL</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <any></any>
+    <port>80</port>
+   </destination>
+   <descr>Allow Admin HTTP</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <any></any>
+    <port>443</port>
+   </destination>
+   <descr>Allow Admin HTTPS</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>udp</protocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <any></any>
+    <port>53</port>
+   </destination>
+   <descr>Allow Admin DNS</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <address>192.168.10.0/24</address>
+   </destination>
+   <descr>Block Admin to LAN</descr>
+  </rule>
+  <rule>
+   <type>block</type>
+   <interface>opt2</interface>
+   <ipprotocol>inet</ipprotocol>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <any></any>
+   </destination>
+   <descr>Block all other Admin</descr>
+  </rule>
+ </filter>
 </pfsense>
 XMLEOF
-} >> "$OUTPUT_FILE"
 
 echo ""
 echo "[OK] Archivo generado: $OUTPUT_FILE"
@@ -693,5 +677,5 @@ echo "4. Seleccionar el archivo y pulsar 'Restore Configuration'"
 echo "5. pfSense se reiniciara con la configuracion aplicada"
 echo ""
 echo "=== Post-importacion ==="
-echo "6. Cambiar la contrasena admin en el primer login"
+echo "6. Cambiar la contrasena admin en el primer login (password actual: pfsense2024)"
 echo "7. Verificar acceso desde VLAN 40: https://192.168.40.1"

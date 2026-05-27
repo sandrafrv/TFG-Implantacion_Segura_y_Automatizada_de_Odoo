@@ -15,187 +15,159 @@ GH_REPO_OWNER="sandrafrv"
 GH_REPO_NAME="TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
 REPO_URL="https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}"
 
-# Interfaz NAT de Vagrant y VLAN 40
 NAT_IFACE="eth0"
 VLAN_IFACE="eth1"
+VLAN_IP="192.168.40.10"
+VLAN_NETMASK="255.255.255.0"
 VLAN_GW="192.168.40.1"
 
+echo ""
 echo "=========================================="
 echo " Instalando PostgreSQL 16..."
 echo "=========================================="
-
-# ── Configurar gateway pfSense ANTES de cualquier descarga ──
-# CRÍTICO: debe hacerse aquí para que APT, PostgreSQL, y el runner
-# puedan salir a internet a través de pfSense desde el inicio.
-echo "  [NET] Configurando gateway pfSense (${VLAN_GW}) en ${VLAN_IFACE}..."
-ip route del default dev "${NAT_IFACE}" 2>/dev/null || true
-ip route add default via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
-
-# ── Esperar a que la red esté lista (via pfSense) ────────────
-echo "  [NET] Esperando conectividad de red..."
-for i in $(seq 1 12); do
-  if curl -fsSL --max-time 5 https://deb.debian.org > /dev/null 2>&1; then
-    echo "  [NET] Red lista."
-    break
-  fi
-  echo "  [NET] Intento $i/12 — esperando 5s..."
-  sleep 5
-done
 
 export DEBIAN_FRONTEND=noninteractive
 APT_OPTS=(
   -o Acquire::Check-Valid-Until=false
   -o Acquire::AllowInsecureRepositories=true
   -o Acquire::AllowDowngradeToInsecureRepositories=true
-  -o Acquire::GPG::NoSign=true
+  # FIX #3: eliminada opción inexistente Acquire::GPG::NoSign=true
   --allow-unauthenticated
 )
 
-# ── Corregir mirrors de la box (HTTPS para evitar interceptación HTTP) ──
-echo "  [APT] Corrigiendo mirrors obsoletos de la box..."
-cat > /etc/apt/sources.list <<'SOURCES'
+# ── Configurar IP estática en eth1 ──────────────────────────
+echo "  [NET] Configurando ${VLAN_IFACE} → ${VLAN_IP}..."
+mkdir -p /etc/network/interfaces.d
+# FIX #2: fichero eth1.cfg (no vlan40-routes) para no duplicar 'auto eth1'
+# FIX #1: SIN gateway — si pfSense está apagado la VM mantiene Internet por eth0
+cat > /etc/network/interfaces.d/eth1.cfg << NETEOF
+auto ${VLAN_IFACE}
+iface ${VLAN_IFACE} inet static
+    address ${VLAN_IP}
+    netmask ${VLAN_NETMASK}
+NETEOF
+
+ip link set "${VLAN_IFACE}" up 2>/dev/null || true
+ip addr flush dev "${VLAN_IFACE}" 2>/dev/null || true
+ip addr add "${VLAN_IP}/24" dev "${VLAN_IFACE}" 2>/dev/null || true
+ip addr show "${VLAN_IFACE}"
+
+# ── Verificar Internet por eth0 ──────────────────────────────
+for i in $(seq 1 6); do
+  if curl -fsSL --max-time 8 https://deb.debian.org > /dev/null 2>&1; then
+    echo "  [NET] Internet OK."; break
+  fi
+  echo "  [NET] Intento $i/6 — esperando 5s..."; sleep 5
+  if [ "$i" -eq 6 ]; then
+    echo "[ERROR] Sin Internet por ${NAT_IFACE}. Abortando." >&2; exit 1
+  fi
+done
+
+# ── APT ──────────────────────────────────────────────────────
+cat > /etc/apt/sources.list << 'SOURCES'
 deb [trusted=yes] https://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
 deb [trusted=yes] https://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
 deb [trusted=yes] https://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 SOURCES
-apt-get "${APT_OPTS[@]}" update -qq
 
-# --- Configurar teclado en español ---
-apt-get "${APT_OPTS[@]}" install -y keyboard-configuration console-setup --no-install-recommends
-sed -i 's/XKBLAYOUT=.*/XKBLAYOUT="es"/' /etc/default/keyboard
-dpkg-reconfigure -f noninteractive keyboard-configuration
-invoke-rc.d keyboard-setup.sh restart || true
+apt-get "${APT_OPTS[@]}" update || true
+apt-get install -y "${APT_OPTS[@]}" curl ca-certificates gnupg || true
 
-# ── Congelar gnupg para evitar Hash Sum mismatch en la descarga ──
-# gnupg ya viene instalado en la box; congelarlo evita que apt
-# intente actualizarlo (los .deb llegan vacíos por interceptación HTTP).
-echo "  [APT] Congelando paquetes gnupg para evitar Hash Sum mismatch..."
-apt-mark hold gnupg gpgv gpg gpg-agent gpgconf dirmngr \
-  gnupg-utils gnupg-l10n gpgsm gpg-wks-client gpg-wks-server 2>/dev/null || true
-
-# Dependencias base
-apt-get "${APT_OPTS[@]}" install -y curl ca-certificates gnupg cockpit --no-install-recommends
-
-# Habilitar Cockpit (acceso previsto en 192.168.40.10:9090 según ACLs del TFG)
-systemctl enable --now cockpit.socket
-
-# ── Añadir repositorio oficial de PostgreSQL (pgdg) ──────────
-echo "  [PG] Añadiendo repositorio oficial de PostgreSQL..."
-curl -fsSL --insecure https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+# ── PostgreSQL 16 ─────────────────────────────────────────────
+curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
   | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+
 echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg trusted=yes] \
 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
   > /etc/apt/sources.list.d/pgdg.list
-apt-get "${APT_OPTS[@]}" update -qq
-apt-get "${APT_OPTS[@]}" install -y postgresql-16 postgresql-client-16
 
-# Arrancar y habilitar el servicio
-systemctl enable --now postgresql
+apt-get "${APT_OPTS[@]}" update || true
+apt-get install -y "${APT_OPTS[@]}" postgresql-16 postgresql-client-16 || {
+  echo "[ERROR] No se pudo instalar PostgreSQL 16." >&2; exit 1
+}
 
-# Crear usuario y base de datos para Odoo
-sudo -u postgres psql <<EOF
-CREATE USER odoo WITH PASSWORD '${POSTGRES_PASSWORD}';
-CREATE DATABASE odoo_erp OWNER odoo;
+systemctl enable postgresql && systemctl start postgresql
+
+sudo -u postgres psql << SQLEOF
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'odoo') THEN
+    CREATE USER odoo WITH PASSWORD '${POSTGRES_PASSWORD}';
+  ELSE
+    ALTER USER odoo WITH PASSWORD '${POSTGRES_PASSWORD}';
+  END IF;
+END
+\$\$;
+SELECT 'CREATE DATABASE odoo_erp OWNER odoo'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'odoo_erp')
+\gexec
 GRANT ALL PRIVILEGES ON DATABASE odoo_erp TO odoo;
-EOF
+SQLEOF
 
-# Permitir conexiones desde la red de aplicaciones (VLAN 30)
-PG_HBA="/etc/postgresql/16/main/pg_hba.conf"
 PG_CONF="/etc/postgresql/16/main/postgresql.conf"
-
-sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" "$PG_CONF"
-echo "host  odoo_erp  odoo  192.168.30.0/24  md5" >> "$PG_HBA"
-
+PG_HBA="/etc/postgresql/16/main/pg_hba.conf"
+sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" "${PG_CONF}"
+sed -i "s/^listen_addresses = 'localhost'/listen_addresses = '*'/"  "${PG_CONF}"
+grep -q "192.168.30.0/24" "${PG_HBA}" || \
+  echo "host  odoo_erp  odoo  192.168.30.0/24  md5" >> "${PG_HBA}"
 systemctl restart postgresql
 
-echo ""
-echo "=========================================="
-echo " PostgreSQL listo en 192.168.40.10:5432"
-echo " Base de datos: odoo_erp"
-echo " Usuario: odoo"
-echo "=========================================="
+# ── Cockpit ───────────────────────────────────────────────────
+apt-get install -y "${APT_OPTS[@]}" cockpit || echo "  [AVISO] Cockpit no instalado."
+systemctl enable cockpit.socket 2>/dev/null || true
+systemctl start  cockpit.socket 2>/dev/null || true
 
-# ── GitHub Actions self-hosted runner ────────────────────────
-echo ""
-echo "=========================================="
-echo " Instalando GitHub Actions runner..."
-echo " Runner: ${RUNNER_NAME}"
-echo "=========================================="
+# ── GitHub Actions Runner ─────────────────────────────────────
+if ! id "${RUNNER_USER}" &>/dev/null; then useradd -m -s /bin/bash "${RUNNER_USER}"; fi
+mkdir -p "${RUNNER_DIR}"
+chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_DIR}"
 
-if [ -z "${GH_RUNNER_TOKEN:-}" ]; then
-  echo "[ERROR] GH_RUNNER_TOKEN no está definido. Abortando." >&2
-  exit 1
+if [ ! -f "${RUNNER_DIR}/config.sh" ]; then
+  RUNNER_TAR="actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
+  curl -fsSL \
+    "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/${RUNNER_TAR}" \
+    -o "/tmp/${RUNNER_TAR}" || echo "  [AVISO] No se pudo descargar runner."
+  [ -f "/tmp/${RUNNER_TAR}" ] && \
+    tar xzf "/tmp/${RUNNER_TAR}" -C "${RUNNER_DIR}" && \
+    rm -f "/tmp/${RUNNER_TAR}" && \
+    chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_DIR}"
 fi
 
-if ! id "$RUNNER_USER" &>/dev/null; then
-    useradd -m -s /bin/bash "$RUNNER_USER"
+if [ -f "${RUNNER_DIR}/config.sh" ] && [ -n "${GH_RUNNER_TOKEN:-}" ]; then
+  sudo -u "${RUNNER_USER}" bash -c "
+    cd '${RUNNER_DIR}'
+    ./config.sh --url '${REPO_URL}' --token '${GH_RUNNER_TOKEN}' \
+      --name '${RUNNER_NAME}' --labels 'self-hosted,linux,db' \
+      --work '_work' --unattended --replace
+  " || echo "  [AVISO] No se pudo registrar el runner."
+  cd "${RUNNER_DIR}" && ./svc.sh install "${RUNNER_USER}" || true
+  ./svc.sh start || true
 fi
 
-mkdir -p "$RUNNER_DIR"
-chown -R "${RUNNER_USER}:${RUNNER_USER}" "$RUNNER_DIR"
-
-if [ ! -f "${RUNNER_DIR}/run.sh" ]; then
-    RUNNER_PKG="actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
-    echo "  [RUNNER] Descargando ${RUNNER_PKG}..."
-    curl -fsSL \
-      "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/${RUNNER_PKG}" \
-      -o "/tmp/${RUNNER_PKG}"
-    tar -xzf "/tmp/${RUNNER_PKG}" -C "$RUNNER_DIR"
-    rm -f "/tmp/${RUNNER_PKG}"
-    chown -R "${RUNNER_USER}:${RUNNER_USER}" "$RUNNER_DIR"
-fi
-
-echo "  [RUNNER] Registrando '${RUNNER_NAME}' en ${REPO_URL}..."
-sudo -u "$RUNNER_USER" bash -c "
-  cd '${RUNNER_DIR}'
-  ./config.sh \
-    --url '${REPO_URL}' \
-    --token '${GH_RUNNER_TOKEN}' \
-    --name '${RUNNER_NAME}' \
-    --labels 'self-hosted,linux,db' \
-    --work '_work' \
-    --unattended \
-    --replace
-"
-
-cd "$RUNNER_DIR"
-./svc.sh install "$RUNNER_USER"
-./svc.sh start
-
-# ── Persistir rutas de red (ya aplicadas al inicio del script) ──
-# Las rutas ya fueron aplicadas al principio. Aquí solo se persisten
-# en /etc/network/interfaces.d/ para que sobrevivan reinicios.
-echo ""
-echo "  [NET] Persistiendo rutas permanentes via pfSense..."
-
-cat > /etc/network/interfaces.d/vlan40-routes <<NETEOF
-# Rutas permanentes VLAN 40 — pfSense como gateway
-# Generado por provision_postgres.sh
-
+# ── Persistir red — FIX #1: gateway pfSense solo si responde ─
+cat > /etc/network/interfaces.d/eth1.cfg << NETEOF
 auto ${VLAN_IFACE}
 iface ${VLAN_IFACE} inet static
-    address 192.168.40.10
-    netmask 255.255.255.0
-    gateway ${VLAN_GW}
-    post-up ip route del default via \$(ip route | awk '/default.*${NAT_IFACE}/ {print \$3}') dev ${NAT_IFACE} 2>/dev/null || true
-    post-up ip route add default via ${VLAN_GW} dev ${VLAN_IFACE}
+    address ${VLAN_IP}
+    netmask ${VLAN_NETMASK}
 NETEOF
 
-# Verificar que la ruta sigue activa (idempotente)
-ip route add default via ${VLAN_GW} dev ${VLAN_IFACE} 2>/dev/null || true
-
-echo "  [NET] Verificando conectividad via pfSense (${VLAN_GW})..."
-if ping -c 2 -W 3 ${VLAN_GW} > /dev/null 2>&1; then
-    echo "  [NET] pfSense alcanzable. Ruta correcta."
-else
-    echo "  [AVISO] pfSense no responde. Comprueba que la VM pfSense está activa."
+cat > /etc/network/if-up.d/vlan40-pfsense-gw << UPEOF
+#!/bin/bash
+if [ "\$IFACE" = "${VLAN_IFACE}" ] || [ "\$IFACE" = "--all" ]; then
+  if ping -c 1 -W 2 ${VLAN_GW} > /dev/null 2>&1; then
+    ip route add default via ${VLAN_GW} dev ${VLAN_IFACE} 2>/dev/null || true
+    echo "[NET] pfSense activo → gateway ${VLAN_GW}"
+  else
+    echo "[NET] pfSense no disponible → Internet por eth0"
+  fi
 fi
+UPEOF
+chmod +x /etc/network/if-up.d/vlan40-pfsense-gw
 
 echo ""
 echo "=========================================="
-echo " [OK] PostgreSQL  192.168.40.10:5432"
-echo " [OK] Cockpit     https://192.168.40.10:9090"
-echo " [RUNNER]         '${RUNNER_NAME}' activo en ${REPO_URL}"
-echo " [RED]            Gateway → pfSense ${VLAN_GW} (VLAN 40)"
-echo " [RED]            NAT Vagrant desactivada como ruta por defecto"
+echo " [OK] PostgreSQL  → ${VLAN_IP}:5432"
+echo " [OK] Cockpit     → https://${VLAN_IP}:9090"
+echo " [OK] Runner      → '${RUNNER_NAME}'"
 echo "=========================================="

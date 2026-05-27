@@ -1,231 +1,107 @@
 # ============================================================
 # Vagrantfile — TFG Implantación Segura y Automatizada de Odoo
 # Uso: vagrant up
-# Crea: VM pfSense + VM Odoo+Nginx + VM PostgreSQL
+# Crea: VM Odoo+Nginx + VM PostgreSQL  (pfSense: VM manual)
 #
 # REQUISITOS PREVIOS:
 #   winget install HashiCorp.Vagrant
 #   vagrant plugin install vagrant-vmware-desktop
 #
-# VARIABLES DE ENTORNO (obligatorias para repo privado y runners):
+# VARIABLES DE ENTORNO (obligatorias):
 #   GH_PAT                → Personal Access Token con scope repo
 #   GH_RUNNER_TOKEN_ODOO  → Registration token para odoo-server
 #   GH_RUNNER_TOKEN_DB    → Registration token para db-server
-#                           (GitHub → Settings → Actions → Runners → New → token)
 #
 # VARIABLES DE ENTORNO (opcionales; si no se pasan, usa valores demo):
 #   POSTGRES_PASSWORD    → contraseña de la BD
 #   ODOO_MASTER_PASSWORD → contraseña maestra de Odoo
 #
-# Ejemplo de uso:
-#   $env:GH_PAT="ghp_xxx"
-#   $env:GH_RUNNER_TOKEN_ODOO="AXXXXX"
-#   $env:GH_RUNNER_TOKEN_DB="AYYYYY"
-#   $env:POSTGRES_PASSWORD="s3cr3t"
-#   bash scripts/deploy/generate_pfsense_config.sh  ← primero en Git Bash
-#   vagrant up pfsense
-#   vagrant up db-server
-#   vagrant up odoo-server
+# IMPORTANTE — orden de arranque:
+#   1. Encender pfSense manualmente en VMware
+#   2. vagrant up db-server      ← SIEMPRE primero
+#   3. vagrant up odoo-server
 # ============================================================
 Vagrant.configure("2") do |config|
 
   GH_PAT  = ENV["GH_PAT"] || ""
   GH_REPO = "sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
 
-  # ── PVN IDs — identificadores de LAN Segment ─────────────────
-  # Cada LAN Segment tiene un ID de 16 bytes único.
-  # Todas las VMs que comparten el mismo PVN ID quedan en el mismo
-  # LAN Segment (tráfico solo entre VMs, sin adaptador en el host).
-  # vagrant-vmware-desktop los aplica vía v.vmx en el provider block.
-  PVNID_VLAN10 = "52 54 AB 10 00 00 00 00-00 00 00 00 00 00 00 10"  # VLAN 10 — Usuarios
-  PVNID_VLAN30 = "52 54 AB 30 00 00 00 00-00 00 00 00 00 00 00 30"  # VLAN 30 — DMZ/Odoo
-  PVNID_VLAN40 = "52 54 AB 40 00 00 00 00-00 00 00 00 00 00 00 40"  # VLAN 40 — Admin/PG
+  # ── db-server definido PRIMERO ──────────────────────────────
+  config.vm.define "db-server" do |db|
+    db.vm.box              = "bento/debian-12"
+    db.vm.box_check_update = false
+    db.vm.hostname         = "db-server-tfg"
 
+    db.vm.network "private_network",
+      ip:      "192.168.40.10",
+      netmask: "255.255.255.0"
 
-  # --------------------------------------------------------
-  # VM 1 — pfSense (Firewall / VPN / Router)
-  # WAN: red pública (NAT VMware)
-  # LAN Segment 1 → VLAN 10: usuarios  (192.168.10.x)
-  # LAN Segment 2 → VLAN 30: DMZ       (192.168.30.x)
-  # LAN Segment 3 → VLAN 40: admin     (192.168.40.x)
-  #
-  # BOX PROPIA (recomendado):
-  #   Crear la box siguiendo: docs/guias/CREAR_BOX_PFSENSE.md
-  #   Subir a GitHub Releases y actualizar PFSENSE_BOX_URL abajo.
-  #   La config.xml se importa automáticamente en el vagrant up.
-  #     1. bash scripts/deploy/generate_pfsense_config.sh
-  #     2. vagrant up pfsense
-  #
-  # BOX PÚBLICA (fallback, sin SSH ni provisioning automático):
-  #   Poner USE_CUSTOM_BOX="" en el entorno o comentar la variable.
-  #   La config se importa manualmente: Diagnostics → Backup/Restore.
-  # --------------------------------------------------------
-
-  # URL de la box propia en GitHub Releases
-  # Actualizar cuando se publique una nueva versión de la box
-  PFSENSE_BOX_URL = "https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfg.box"
-  USE_CUSTOM_BOX  = ENV.fetch("USE_CUSTOM_BOX", "1")  # "1" = box propia | "" = dlee35/pfsense
-
-  config.vm.define "pfsense" do |pf|
-
-    if USE_CUSTOM_BOX == "1"
-      # ── BOX PROPIA — con SSH y provisioning automático ──────
-      pf.vm.box              = "tfg/pfsense"
-      pf.vm.box_url          = PFSENSE_BOX_URL
-      pf.vm.box_check_update = false
-      pf.vm.hostname         = "pfsense-tfg"
-      pf.vm.synced_folder ".", "/vagrant", disabled: true
-
-      pf.vm.communicator = "ssh"
-      pf.ssh.username    = "vagrant"
-      pf.ssh.password    = "vagrant"
-      pf.ssh.shell       = "sh"
-      pf.ssh.insert_key  = true
-      # ⚠️ CRÍTICO VMware: Vagrant usa por defecto el adaptador 0 (WAN/NAT).
-      # Nuestras ACLs bloquean SSH desde WAN → apuntamos a OPT2 (VLAN 40).
-      # El host Windows tiene adaptador virtual en VMnet3 y alcanza 192.168.40.1.
-      pf.ssh.host        = "192.168.40.1"
-      pf.ssh.port        = 22
-
-      pf.vm.provider "vmware_desktop" do |v|
-        v.vmx["displayName"] = "TFG-pfSense"
-        v.memory = 1024
-        v.cpus   = 1
-        v.gui    = true
-
-        # ── Optimizaciones VMware para pfSense / FreeBSD ──────
-        v.vmx["guestOS"]              = "freebsd-64"
-        v.vmx["firmware"]             = "efi"
-        v.vmx["tools.syncTime"]       = "FALSE"
-        v.vmx["tools.upgrade.policy"] = "manual"
-        v.vmx["disk.EnableUUID"]      = "TRUE"
-        v.vmx["msg.autoanswer"]       = "TRUE"
-
-        # ethernet0 = WAN/NAT (gestionado por Vagrant)
-        v.vmx["ethernet0.virtualDev"] = "vmxnet3"
-
-        # ── LAN Segments via VMX puro (sin vm.network) ─────────────
-        # Al declarar los adaptadores solo aquí, el plugin NO los
-        # procesa y NO sobreescribe connectionType a 'custom'.
-        # ethernet1 = VLAN 10 — Usuarios
-        v.vmx["ethernet1.present"]        = "TRUE"
-        v.vmx["ethernet1.virtualDev"]     = "vmxnet3"
-        v.vmx["ethernet1.connectionType"] = "pvn"
-        v.vmx["ethernet1.pvnID"]          = PVNID_VLAN10
-        v.vmx["ethernet1.addressType"]    = "generated"
-        v.vmx["ethernet1.startConnected"] = "TRUE"
-        # ethernet2 = VLAN 30 — DMZ/Odoo
-        v.vmx["ethernet2.present"]        = "TRUE"
-        v.vmx["ethernet2.virtualDev"]     = "vmxnet3"
-        v.vmx["ethernet2.connectionType"] = "pvn"
-        v.vmx["ethernet2.pvnID"]          = PVNID_VLAN30
-        v.vmx["ethernet2.addressType"]    = "generated"
-        v.vmx["ethernet2.startConnected"] = "TRUE"
-        # ethernet3 = VLAN 40 — Admin/PostgreSQL
-        v.vmx["ethernet3.present"]        = "TRUE"
-        v.vmx["ethernet3.virtualDev"]     = "vmxnet3"
-        v.vmx["ethernet3.connectionType"] = "pvn"
-        v.vmx["ethernet3.pvnID"]          = PVNID_VLAN40
-        v.vmx["ethernet3.addressType"]    = "generated"
-        v.vmx["ethernet3.startConnected"] = "TRUE"
-      end
-
-      # Transferir el XML generado por generate_pfsense_config.sh
-      pf.vm.provision "file",
-        source:      "config/pfsense_config.xml",
-        destination: "/tmp/pfsense_config.xml"
-
-      # Aplicar la configuración completa (ACLs, NAT, DNS, DHCP)
-      pf.vm.provision "shell",
-        path:       "vagrant/provision_pfsense.sh",
-        privileged: true
-
-    else
-      # ── BOX PÚBLICA — sin SSH, configuración manual ─────────
-      # Usar cuando la box propia no está disponible (primer despliegue).
-      # Configurar pfSense manualmente: docs/guias/CONFIGURACION_PFSENSE_MANUAL.md
-      pf.vm.box              = "dlee35/pfsense"
-      pf.vm.box_check_update = false
-      pf.vm.hostname         = "pfsense-tfg"
-      pf.vm.synced_folder ".", "/vagrant", disabled: true
-      pf.vm.communicator = "none"   # Sin SSH → sin provisioning
-
-      pf.vm.provider "vmware_desktop" do |v|
-        v.vmx["displayName"] = "TFG-pfSense"
-        v.memory = 1024
-        v.cpus   = 1
-        v.gui    = true
-        v.vmx["guestOS"]              = "freebsd-64"
-        v.vmx["firmware"]             = "efi"
-        v.vmx["tools.syncTime"]       = "FALSE"
-        v.vmx["tools.upgrade.policy"] = "manual"
-        v.vmx["disk.EnableUUID"]      = "TRUE"
-        v.vmx["msg.autoanswer"]       = "TRUE"
-        v.vmx["ethernet0.virtualDev"] = "vmxnet3"
-        # ── LAN Segments via VMX puro (mismos IDs que bloque de box propia)
-        v.vmx["ethernet1.present"]        = "TRUE"
-        v.vmx["ethernet1.virtualDev"]     = "vmxnet3"
-        v.vmx["ethernet1.connectionType"] = "pvn"
-        v.vmx["ethernet1.pvnID"]          = PVNID_VLAN10
-        v.vmx["ethernet1.addressType"]    = "generated"
-        v.vmx["ethernet1.startConnected"] = "TRUE"
-        v.vmx["ethernet2.present"]        = "TRUE"
-        v.vmx["ethernet2.virtualDev"]     = "vmxnet3"
-        v.vmx["ethernet2.connectionType"] = "pvn"
-        v.vmx["ethernet2.pvnID"]          = PVNID_VLAN30
-        v.vmx["ethernet2.addressType"]    = "generated"
-        v.vmx["ethernet2.startConnected"] = "TRUE"
-        v.vmx["ethernet3.present"]        = "TRUE"
-        v.vmx["ethernet3.virtualDev"]     = "vmxnet3"
-        v.vmx["ethernet3.connectionType"] = "pvn"
-        v.vmx["ethernet3.pvnID"]          = PVNID_VLAN40
-        v.vmx["ethernet3.addressType"]    = "generated"
-        v.vmx["ethernet3.startConnected"] = "TRUE"
-      end
+    db.vm.provider "vmware_desktop" do |v|
+      v.vmx["displayName"]              = "TFG-DB-Server"
+      v.memory = 2048
+      v.cpus   = 1
+      v.gui    = true
+      v.vmx["ethernet1.connectionType"] = "custom"
+      v.vmx["ethernet1.vnet"]           = "vmnet3"
     end
 
+    db.trigger.before :destroy do |trigger|
+      trigger.name     = "Desregistrar db-runner"
+      trigger.on_error = :continue
+      trigger.run = {
+        inline: "powershell -ExecutionPolicy Bypass -Command \"" \
+                "$h = @{'Authorization'='Bearer #{GH_PAT}';'Accept'='application/vnd.github+json'}; " \
+                "$r = (Invoke-RestMethod 'https://api.github.com/repos/#{GH_REPO}/actions/runners' -Headers $h).runners " \
+                "| Where-Object { $_.name -eq 'db-runner' }; " \
+                "if ($r) { Invoke-RestMethod -Method DELETE " \
+                "-Uri ('https://api.github.com/repos/#{GH_REPO}/actions/runners/' + $r.id) -Headers $h; " \
+                "Write-Host '[OK] db-runner eliminado de GitHub' } " \
+                "else { Write-Host '[INFO] db-runner no encontrado en GitHub' }\""
+      }
+    end
+
+    db.vm.provision "shell",
+      path:       "vagrant/provision_postgres.sh",
+      privileged: true,
+      env: {
+        "POSTGRES_PASSWORD" => ENV["POSTGRES_PASSWORD"]  || "changeme_db",
+        "GH_PAT"            => ENV["GH_PAT"]             || "",
+        "GH_RUNNER_TOKEN"   => ENV["GH_RUNNER_TOKEN_DB"] || "",
+        "RUNNER_NAME"       => "db-runner"
+      }
   end
 
-
-  # --------------------------------------------------------
-  # VM 2 — Debian 12 (Odoo 17 + Nginx)
-  # DMZ — VLAN 30
-  #   nginx-proxy  192.168.30.20  → HTTPS :443
-  #   odoo-web     192.168.30.21  → Odoo  :8069 (interno)
-  #   Cockpit      192.168.30.10  → panel :9090
-  # Runner: odoo-runner (self-hosted, linux, odoo)
-  # --------------------------------------------------------
+  # ── odoo-server (definido SEGUNDO) ──────────────────────────
   config.vm.define "odoo-server" do |deb|
     deb.vm.box              = "bento/debian-12"
     deb.vm.box_check_update = false
     deb.vm.hostname         = "odoo-server-tfg"
 
+    deb.vm.network "private_network",
+      ip:      "192.168.30.10",
+      netmask: "255.255.255.0"
+
     deb.vm.provider "vmware_desktop" do |v|
-      v.vmx["displayName"] = "TFG-Odoo-Server"
+      v.vmx["displayName"]              = "TFG-Odoo-Server"
       v.memory = 4096
       v.cpus   = 2
       v.gui    = true
-      # ethernet0 = NAT Vagrant (SSH/provisioning) — gestionado por Vagrant
-      # ethernet1 = VLAN 30 DMZ/Odoo — LAN Segment via VMX puro (sin vm.network)
-      # Al no declararlo con vm.network, el plugin NO sobreescribe connectionType.
-      v.vmx["ethernet1.present"]        = "TRUE"
-      v.vmx["ethernet1.virtualDev"]     = "vmxnet3"
-      v.vmx["ethernet1.connectionType"] = "pvn"
-      v.vmx["ethernet1.pvnID"]          = PVNID_VLAN30
-      v.vmx["ethernet1.addressType"]    = "generated"
-      v.vmx["ethernet1.startConnected"] = "TRUE"
+      v.vmx["ethernet1.connectionType"] = "custom"
+      v.vmx["ethernet1.vnet"]           = "vmnet2"
     end
 
     deb.trigger.before :destroy do |trigger|
-      trigger.name     = "Desregistrar odoo-runner de GitHub"
+      trigger.name     = "Desregistrar odoo-runner"
       trigger.on_error = :continue
       trigger.run = {
         inline: "powershell -ExecutionPolicy Bypass -Command \"" \
-                "$headers = @{'Authorization'='Bearer #{GH_PAT}'; 'Accept'='application/vnd.github+json'}; " \
-                "$runners = Invoke-RestMethod -Uri 'https://api.github.com/repos/#{GH_REPO}/actions/runners' -Headers $headers; " \
-                "$runner = $runners.runners | Where-Object { $_.name -eq 'odoo-runner' }; " \
-                "if ($runner) { Invoke-RestMethod -Method DELETE -Uri ('https://api.github.com/repos/#{GH_REPO}/actions/runners/' + $runner.id) -Headers $headers; Write-Host '[RUNNER] odoo-runner eliminado' } " \
-                "else { Write-Host '[RUNNER] odoo-runner no encontrado en GitHub' }\""
+                "$h = @{'Authorization'='Bearer #{GH_PAT}';'Accept'='application/vnd.github+json'}; " \
+                "$r = (Invoke-RestMethod 'https://api.github.com/repos/#{GH_REPO}/actions/runners' -Headers $h).runners " \
+                "| Where-Object { $_.name -eq 'odoo-runner' }; " \
+                "if ($r) { Invoke-RestMethod -Method DELETE " \
+                "-Uri ('https://api.github.com/repos/#{GH_REPO}/actions/runners/' + $r.id) -Headers $h; " \
+                "Write-Host '[OK] odoo-runner eliminado de GitHub' } " \
+                "else { Write-Host '[INFO] odoo-runner no encontrado en GitHub' }\""
       }
     end
 
@@ -239,59 +115,6 @@ Vagrant.configure("2") do |config|
         "GH_PAT"               => ENV["GH_PAT"]               || "",
         "GH_RUNNER_TOKEN"      => ENV["GH_RUNNER_TOKEN_ODOO"] || "",
         "RUNNER_NAME"          => "odoo-runner"
-      }
-  end
-
-  # --------------------------------------------------------
-  # VM 3 — Debian 12 (PostgreSQL 16)
-  # VLAN 40 — Administración
-  #   postgresql   192.168.40.10  → BD aislada :5432
-  #   backups      /backups/      → copias automáticas
-  #   Cockpit      192.168.40.10  → panel      :9090
-  # Runner: db-runner (self-hosted, linux, db)
-  # --------------------------------------------------------
-  config.vm.define "db-server" do |db|
-    db.vm.box              = "bento/debian-12"
-    db.vm.box_check_update = false
-    db.vm.hostname         = "db-server-tfg"
-
-    db.vm.provider "vmware_desktop" do |v|
-      v.vmx["displayName"] = "TFG-DB-Server"
-      v.memory = 2048
-      v.cpus   = 1
-      v.gui    = true
-      # ethernet0 = NAT Vagrant (SSH/provisioning) — gestionado por Vagrant
-      # ethernet1 = VLAN 40 Admin/PG — LAN Segment via VMX puro (sin vm.network)
-      # Al no declararlo con vm.network, el plugin NO sobreescribe connectionType.
-      v.vmx["ethernet1.present"]        = "TRUE"
-      v.vmx["ethernet1.virtualDev"]     = "vmxnet3"
-      v.vmx["ethernet1.connectionType"] = "pvn"
-      v.vmx["ethernet1.pvnID"]          = PVNID_VLAN40
-      v.vmx["ethernet1.addressType"]    = "generated"
-      v.vmx["ethernet1.startConnected"] = "TRUE"
-    end
-
-    db.trigger.before :destroy do |trigger|
-      trigger.name     = "Desregistrar db-runner de GitHub"
-      trigger.on_error = :continue
-      trigger.run = {
-        inline: "powershell -ExecutionPolicy Bypass -Command \"" \
-                "$headers = @{'Authorization'='Bearer #{GH_PAT}'; 'Accept'='application/vnd.github+json'}; " \
-                "$runners = Invoke-RestMethod -Uri 'https://api.github.com/repos/#{GH_REPO}/actions/runners' -Headers $headers; " \
-                "$runner = $runners.runners | Where-Object { $_.name -eq 'db-runner' }; " \
-                "if ($runner) { Invoke-RestMethod -Method DELETE -Uri ('https://api.github.com/repos/#{GH_REPO}/actions/runners/' + $runner.id) -Headers $headers; Write-Host '[RUNNER] db-runner eliminado' } " \
-                "else { Write-Host '[RUNNER] db-runner no encontrado en GitHub' }\""
-      }
-    end
-
-    db.vm.provision "shell",
-      path:       "vagrant/provision_postgres.sh",
-      privileged: true,
-      env: {
-        "POSTGRES_PASSWORD" => ENV["POSTGRES_PASSWORD"]   || "changeme_db",
-        "GH_PAT"            => ENV["GH_PAT"]              || "",
-        "GH_RUNNER_TOKEN"   => ENV["GH_RUNNER_TOKEN_DB"]  || "",
-        "RUNNER_NAME"       => "db-runner"
       }
   end
 

@@ -1,31 +1,10 @@
 #!/bin/bash
 # ============================================================
-# SCRIPT: vagrant/provision_debian.sh
-# DESCRIPCION: Provisioning de la VM Debian - Odoo 17 + Nginx
-#              PostgreSQL reside en VM externa (VLAN 40 - 192.168.40.10).
-#
-# VARIABLES REQUERIDAS (inyectadas por el Vagrantfile):
-#   GH_PAT           → Personal Access Token (scope: repo)
-#   GH_RUNNER_TOKEN  → Registration token de GitHub Actions
-#   RUNNER_NAME      → Nombre del runner (ej: odoo-runner)
-#   POSTGRES_HOST    → IP del servidor PostgreSQL
-#   POSTGRES_PASSWORD
-#   ODOO_MASTER_PASSWORD
-#
-# ORDEN DE EJECUCION:
-#   1. Validaciones
-#   2. Configurar gateway pfSense (ANTES de cualquier acceso a internet)
-#   3. Espera de red (verifica que la ruta ya funciona)
-#   4. APT: mirrors + dependencias base
-#   5. Docker + PostgreSQL client
-#   6. Crear usuario 'runner'  ← DEBE ir antes del git clone
-#   7. Git clone + chown al runner
-#   8. Generar .env, directorios, SSL, docker compose up
-#   9. Instalar y registrar GitHub Actions runner
+# Provisioning VM Debian - Odoo 17 + Nginx
+# ESTRATEGIA: Internet por eth0 (NAT VMware) | DMZ→BD por eth1 (pfSense)
 # ============================================================
 set -euo pipefail
 
-# ── Variables ────────────────────────────────────────────────
 PROJECT_DIR="/opt/erp-odoo"
 GH_REPO_OWNER="sandrafrv"
 GH_REPO_NAME="TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
@@ -40,11 +19,10 @@ RUNNER_USER="runner"
 RUNNER_DIR="/home/${RUNNER_USER}/actions-runner"
 RUNNER_VERSION="2.317.0"
 
-# Interfaz NAT de Vagrant (siempre eth0 en bento/debian-12)
 NAT_IFACE="eth0"
-# Interfaz de la VLAN 30 (segunda interfaz añadida por Vagrant)
 VLAN_IFACE="eth1"
-# Gateway de pfSense en VLAN 30
+VLAN_IP="192.168.30.10"
+VLAN_NETMASK="255.255.255.0"
 VLAN_GW="192.168.30.1"
 
 echo "=========================================="
@@ -53,232 +31,249 @@ echo " POSTGRES_HOST : $POSTGRES_HOST"
 echo " RUNNER_NAME   : $RUNNER_NAME"
 echo "=========================================="
 
-# ── Validaciones previas ─────────────────────────────────────
-if [ -z "${GH_PAT}" ]; then
-  echo "[ERROR] GH_PAT no está definido. Abortando." >&2
-  exit 1
+if [ -z "${GH_PAT:-}" ]; then
+  echo "[ERROR] GH_PAT no está definido. Abortando." >&2; exit 1
 fi
-if [ -z "${GH_RUNNER_TOKEN}" ]; then
-  echo "[ERROR] GH_RUNNER_TOKEN no está definido. Abortando." >&2
-  exit 1
+if [ -z "${GH_RUNNER_TOKEN:-}" ]; then
+  echo "[ERROR] GH_RUNNER_TOKEN no está definido. Abortando." >&2; exit 1
 fi
 
-# ── Configurar gateway pfSense ANTES de cualquier descarga ──
-# CRÍTICO: debe hacerse aquí para que APT, Docker, git clone y el
-# runner puedan salir a internet a través de pfSense desde el inicio.
-echo "  [NET] Configurando gateway pfSense (${VLAN_GW}) en ${VLAN_IFACE}..."
-ip route del default dev "${NAT_IFACE}" 2>/dev/null || true
-ip route add default via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
+#— PASO 0: Configurar red y DNS ———————————————————————————————
+cat > /etc/resolv.conf << 'DNSEOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+DNSEOF
 
-# ── Esperar a que la red esté lista (via pfSense) ────────────
-echo "  [NET] Esperando conectividad de red..."
-for i in $(seq 1 12); do
-  if curl -fsSL --max-time 5 http://deb.debian.org > /dev/null 2>&1; then
-    echo "  [NET] Red lista."
-    break
+# ── PASO 1: IP estática eth1 SIN gateway ────────────────────
+mkdir -p /etc/network/interfaces.d
+cat > /etc/network/interfaces.d/eth1.cfg << NETEOF
+auto ${VLAN_IFACE}
+iface ${VLAN_IFACE} inet static
+    address ${VLAN_IP}
+    netmask ${VLAN_NETMASK}
+NETEOF
+
+ip link set "${VLAN_IFACE}" up
+ip addr flush dev "${VLAN_IFACE}" 2>/dev/null || true
+ip addr add "${VLAN_IP}/24" dev "${VLAN_IFACE}" 2>/dev/null || true
+ip addr show "${VLAN_IFACE}"
+
+# ── PASO 2: Ruta a BD vía pfSense ────────────────────────────
+ip route del default via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
+ip route add 192.168.40.0/24 via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
+ip route
+
+# ── PASO 3: Estado pfSense (solo informativo) ────────────────
+if ping -c 2 -W 3 "${VLAN_GW}" > /dev/null 2>&1; then
+    echo "  [NET] pfSense alcanzable."
+else
+    echo "  [AVISO] pfSense no responde. La ruta a BD se activará al encenderlo."
+fi
+
+# ── PASO 4: Esperar Internet por eth0 ────────────────────────
+echo "  [NET] Esperando conectividad Internet..."
+for i in $(seq 1 10); do
+  if curl -fsSL --max-time 5 https://deb.debian.org > /dev/null 2>&1; then
+    echo "  [NET] Internet OK."; break
   fi
-  echo "  [NET] Intento $i/12 — esperando 5s..."
-  sleep 5
+  echo "  [NET] Intento $i/10 — esperando 10s..."
+  sleep 10
 done
 
-# ── APT: corregir mirrors obsoletos de la box ─────────────────
+# ── PASO 5: APT ──────────────────────────────────────────────
 export DEBIAN_FRONTEND=noninteractive
+
+# FIX: forzar IPv4 — VMware NAT no enruta IPv6 y APT agota timeout
+echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
+
+# FIX: descargas secuenciales — evita saturar NAT con conexiones paralelas
+cat > /etc/apt/apt.conf.d/99parallel << 'APTEOF'
+Acquire::Queue-Mode "access";
+Acquire::http::Pipeline-Depth "0";
+Acquire::Retries "3";
+APTEOF
+
 APT_OPTS=(
   -o Acquire::Check-Valid-Until=false
   -o Acquire::AllowInsecureRepositories=true
   -o Acquire::AllowDowngradeToInsecureRepositories=true
-  -o Acquire::GPG::NoSign=true
   --allow-unauthenticated
 )
 
-echo "  [APT] Corrigiendo mirrors obsoletos de la box..."
-cat > /etc/apt/sources.list <<'SOURCES'
-deb [trusted=yes] http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-deb [trusted=yes] http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
-deb [trusted=yes] http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+cat > /etc/apt/sources.list << 'SOURCES'
+deb [trusted=yes] https://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb [trusted=yes] https://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
+deb [trusted=yes] https://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
 SOURCES
-apt-get "${APT_OPTS[@]}" update -qq
 
-# Configurar teclado en español
-apt-get "${APT_OPTS[@]}" install -y keyboard-configuration console-setup --no-install-recommends
-sed -i 's/XKBLAYOUT=.*/XKBLAYOUT="es"/' /etc/default/keyboard
-dpkg-reconfigure -f noninteractive keyboard-configuration
-invoke-rc.d keyboard-setup.sh restart || true
+apt-get "${APT_OPTS[@]}" update -qq || true
+apt-get install -y -qq "${APT_OPTS[@]}" \
+  nginx git curl wget htop vim ca-certificates gnupg \
+  lsb-release apt-transport-https software-properties-common || true
 
-# Dependencias base
-apt-get "${APT_OPTS[@]}" install -y \
-    git curl ca-certificates gnupg \
-    openssl cockpit jq \
-    --no-install-recommends
+# ── PASO 6: Docker CE ────────────────────────────────────────
 
-# ── Repo oficial de Docker ────────────────────────────────────
-if ! command -v docker &>/dev/null; then
-    echo "  [DOCKER] Añadiendo repositorio oficial de Docker..."
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL --insecure https://download.docker.com/linux/debian/gpg \
-      | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg trusted=yes] \
-https://download.docker.com/linux/debian bookworm stable" \
-      > /etc/apt/sources.list.d/docker.list
-    apt-get "${APT_OPTS[@]}" update -qq
-    apt-get "${APT_OPTS[@]}" install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+apt-get remove -y -qq docker docker-engine docker.io containerd runc 2>/dev/null || true
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/debian/gpg \
+  | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/debian \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  > /etc/apt/sources.list.d/docker.list
+
+apt-get "${APT_OPTS[@]}" update -qq || true
+apt-get install -y -qq "${APT_OPTS[@]}" \
+  docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin || {
+  echo "[ERROR] No se pudo instalar docker-ce." >&2; exit 1
+}
+
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json << 'DOCKEREOF'
+{
+  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
+}
+DOCKEREOF
+
+systemctl enable docker && systemctl restart docker
+docker compose version || { echo "[ERROR] docker compose no encontrado." >&2; exit 1; }
+
+# ── PASO 7: Clonar repo ──────────────────────────────────────
+mkdir -p "${PROJECT_DIR}"
+if [ ! -d "${PROJECT_DIR}/.git" ]; then
+  git clone "${REPO}" "${PROJECT_DIR}" || {
+    echo "  [AVISO] No se pudo clonar repo."
+    mkdir -p "${PROJECT_DIR}/docker"
+  }
 fi
 
-# ── Repo oficial de PostgreSQL (cliente) ──────────────────────
-if ! command -v psql &>/dev/null; then
-    echo "  [PG] Añadiendo repositorio oficial de PostgreSQL..."
-    curl -fsSL --insecure https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-      | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
-    echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg trusted=yes] \
-https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
-      > /etc/apt/sources.list.d/pgdg.list
-    apt-get "${APT_OPTS[@]}" update -qq
-    apt-get "${APT_OPTS[@]}" install -y postgresql-client-16
-fi
-
-systemctl enable --now docker
-systemctl enable --now cockpit.socket
-
-# ── Crear usuario runner ANTES del git clone ─────────────────
-# IMPORTANTE: debe crearse aquí para que el chown posterior funcione.
-# Si se crea después del git clone, el 'chown runner:runner' falla
-# con "invalid user" porque el usuario todavía no existe.
-if ! id "$RUNNER_USER" &>/dev/null; then
-    useradd -m -s /bin/bash "$RUNNER_USER"
-fi
-usermod -aG docker "$RUNNER_USER"
-
-# ── Clonar repositorio privado via PAT ───────────────────────
-if [ ! -d "$PROJECT_DIR/.git" ]; then
-    echo "  [GIT] Clonando repositorio privado..."
-    git clone "$REPO" "$PROJECT_DIR"
-else
-    echo "  [GIT] Repositorio ya clonado; actualizando..."
-    git -C "$PROJECT_DIR" remote set-url origin "$REPO"
-    git -C "$PROJECT_DIR" pull --ff-only origin main
-fi
-
-# Borrar el PAT de la URL del remote (seguridad)
-git -C "$PROJECT_DIR" remote set-url origin \
-  "https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}.git"
-
-# Dar permisos al runner sobre el proyecto
-# (runner ya existe en este punto, por eso el chown funciona)
-chown -R "${RUNNER_USER}:${RUNNER_USER}" "$PROJECT_DIR"
-
-cd "$PROJECT_DIR"
-
-# ── Generar .env ─────────────────────────────────────────────
-cat > .env <<ENVEOF
-POSTGRES_USER=odoo
+# ── PASO 8: .env Odoo ────────────────────────────────────────
+mkdir -p "${PROJECT_DIR}/docker"
+cat > "${PROJECT_DIR}/docker/.env" << ENVEOF
+POSTGRES_HOST=${POSTGRES_HOST}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-POSTGRES_DB=odoo_erp
 ODOO_MASTER_PASSWORD=${ODOO_MASTER_PASSWORD}
 ENVEOF
 
-# ── Crear directorios necesarios ─────────────────────────────
-mkdir -p addons odoo-data odoo_sessions backups/postgres certs
-chmod -R 777 odoo-data/ odoo_sessions/ backups/
-find scripts/ -name "*.sh" -exec chmod +x {} + 2>/dev/null || true
+# ── PASO 9: docker compose up ────────────────────────────────
+docker network inspect macvlan_vlan30 >/dev/null 2>&1 || \
+  docker network create --driver macvlan \
+    --subnet=192.168.30.0/24 --gateway=192.168.30.1 \
+    -o parent="eth1" macvlan_vlan30
 
-# ── Crear red MACVLAN para VLAN 30 ───────────────────────────
-# NOTA: parent=${VLAN_IFACE} (sin .30) porque en VMware con LAN Segment
-# la interfaz llega sin VLAN tag — no existe eth1.30 como subinterfaz.
-docker network inspect macvlan_vlan30 > /dev/null 2>&1 || \
-  docker network create \
-    --driver macvlan \
-    --subnet=192.168.30.0/24 \
-    --gateway=192.168.30.1 \
-    -o "parent=${VLAN_IFACE}" \
-    macvlan_vlan30
+COMPOSE_FILE="${PROJECT_DIR}/docker/docker-compose.yml"
 
-# ── Generar certificado SSL autofirmado ──────────────────────
-if [ ! -f certs/server.crt ]; then
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-      -keyout certs/server.key \
-      -out certs/server.crt \
-      -subj "/C=ES/ST=Madrid/L=Madrid/O=TechSolutions/OU=IT/CN=erp.local" \
-      2>/dev/null
-    echo "  [OK] Certificado SSL generado."
-fi
+if [ -f "${COMPOSE_FILE}" ]; then
+  echo "  [DOCKER] Esperando que Docker Hub sea accesible..."
+  for i in $(seq 1 10); do
+    if docker pull hello-world > /dev/null 2>&1; then
+      echo "  [DOCKER] Docker Hub accesible."; break
+    fi
+    echo "  [DOCKER] Intento $i/10 — esperando 15s..."; sleep 15
+  done
+  docker rmi hello-world 2>/dev/null || true
 
-# ── Levantar contenedores ────────────────────────────────────
-docker compose -f docker/docker-compose.yml up -d
+  echo "  [DOCKER] Descargando imágenes..."
+  docker compose -f "${COMPOSE_FILE}" pull || \
+    echo "  [AVISO] Pull fallido."
 
-# ── Instalar GitHub Actions Runner ───────────────────────────
-# El usuario runner ya fue creado arriba; aquí solo se configura
-# el directorio del runner y se registra en GitHub.
-echo ""
-echo "  [RUNNER] Instalando GitHub Actions self-hosted runner..."
+  docker compose -f "${COMPOSE_FILE}" up -d --pull never || \
+    echo "  [AVISO] docker compose up falló. Re-ejecuta: vagrant provision odoo-server"
 
-mkdir -p "$RUNNER_DIR"
-chown -R "${RUNNER_USER}:${RUNNER_USER}" "$RUNNER_DIR"
-
-if [ ! -f "${RUNNER_DIR}/run.sh" ]; then
-    RUNNER_PKG="actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
-    echo "  [RUNNER] Descargando ${RUNNER_PKG}..."
-    curl -fsSL \
-      "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/${RUNNER_PKG}" \
-      -o "/tmp/${RUNNER_PKG}"
-    tar -xzf "/tmp/${RUNNER_PKG}" -C "$RUNNER_DIR"
-    rm -f "/tmp/${RUNNER_PKG}"
-    chown -R "${RUNNER_USER}:${RUNNER_USER}" "$RUNNER_DIR"
-fi
-
-echo "  [RUNNER] Registrando runner '${RUNNER_NAME}'..."
-sudo -u "$RUNNER_USER" bash -c "
-  cd '${RUNNER_DIR}'
-  ./config.sh \
-    --url '${REPO_URL}' \
-    --token '${GH_RUNNER_TOKEN}' \
-    --name '${RUNNER_NAME}' \
-    --labels 'self-hosted,linux,odoo' \
-    --work '_work' \
-    --unattended \
-    --replace
-"
-
-cd "$RUNNER_DIR"
-./svc.sh install "$RUNNER_USER"
-./svc.sh start
-
-# ── Persistir rutas de red (ya aplicadas al inicio del script) ──
-# Las rutas ya fueron aplicadas al principio. Aquí solo se persisten
-# en /etc/network/interfaces.d/ para que sobrevivan reinicios.
-echo ""
-echo "  [NET] Persistiendo rutas permanentes via pfSense..."
-
-cat > /etc/network/interfaces.d/vlan30-routes <<NETEOF
-# Rutas permanentes VLAN 30 — pfSense como gateway
-# Generado por provision_debian.sh
-
-auto ${VLAN_IFACE}
-iface ${VLAN_IFACE} inet static
-    address 192.168.30.10
-    netmask 255.255.255.0
-    gateway ${VLAN_GW}
-    post-up ip route del default via \$(ip route | awk '/default.*${NAT_IFACE}/ {print \$3}') dev ${NAT_IFACE} 2>/dev/null || true
-    post-up ip route add default via ${VLAN_GW} dev ${VLAN_IFACE}
-NETEOF
-
-# Verificar que la ruta sigue activa (idempotente)
-ip route add default via ${VLAN_GW} dev ${VLAN_IFACE} 2>/dev/null || true
-
-echo "  [NET] Verificando conectividad via pfSense (${VLAN_GW})..."
-if ping -c 2 -W 3 ${VLAN_GW} > /dev/null 2>&1; then
-    echo "  [NET] pfSense alcanzable. Ruta correcta."
+  docker ps --filter "name=odoo" \
+    --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
 else
-    echo "  [AVISO] pfSense no responde. Comprueba que la VM pfSense está activa."
+  echo "  [AVISO] ${COMPOSE_FILE} no encontrado. Saltando."
 fi
+
+# ── PASO 10: SSL + Nginx ─────────────────────────────────────
+mkdir -p "${PROJECT_DIR}/certs"
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout "${PROJECT_DIR}/certs/nginx.key" \
+  -out    "${PROJECT_DIR}/certs/nginx.crt" \
+  -subj "/C=ES/ST=Madrid/L=Madrid/O=TFG/OU=ASIR/CN=odoo.tfg" 2>/dev/null || true
+
+cat > /etc/nginx/sites-available/odoo << 'NGINX_EOF'
+server {
+    listen 443 ssl;
+    server_name odoo.tfg;
+    ssl_certificate     /opt/erp-odoo/certs/nginx.crt;
+    ssl_certificate_key /opt/erp-odoo/certs/nginx.key;
+    location / {
+        proxy_pass         http://127.0.0.1:8069;
+        proxy_set_header   Host            $host;
+        proxy_set_header   X-Real-IP       $remote_addr;
+        proxy_read_timeout 720s;
+    }
+    location /longpolling {
+        proxy_pass http://127.0.0.1:8072;
+    }
+}
+server {
+    listen 80;
+    server_name odoo.tfg;
+    return 301 https://$server_name$request_uri;
+}
+NGINX_EOF
+
+ln -sf /etc/nginx/sites-available/odoo /etc/nginx/sites-enabled/odoo
+rm -f /etc/nginx/sites-enabled/default || true
+nginx -t && systemctl restart nginx || echo "  [AVISO] Nginx no arrancó."
+
+# ── PASO 11: Runner ──────────────────────────────────────────
+if ! id "${RUNNER_USER}" &>/dev/null; then useradd -m -s /bin/bash "${RUNNER_USER}"; fi
+usermod -aG docker "${RUNNER_USER}" || true
+mkdir -p "${RUNNER_DIR}"
+chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_DIR}"
+
+cd "${RUNNER_DIR}"
+if [ ! -f "./config.sh" ]; then
+  RUNNER_TAR="actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
+  curl -fsSL \
+    "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/${RUNNER_TAR}" \
+    -o "/tmp/${RUNNER_TAR}" || echo "  [AVISO] No se pudo descargar runner."
+  [ -f "/tmp/${RUNNER_TAR}" ] && tar xzf "/tmp/${RUNNER_TAR}" && rm -f "/tmp/${RUNNER_TAR}" && \
+    chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_DIR}"
+fi
+
+if [ -f "${RUNNER_DIR}/config.sh" ] && [ -n "${GH_RUNNER_TOKEN:-}" ]; then
+  su -c "
+    cd '${RUNNER_DIR}'
+    ./config.sh --url '${REPO_URL}' --token '${GH_RUNNER_TOKEN}' \
+      --name '${RUNNER_NAME}' --labels 'self-hosted,linux,odoo' \
+      --work '_work' --unattended --replace
+  " "${RUNNER_USER}" || echo "  [AVISO] No se pudo registrar runner."
+  cd "${RUNNER_DIR}"
+  ./svc.sh install "${RUNNER_USER}" || true && ./svc.sh start || true
+fi
+
+# ── PASO 12: Persistir red ───────────────────────────────────
+# (eth1.cfg ya creado en PASO 1 — solo añadimos script de ruta BD)
+cat > /etc/network/if-up.d/vlan30-bd-route << 'ROUTE_EOF'
+#!/bin/bash
+if [ "$IFACE" = "eth1" ] || [ "$IFACE" = "--all" ]; then
+    if ping -c 1 -W 2 192.168.30.1 > /dev/null 2>&1; then
+        ip route add 192.168.40.0/24 via 192.168.30.1 dev eth1 2>/dev/null || true
+        echo "[NET] Ruta BD activa via pfSense."
+    else
+        echo "[NET] pfSense no disponible. Ruta BD no añadida."
+    fi
+fi
+ROUTE_EOF
+chmod +x /etc/network/if-up.d/vlan30-bd-route
+
+# ── PASO 13: Cockpit ─────────────────────────────────────────
+apt-get install -y -qq "${APT_OPTS[@]}" cockpit || echo "  [AVISO] Cockpit no instalado."
+systemctl enable cockpit.socket || true && systemctl start cockpit.socket || true
 
 echo ""
 echo "=========================================="
-echo " [OK] Odoo:    https://192.168.30.21"
-echo " [OK] Cockpit: https://192.168.30.10:9090"
-echo " [DB]          192.168.40.10:5432 (externa)"
-echo " [RUNNER]      '${RUNNER_NAME}' activo en ${REPO_URL}"
-echo " [RED]         Gateway → pfSense ${VLAN_GW} (VLAN 30)"
-echo " [RED]         NAT Vagrant desactivada como ruta por defecto"
+echo " [OK] Odoo    → https://${VLAN_IP}"
+echo " [OK] Cockpit → https://${VLAN_IP}:9090"
+echo " [DB] ${POSTGRES_HOST}:5432 (via pfSense ${VLAN_GW})"
+echo " [RUNNER] '${RUNNER_NAME}'"
 echo "=========================================="
