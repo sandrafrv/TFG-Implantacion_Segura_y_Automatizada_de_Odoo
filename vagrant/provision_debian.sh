@@ -180,12 +180,15 @@ ENVEOF
 chmod 640 "${PROJECT_DIR}/.env"
 
 # ── PASO 9: docker compose up ────────────────────────────────
+# IMPORTANTE: --project-directory hace que compose cargue el .env
+# desde PROJECT_DIR (raíz), no desde el CWD ni desde docker/
 docker network inspect macvlan_vlan30 >/dev/null 2>&1 || \
   docker network create --driver macvlan \
     --subnet=192.168.30.0/24 --gateway=192.168.30.1 \
     -o parent="eth1" macvlan_vlan30
 
 COMPOSE_FILE="${PROJECT_DIR}/docker/docker-compose.yml"
+COMPOSE_CMD="docker compose --project-directory ${PROJECT_DIR} -f ${COMPOSE_FILE}"
 
 if [ -f "${COMPOSE_FILE}" ]; then
   echo "  [DOCKER] Esperando que Docker Hub sea accesible..."
@@ -198,10 +201,10 @@ if [ -f "${COMPOSE_FILE}" ]; then
   docker rmi hello-world 2>/dev/null || true
 
   echo "  [DOCKER] Descargando imágenes..."
-  docker compose -f "${COMPOSE_FILE}" pull || \
+  ${COMPOSE_CMD} pull || \
     echo "  [AVISO] Pull fallido."
 
-  docker compose -f "${COMPOSE_FILE}" up -d --pull never || \
+  ${COMPOSE_CMD} up -d --pull never || \
     echo "  [AVISO] docker compose up falló. Re-ejecuta: vagrant provision odoo-server"
 
   docker ps --filter "name=odoo" \
