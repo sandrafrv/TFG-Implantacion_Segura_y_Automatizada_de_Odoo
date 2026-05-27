@@ -66,9 +66,21 @@ docker compose "${COMPOSE_OPTS[@]}" up -d --force-recreate
 echo "[3/4] Comprobando base de datos..."
 sleep 5  # Dar tiempo a que Odoo arranque y contacte con la BD externa
 
-# Verificar si Odoo puede conectar con la BD externa
-HAS_DB=$(docker exec odoo-web \
-    python3 -c "
+# Verificar primero si PostgreSQL es alcanzable antes de intentar init
+DB_REACHABLE=false
+if timeout 5 bash -c "</dev/tcp/$POSTGRES_HOST/5432" 2>/dev/null; then
+    DB_REACHABLE=true
+fi
+
+if [ "$DB_REACHABLE" = "false" ]; then
+    echo "  [AVISO] PostgreSQL ($POSTGRES_HOST:5432) no alcanzable."
+    echo "          Los contenedores están levantados y se conectarán"
+    echo "          cuando pfSense y la VM de BD estén disponibles."
+    echo "  [OK] Saltando inicialización de BD."
+else
+    # Verificar si Odoo puede conectar con la BD externa
+    HAS_DB=$(docker exec odoo-web \
+        python3 -c "
 import psycopg2, os
 try:
     c = psycopg2.connect(host='${POSTGRES_HOST}', user='odoo', dbname='odoo_erp',
@@ -80,20 +92,22 @@ except Exception:
     print('f')
 " 2>/dev/null || echo "f")
 
-if [ "$HAS_DB" = "f" ]; then
-    echo "  [!] BD vacía — inicializando Odoo (1-2 min)..."
-    MASTER_PASS=$(grep -E '^ODOO_MASTER_PASSWORD=' "$PROJECT_DIR/.env" \
-        | cut -d= -f2- | tr -d '"')
-    docker exec odoo-web \
-        odoo -c /etc/odoo/odoo.conf \
-             -w "$MASTER_PASS" \
-             -d odoo_erp \
-             -i base \
-             --stop-after-init \
-             --http-port=8070
-    echo "  [OK] BD inicializada."
-else
-    echo "  [OK] BD ya inicializada."
+    if [ "$HAS_DB" = "f" ]; then
+        echo "  [!] BD vacía — inicializando Odoo (1-2 min)..."
+        MASTER_PASS=$(grep -E '^ODOO_MASTER_PASSWORD=' "$PROJECT_DIR/.env" \
+            | cut -d= -f2- | tr -d '"')
+        docker exec odoo-web \
+            odoo -c /etc/odoo/odoo.conf \
+                 -w "$MASTER_PASS" \
+                 -d odoo_erp \
+                 -i base \
+                 --stop-after-init \
+                 --http-port=8070 \
+            || echo "  [AVISO] Inicialización BD falló. Se reintentará en el próximo deploy."
+        echo "  [OK] BD inicializada."
+    else
+        echo "  [OK] BD ya inicializada."
+    fi
 fi
 
 # --- Esperar a Odoo (nginx publica :80/:443 en el host) ---
