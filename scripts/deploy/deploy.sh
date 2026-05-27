@@ -111,6 +111,15 @@ except Exception:
 fi
 
 # --- Esperar a Odoo (nginx publica :80/:443 en el host) ---
+if [ "$DB_REACHABLE" = "false" ]; then
+    echo "[4/4] Health check omitido — PostgreSQL no disponible."
+    echo ""
+    echo "[OK] Contenedores desplegados correctamente."
+    echo "     Odoo estará operativo cuando la BD y pfSense estén activos."
+    docker compose "${COMPOSE_OPTS[@]}" ps
+    exit 0
+fi
+
 echo "[4/4] Esperando a Odoo (máx. $((MAX_INTENTOS * 10))s)..."
 for i in $(seq 1 $MAX_INTENTOS); do
     if curl -sf -k https://localhost/web/health -o /dev/null 2>/dev/null; then
