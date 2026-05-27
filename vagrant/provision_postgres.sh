@@ -68,6 +68,7 @@ for i in $(seq 1 6); do
 done
 
 # ── APT ──────────────────────────────────────────────────────
+# shellcheck source=/dev/null
 OS_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
 echo "  [APT] Codename detectado: ${OS_CODENAME}"
 
@@ -153,7 +154,9 @@ if [ -f "${RUNNER_DIR}/config.sh" ] && [ -n "${GH_RUNNER_TOKEN:-}" ]; then
       --name '${RUNNER_NAME}' --labels 'self-hosted,linux,db' \
       --work '_work' --unattended --replace
   " || echo "  [AVISO] No se pudo registrar el runner."
-  cd "${RUNNER_DIR}" && ./svc.sh install "${RUNNER_USER}" || true
+  if cd "${RUNNER_DIR}"; then
+    ./svc.sh install "${RUNNER_USER}" || true
+  fi
   ./svc.sh start || true
 fi
 

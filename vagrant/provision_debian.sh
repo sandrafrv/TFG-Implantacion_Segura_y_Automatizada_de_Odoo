@@ -24,7 +24,6 @@ RUNNER_USER="runner"
 RUNNER_DIR="/home/${RUNNER_USER}/actions-runner"
 RUNNER_VERSION="2.317.0"
 
-NAT_IFACE="eth0"
 VLAN_IFACE="eth1"
 VLAN_IP="192.168.30.10"
 VLAN_NETMASK="255.255.255.0"
@@ -108,6 +107,7 @@ APT_OPTS=(
 )
 
 # Detectar codename real del SO (bookworm para Debian 12, trixie para Debian 13, etc.)
+# shellcheck source=/dev/null
 OS_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
 echo "  [APT] Codename detectado: ${OS_CODENAME}"
 
@@ -340,7 +340,8 @@ chmod +x /etc/network/if-up.d/vlan30-bd-route
 
 # ── PASO 13: Cockpit ─────────────────────────────────────────
 apt-get install -y -qq "${APT_OPTS[@]}" cockpit || echo "  [AVISO] Cockpit no instalado."
-systemctl enable cockpit.socket || true && systemctl start cockpit.socket || true
+systemctl enable cockpit.socket || true
+systemctl start  cockpit.socket || true
 
 echo ""
 echo "=========================================="
