@@ -177,6 +177,18 @@ if [ ! -d "${PROJECT_DIR}/.git" ]; then
   }
 fi
 
+# Crear directorios de datos y asignar propietario uid 101 (odoo en el contenedor)
+# Sin esto, el contenedor (user: 101:101) no puede escribir en los volúmenes montados
+# y la inicialización de la BD falla con PermissionError: /var/lib/odoo/.local
+mkdir -p "${PROJECT_DIR}/odoo-data" \
+         "${PROJECT_DIR}/odoo_sessions" \
+         "${PROJECT_DIR}/addons"
+chown -R 101:101 "${PROJECT_DIR}/odoo-data" \
+                 "${PROJECT_DIR}/odoo_sessions" \
+                 "${PROJECT_DIR}/addons"
+echo "  [PERMS] Directorios Odoo asignados a uid 101:101."
+
+
 # ── PASO 8: .env Odoo (en RAÍZ del proyecto, no en docker/) ─
 # docker compose busca el .env en el directorio de trabajo (/opt/erp-odoo)
 mkdir -p "${PROJECT_DIR}"
