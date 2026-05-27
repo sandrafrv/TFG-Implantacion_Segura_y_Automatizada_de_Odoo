@@ -297,6 +297,17 @@ nginx -t && systemctl restart nginx || echo "  [AVISO] Nginx no arrancó."
 # ── PASO 11: Runner ──────────────────────────────────────────
 if ! id "${RUNNER_USER}" &>/dev/null; then useradd -m -s /bin/bash "${RUNNER_USER}"; fi
 usermod -aG docker "${RUNNER_USER}" || true
+
+# Sudoers: el workflow de deploy (deploy.yml) necesita ejecutar
+#   sudo chown -R runner /opt/erp-odoo/.git
+# para corregir permisos del .git/ clonado por root.
+# Sin NOPASSWD, sudo pide contraseña y el runner falla con:
+#   "sudo: a terminal is required to read the password"
+echo "${RUNNER_USER} ALL=(root) NOPASSWD: /usr/bin/chown -R ${RUNNER_USER} ${PROJECT_DIR}/.git" \
+  > /etc/sudoers.d/runner-git-chown
+chmod 440 /etc/sudoers.d/runner-git-chown
+echo "  [SUDO] Regla NOPASSWD creada para chown .git/"
+
 mkdir -p "${RUNNER_DIR}"
 chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_DIR}"
 
