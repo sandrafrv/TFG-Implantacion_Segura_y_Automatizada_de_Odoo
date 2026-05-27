@@ -189,15 +189,11 @@ chmod 640 "${PROJECT_DIR}/.env"
 
 # ── PASO 9: docker compose up ────────────────────────────────
 # NOTAS:
-#   - --env-file explícito: con -f, compose usa como project dir el
-#     directorio del yml (docker/), NO el CWD. Sin --env-file no
-#     encuentra /opt/erp-odoo/.env y POSTGRES_PASSWORD queda vacía.
-#   - nginx del sistema se para antes del up: ocupa el puerto 80
-#     que necesita el contenedor nginx-proxy.
-docker network inspect macvlan_vlan30 >/dev/null 2>&1 || \
-  docker network create --driver macvlan \
-    --subnet=192.168.30.0/24 --gateway=192.168.30.1 \
-    -o parent="eth1" macvlan_vlan30
+#   - --env-file explícito para que POSTGRES_PASSWORD se cargue desde .env
+#   - nginx del sistema se para antes del up (ocupa el puerto 80)
+#   - MACVLAN eliminado: VMware host-only no admite promiscuous mode
+#     → los contenedores MACVLAN no son accesibles desde el host/red.
+#     El acceso a Odoo es vía port mapping: https://192.168.30.10
 
 COMPOSE_FILE="${PROJECT_DIR}/docker/docker-compose.yml"
 ENV_FILE="${PROJECT_DIR}/.env"
