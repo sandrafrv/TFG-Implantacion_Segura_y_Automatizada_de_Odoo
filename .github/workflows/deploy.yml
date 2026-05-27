@@ -48,6 +48,13 @@ jobs:
       - name: Marcar directorio del proyecto como seguro para Git
         run: git config --global --add safe.directory /opt/erp-odoo
 
+      # El repo fue clonado por root durante el provisioning.
+      # El runner necesita escribir en .git/config (git remote set-url)
+      # y crear lock files (.git/*.lock). Sin esto falla con:
+      #   "could not lock config file .git/config: Permission denied"
+      - name: Corregir permisos de .git/ para el runner
+        run: sudo chown -R "$(whoami)" /opt/erp-odoo/.git
+
       - name: Sincronizar repositorio en el servidor (git pull)
         working-directory: /opt/erp-odoo
         env:
