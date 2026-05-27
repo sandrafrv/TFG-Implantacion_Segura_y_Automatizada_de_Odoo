@@ -1,283 +1,419 @@
-# Implantación Segura y Automatizada de Odoo con pfSense y Docker
+# TFG — Implantación Segura y Automatizada de Odoo 17
 
-**Autores:**
-
-- Javier Córdoba Del Valle
-- Mario García García
-- Sandra Fradejas Avedillo
-
-**Grado:** ASIR - Administración de Sistemas Informáticos en Red
-
-**Centro:** IES Cañaveral — Departamento de Informática y Comunicaciones
-
-**Fecha:** Curso 2025/2026
+> **Proyecto de Fin de Grado — ASIR**
+> Implantación de un sistema ERP Odoo 17 Community Edition en una infraestructura virtualizada, segmentada por VLANs, con despliegue automatizado mediante Vagrant, Docker y GitHub Actions.
 
 ---
 
-## 📋 Resumen Ejecutivo
+## Índice
 
-Este repositorio documenta el diseño e implantación de un entorno productivo completo para el ERP/CRM **Odoo**, simulando las necesidades de una empresa ("TechSolutions S.L."). La arquitectura se caracteriza por su enfoque en la seguridad, la contenerización y las buenas prácticas de administración de sistemas.
-
-**Características principales:**
-
-- **Seguridad Perimetral (Firewall 3 capas):** Enrutamiento y políticas restrictivas mediante pfSense (WAN/LAN/DMZ/BD) con reglas explícitas de bloqueo anti-pivoting.
-- **Infraestructura como Código:** Orquestación de las 3 máquinas virtuales con **Vagrant + VirtualBox**, automatizando el aprovisionamiento completo del entorno.
-- **Orquestación de Contenedores:** Despliegue de servicios (Nginx y Odoo 17) usando Docker y Docker Compose sobre **Debian 13 Server (Trixie)**. Solo corren `odoo-web` y `nginx-proxy` — PostgreSQL reside en una **VM externa dedicada**.
-- **Base de Datos Aislada:** PostgreSQL 16 en **VM independiente** (VLAN 40 — `192.168.40.10`), completamente separada de la DMZ para máximo aislamiento de la capa de datos.
-- **Segmentación de Red:** VLANs (10, 30, 40) para aislar tráfico de clientes, servicios públicos y base de datos.
-- **Redes MACVLAN:** Los contenedores Nginx y Odoo-web tienen IPs propias en la VLAN 30 (`192.168.30.20` y `192.168.30.21`), visibles directamente por pfSense como hosts independientes.
-- **Acceso Seguro (Proxy Inverso):** Publicación del servicio mediante Nginx Alpine con terminación SSL/TLS, limitando el acceso a los puertos 80/443.
-- **Automatización y Auditoría:** Scripts Bash para backups remotos (`pg_dump`), restauración, monitorización y despliegue, junto con Triggers PL/pgSQL para auditoría en la BD.
-- **Gestión Visual:** Administración del servidor mediante **Cockpit** (interfaz web en puerto 9090).
-- **LDAP:** Descartado del despliegue principal por complejidad y reducción de superficie de ataque. Material disponible en `extras/ldap/` como referencia futura.
+1. [Descripción del proyecto](#descripción-del-proyecto)
+2. [Arquitectura de red](#arquitectura-de-red)
+3. [Estructura del repositorio](#estructura-del-repositorio)
+4. [Requisitos previos](#requisitos-previos)
+5. [Variables de entorno](#variables-de-entorno)
+6. [Puesta en marcha](#puesta-en-marcha)
+7. [Stack Docker (odoo-server)](#stack-docker-odoo-server)
+8. [PostgreSQL (db-server)](#postgresql-db-server)
+9. [Nginx — Proxy inverso HTTPS](#nginx--proxy-inverso-https)
+10. [GitHub Actions — CI/CD](#github-actions--cicd)
+11. [Runners self-hosted](#runners-self-hosted)
+12. [Scripts auxiliares](#scripts-auxiliares)
+13. [Gestión de runners al destruir VMs](#gestión-de-runners-al-destruir-vms)
 
 ---
 
-## 🏗️ Arquitectura de Red
+## Descripción del proyecto
 
-La topología divide la red en **cuatro zonas de confianza** gestionadas por un firewall pfSense:
+El proyecto despliega Odoo 17 CE como ERP empresarial sobre una infraestructura completamente virtualizada en VMware Workstation Pro. La arquitectura separa los servicios en VLANs distintas, con pfSense como cortafuegos y enrutador central, Docker para la contenerización de Odoo y Nginx en la DMZ, y PostgreSQL en una VM dedicada en la red de administración.
 
-- **WAN (Internet):** Acceso externo simulado.
-- **LAN Clientes (VLAN 10 — 192.168.10.0/24):** Equipos internos de la empresa.
-- **DMZ (VLAN 30 — 192.168.30.0/24):** Servidor Debian con Docker (Nginx + Odoo). Gestionado desde Cockpit (`https://192.168.30.10:9090`).
-- **LAN Base de Datos (VLAN 40 — 192.168.40.0/24):** VM exclusiva de PostgreSQL + red de administración.
+El ciclo completo de vida (aprovisionamiento → despliegue → actualización) está automatizado:
+- **Vagrant** provisiona y configura las VMs Debian desde cero.
+- **Docker Compose** levanta y gestiona los contenedores de Odoo y Nginx.
+- **GitHub Actions** ejecuta el pipeline CI/CD sobre runners self-hosted instalados en las propias VMs.
 
-```mermaid
-graph TD
-    GITHUB["☁️ GITHUB Actions CI/CD"]
-    WLAN["☁️ INTERNET / WAN"]
+---
 
-    GITHUB -.->|"Deploy SSH"| PFSENSE
-    WLAN -->|"HTTPS 443"| PFSENSE
+## Arquitectura de red
 
-    PFSENSE(["🔥 pfSense\nFirewall · DHCP · NAT · VPN"])
-
-    PFSENSE -->|" 192.168.40.0/24"| VLAN40
-    PFSENSE -->|" 192.168.30.0/24"| DMZ
-    PFSENSE -->|"192.168.10.0/24"| VLAN10
-
-    subgraph VLAN40["VLAN 40 — BD & Administración"]
-        POSTGRES["🗄️ VM PostgreSQL 16\n192.168.40.10\n(Sin Docker — nativa)"]
-        ADMIN["🖥️ Administrador"]
-        DBA["🖥️ DBA"]
-    end
-
-    subgraph VLAN10["VLAN 10 — Clientes"]
-        CLIENT["💻 Empleados"]
-    end
-
-    subgraph DMZ["VLAN 30 — DMZ"]
-        subgraph Debian["🖥️ VM Debian 13 — 192.168.30.10"]
-            NGINX["DOCKER · nginx-proxy\nMACV LAN: 192.168.30.20"]
-            ODOO["DOCKER · odoo-web\nMACVLAN: 192.168.30.21"]
-            NGINX -->|"Reverse Proxy"| ODOO
-        end
-    end
-
-    ODOO -->|"TCP 5432 — VLAN30→VLAN40"| POSTGRES
-
-    classDef firewall fill:#BBDEFB,stroke:#1565C0,color:#000
-    classDef vlan fill:#FFE0B2,stroke:#E65100,color:#000
-    classDef dmznode fill:#CE93D8,stroke:#6A1B9A,color:#000
-    classDef client fill:#C8E6C9,stroke:#2E7D32,color:#000
-    classDef db fill:#FFCDD2,stroke:#B71C1C,color:#000
-
-    class PFSENSE firewall
-    class ADMIN,DBA,Debian vlan
-    class CLIENT client
-    class NGINX,ODOO dmznode
-    class POSTGRES db
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     VMware Workstation Pro                       │
+│                                                                 │
+│  ┌──────────────┐    ┌──────────────────────────────────────┐  │
+│  │   Host       │    │          pfSense (Firewall)           │  │
+│  │  Windows     │    │   WAN: 192.168.133.x (vmnet8/NAT)   │  │
+│  │              │◄──►│   LAN: 192.168.10.1  (vmnet1)        │  │
+│  └──────────────┘    │   DMZ: 192.168.30.1  (vmnet2)        │  │
+│                      │  ADMIN: 192.168.40.1  (vmnet3)        │  │
+│                      └──────────────────────────────────────┘  │
+│                             │           │           │           │
+│                         vmnet1       vmnet2       vmnet3        │
+│                          LAN          DMZ         ADMIN         │
+│                       10.0/24       30.0/24      40.0/24        │
+│                                        │            │           │
+│                               ┌────────┴──┐  ┌─────┴───────┐  │
+│                               │odoo-server│  │  db-server  │  │
+│                               │192.168.   │  │192.168.     │  │
+│                               │  30.10    │  │  40.10      │  │
+│                               │           │  │             │  │
+│                               │ ┌───────┐ │  │ PostgreSQL  │  │
+│                               │ │Nginx  │ │  │    :5432    │  │
+│                               │ │:80/443│ │  │             │  │
+│                               │ └───┬───┘ │  └─────────────┘  │
+│                               │ ┌───┴───┐ │                    │
+│                               │ │ Odoo  │ │                    │
+│                               │ │ :8069 │ │                    │
+│                               │ └───────┘ │                    │
+│                               └───────────┘                    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-> ⚠️ **PostgreSQL NO corre como contenedor Docker.** Está en la **VM `db-server`** (`192.168.40.10`, VLAN 40), completamente separada de la DMZ. Esta separación garantiza que, incluso si el stack Docker se ve comprometido, la base de datos permanece inaccesible desde la DMZ.
+| VLAN | Red | VMnet | Propósito |
+|------|-----|-------|-----------|
+| LAN | 192.168.10.0/24 | vmnet1 | Usuarios internos |
+| DMZ | 192.168.30.0/24 | vmnet2 | odoo-server (Odoo + Nginx) |
+| ADMIN | 192.168.40.0/24 | vmnet3 | db-server (PostgreSQL) |
+| WAN | 192.168.133.x | vmnet8 | Salida a Internet (NAT) |
+
+> **Nota:** MACVLAN fue descartado. VMware host-only (VMnet2/3) no permite modo promiscuo, por lo que los contenedores MACVLAN no son alcanzables desde el host ni desde otros equipos de la misma red. El enrutamiento inter-VLAN lo realiza pfSense entre VMnet1/2/3.
 
 ---
 
-### Tabla de Direccionamiento IP
+## Estructura del repositorio
 
-| Zona | Subred (CIDR) | Gateway (pfSense) | IP del Sistema | Puertos Abiertos | Servicio |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| WAN (Exterior) | Red Fija/DHCP | Router físico | IP WAN | 80, 443 (NAT) | Redirección NAT hacia DMZ |
-| DMZ (VLAN 30) | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.10`** | 22, 9090 | Servidor Debian — SSH y Cockpit |
-| DMZ — nginx-proxy | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.20`** | 80, 443 | Proxy inverso Nginx (MACVLAN) |
-| DMZ — odoo-web | `192.168.30.0/24` | `192.168.30.1` | **`192.168.30.21`** | 8069, 8072 | Aplicación Odoo 17 (MACVLAN) |
-| BD (VLAN 40) | `192.168.40.0/24` | `192.168.40.1` | **`192.168.40.10`** | 5432 | PostgreSQL 16 — VM nativa |
-| LAN Clientes (VLAN 10) | `192.168.10.0/24` | `192.168.10.1` | `192.168.10.x` | — | Equipos de usuarios |
-
-### Reglas Principales de Firewall (pfSense)
-
-| Origen | Destino | Puertos | Acción | Propósito |
-| :--- | :--- | :--- | :--- | :--- |
-| WAN | DMZ (`192.168.30.20`) | 80, 443 | ✅ Permitir | Acceso web al ERP vía NAT → nginx MACVLAN |
-| LAN (VLAN 10) | DMZ (`192.168.30.20`) | 443, 80 | ✅ Permitir | Clientes internos a Odoo |
-| Admin (VLAN 40) | DMZ (`192.168.30.10`) | 22, 9090 | ✅ Permitir | SSH y Cockpit (solo admin) |
-| DMZ (VLAN 30) | BD (`192.168.40.10`) | 5432 | ✅ Permitir | Odoo → PostgreSQL externo |
-| LAN (VLAN 10) | BD (`192.168.40.10`) | 5432 | ❌ Bloquear | Usuarios no acceden directamente a la BD |
-| WAN | BD (`192.168.40.10`) | 5432 | ❌ Bloquear | BD no expuesta a Internet |
-| DMZ | LAN (VLAN 10) | * | ❌ Bloquear | Anti-pivoting |
-| DMZ | pfSense (gestión) | 443, 80, 22 | ❌ Bloquear | Proteger panel del firewall |
+```
+TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
+│
+├── Vagrantfile                    # Orquestación de VMs (db-server + odoo-server)
+├── .env.example                   # Plantilla de variables de entorno
+├── .gitignore
+├── .gitattributes
+├── CLAUDE.md                      # Contexto del proyecto para asistentes IA
+├── LICENSE
+├── README.md
+├── SECURITY
+│
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                 # Pipeline CI (validación)
+│       ├── deploy.yml             # Pipeline CD (despliegue automático)
+│       └── README.md
+│
+├── docker/
+│   ├── docker-compose.yml         # Stack: odoo-web + nginx-proxy
+│   └── odoo.conf                  # Configuración de Odoo 17
+│
+├── vagrant/
+│   ├── provision_debian.sh        # Provisioning de odoo-server
+│   ├── provision_postgres.sh      # Provisioning de db-server
+│   ├── Vagrantfile.pfsense-box    # Vagrantfile experimental para pfSense
+│   └── README.md
+│
+├── config_nginx/
+│   └── odoo_proxy.conf            # Configuración Nginx (proxy inverso HTTPS)
+│
+├── scripts/
+│   ├── setup_vmnet.ps1            # Configura VMnets en Windows (PowerShell)
+│   ├── repomix_lite.py            # Utilidad para generar volcado del repo
+│   ├── deploy/                    # Scripts de despliegue (deploy.sh)
+│   ├── ldap/                      # Scripts de integración LDAP
+│   ├── mantenimiento/             # Scripts de mantenimiento y backups
+│   └── odoo/                      # Scripts específicos de Odoo
+│
+├── config/                        # Configuraciones adicionales
+├── sql/                           # Scripts SQL de inicialización PostgreSQL
+├── docs/                          # Documentación del proyecto
+├── extras/                        # Recursos adicionales
+└── ISOs/                          # Referencia a ISOs utilizadas
+```
 
 ---
 
-## 🚀 Inicio Rápido con Vagrant
+## Requisitos previos
 
-La forma más rápida de levantar el entorno completo:
+### Software en el host Windows
+
+| Herramienta | Versión recomendada | Instalación |
+|---|---|---|
+| VMware Workstation Pro | 17+ | Manual |
+| Vagrant | 2.4+ | `winget install HashiCorp.Vagrant` |
+| Plugin vagrant-vmware-desktop | Última | `vagrant plugin install vagrant-vmware-desktop` |
+| Git | 2.39+ | `winget install Git.Git` |
+
+### VMnets requeridas en VMware
+
+Antes de levantar las VMs, ejecutar el script de configuración de redes:
+
+```powershell
+# Como Administrador en PowerShell
+Set-ExecutionPolicy Bypass -Scope Process
+.\scripts\setup_vmnet.ps1
+```
+
+Esto configura automáticamente las VMnets necesarias:
+- **vmnet1** → 192.168.10.0/24 (LAN)
+- **vmnet2** → 192.168.30.0/24 (DMZ)
+- **vmnet3** → 192.168.40.0/24 (ADMIN)
+
+### pfSense
+
+pfSense se configura manualmente en VMware Workstation como VM independiente. No se gestiona a través de Vagrant. Debe estar encendido antes de levantar las VMs Debian.
+
+---
+
+## Variables de entorno
+
+Copiar `.env.example` a `.env` en la raíz del proyecto y rellenar los valores reales:
 
 ```bash
-git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git
-cd TFG-Implantacion_Segura_y_Automatizada_de_Odoo
 cp .env.example .env
-nano .env              # Rellenar variables obligatorias
-vagrant up             # Levanta las 3 VMs automáticamente
 ```
 
-> Para instalación manual paso a paso: [`docs/INSTALACION_COMPLETA.md`](docs/INSTALACION_COMPLETA.md)
+| Variable | Descripción | Obligatoria |
+|---|---|---|
+| `POSTGRES_PASSWORD` | Contraseña del usuario `odoo` en PostgreSQL | Sí |
+| `ODOO_MASTER_PASSWORD` | Contraseña maestra de Odoo | Sí |
+| `GH_PAT` | Personal Access Token de GitHub (scope: `repo`) | Sí |
+| `GH_RUNNER_TOKEN_ODOO` | Token de registro del runner de odoo-server | Sí (caduca en 1h) |
+| `GH_RUNNER_TOKEN_DB` | Token de registro del runner de db-server | Sí (caduca en 1h) |
 
-### VMs que se crean
+> **Importante:** Los tokens `GH_RUNNER_TOKEN_*` caducan a la hora de generarse. Generarlos justo antes de ejecutar `vagrant up`. Se obtienen en: **GitHub → Repositorio → Settings → Actions → Runners → New self-hosted runner**.
 
-| VM Vagrant | Rol | IP | VLAN |
+---
+
+## Puesta en marcha
+
+### Orden de arranque obligatorio
+
+```
+1. Encender pfSense manualmente en VMware
+2. vagrant up db-server        ← SIEMPRE primero
+3. vagrant up odoo-server
+```
+
+### Comandos Vagrant
+
+```powershell
+# Levantar ambas VMs (respeta el orden interno del Vagrantfile)
+vagrant up
+
+# Levantar una VM concreta
+vagrant up db-server
+vagrant up odoo-server
+
+# Ver estado
+vagrant status
+
+# Acceder por SSH
+vagrant ssh db-server
+vagrant ssh odoo-server
+
+# Apagar VMs
+vagrant halt
+
+# Destruir VMs (desregistra runners automáticamente)
+vagrant destroy -f
+```
+
+---
+
+## Stack Docker (odoo-server)
+
+El servidor de Odoo (`192.168.30.10`) ejecuta dos contenedores Docker orquestados con Docker Compose.
+
+### Contenedores
+
+| Contenedor | Imagen | Puerto expuesto | Función |
 |---|---|---|---|
-| `pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | WAN + VMnet1 + VMnet2 + VMnet3 |
-| `odoo-server` | Debian 12 + Docker (Nginx + Odoo) | 192.168.30.10 | VMnet2 (VLAN 30 — DMZ) |
-| `db-server` | PostgreSQL 16 nativo | 192.168.40.10 | VMnet3 (VLAN 40 — Admin) |
+| `odoo-web` | `odoo:17` | Interno (8069) | Aplicación ERP Odoo 17 CE |
+| `nginx-proxy` | `nginx:alpine` | 80, 443 (host) | Proxy inverso HTTPS |
 
-> **Prerrequisitos:** VMware Workstation + `vagrant plugin install vagrant-vmware-desktop` + variables de entorno `GH_PAT` y `GH_RUNNER_TOKEN_ODOO`/`GH_RUNNER_TOKEN_DB`.
-
----
-
-## 🧰 Stack Tecnológico
-
-| Capa | Tecnología |
-| :--- | :--- |
-| Infraestructura como Código | **Vagrant + VMware Workstation** (`vagrant-vmware-desktop`) |
-| Automatización VMware | `scripts/setup_vmnet.ps1` — configura VMnet1/2/3 antes de `vagrant up` |
-| Redes / Seguridad | pfSense (FreeBSD), UFW |
-| Virtualización / Orquestación | Docker CE, Docker Compose plugin |
-| Sistema Operativo Base | **Debian 12 (Bookworm)** con Cockpit (`bento/debian-12`) |
-| Proxy Inverso | Nginx Alpine — contenedor Docker con red MACVLAN |
-| ERP / CRM | Odoo 17 CE — contenedor Docker con red MACVLAN |
-| Base de Datos | PostgreSQL 16 — **VM `db-server`** nativa (VLAN 40, `192.168.40.10`) |
-| Certificados | OpenSSL (autofirmados TLS, 365 días) |
-| Scripting | GNU Bash, ANSI SQL & PL/pgSQL |
-| Control de Versiones | Git + GitHub |
-| CI/CD | GitHub Actions + 2 self-hosted runners (`odoo-runner` en vm-odoo, `db-runner` en db-server) |
-
----
-
-## 📚 Estructura de este Repositorio
-
-| Directorio / Archivo | Descripción |
-|:---------------------|:------------|
-| `Vagrantfile` | Define y orquesta las 3 VMs con sus redes y recursos |
-| `vagrant/` | Scripts de aprovisionamiento para cada VM |
-| `docker/` | `docker-compose.yml` (solo `odoo-web` + `nginx-proxy`) y `odoo.conf` |
-| `scripts/deploy/` | Scripts de despliegue, configuración y cron de backups |
-| `scripts/mantenimiento/` | Backup remoto (`pg_dump`), restauración, monitorización y actualizaciones |
-| `scripts/odoo/` | Creación de usuarios y setup wizard de Odoo |
-| `scripts/ldap/` | ⚠️ Scripts LDAP — **desactivados**, solo referencia. Ver `extras/ldap/` |
-| `sql/` | Triggers PL/pgSQL para auditoría de base de datos |
-| `config_nginx/` | Configuración del proxy inverso Nginx con SSL y cabeceras de seguridad |
-| `extras/ldap/` | Material LDAP descartado del despliegue — mejora futura |
-| `ldap/` | Estructura base del directorio LDAP (legacy) |
-| `docs/` | Documentación técnica completa |
-| `docs/guias/` | Guías de instalación por módulo |
-| `.env.example` | Plantilla de variables de entorno (sin variables LDAP) |
-| `CLAUDE.md` | Instrucciones para agentes IA que trabajen en este repo |
-
----
-
-## 🔒 Variables de Entorno
-
-Copiar `.env.example` a `.env` en la **raíz** del proyecto (nunca dentro de `docker/`):
-
-```env
-# Credenciales PostgreSQL — VM db-server (192.168.40.10)
-POSTGRES_USER=odoo
-POSTGRES_PASSWORD=cambia_esto
-POSTGRES_DB=odoo_erp
-
-# Contraseña maestra de Odoo (acceso a /web/database)
-ODOO_MASTER_PASSWORD=cambia_esto
-```
-
-> Las variables de LDAP han sido **eliminadas** — ver `extras/ldap/README.md` si se retoman en el futuro.
-> Vagrant también requiere las variables `GH_PAT`, `GH_RUNNER_TOKEN_ODOO` y `GH_RUNNER_TOKEN_DB` en el entorno del sistema anfitrión (no en `.env`).
-
----
-
-## 🧩 Redes MACVLAN
-
-Los contenedores activos tienen IPs propias en la VLAN 30:
+### Ejecutar el stack
 
 ```bash
-docker network create \
-  --driver macvlan \
-  --subnet=192.168.30.0/24 \
-  --gateway=192.168.30.1 \
-  --opt parent=ens18 \
-  macvlan_vlan30
+# Desde /opt/erp-odoo en odoo-server
+docker compose -p erp-odoo --env-file .env -f docker/docker-compose.yml up -d
+
+# Ver estado
+docker compose -f docker/docker-compose.yml ps
+
+# Ver logs
+docker logs odoo-web
+docker logs nginx-proxy
 ```
 
-| Contenedor | Red interna (`odoo_net`) | Red MACVLAN (`macvlan_vlan30`) |
-| :--- | :--- | :--- |
-| `odoo-web` (Odoo 17) | 172.19.0.3 | `192.168.30.21` |
-| `nginx-proxy` (Nginx) | 172.19.0.4 | `192.168.30.20` |
+### Volúmenes persistentes
 
-> **Nota técnica:** Con el driver `macvlan`, el host Debian no puede comunicarse directamente con las IPs MACVLAN de sus propios contenedores. Para verificar conectividad desde el host: `docker run --rm --network macvlan_vlan30 alpine wget -qO- https://192.168.30.20`
+| Volumen local | Montaje en contenedor | Propósito |
+|---|---|---|
+| `../addons` | `/mnt/extra-addons` | Módulos personalizados de Odoo |
+| `../odoo-data` | `/var/lib/odoo` | Datos persistentes de Odoo |
+| `./odoo.conf` | `/etc/odoo/odoo.conf` | Configuración de Odoo |
+| `../odoo_sessions` | `/tmp/odoo` | Sesiones de usuario |
+| `../config_nginx` | `/etc/nginx/conf.d` | Configuración de Nginx |
+| `../certs` | `/etc/ssl/certs_local` | Certificados SSL |
+
+### Red interna Docker
+
+Ambos contenedores se comunican a través de la red bridge `odoo_net`. Nginx hace proxy hacia `http://odoo-web:8069` internamente, sin exponer Odoo al exterior.
 
 ---
 
-## 🔄 CI/CD — GitHub Actions
+## PostgreSQL (db-server)
 
-| Workflow | Qué hace |
+PostgreSQL 16 se ejecuta **de forma nativa** (no contenerizado) en la VM `db-server` (`192.168.40.10`), en la VLAN de administración.
+
+El contenedor `odoo-web` se conecta directamente a esta IP:
+
+```yaml
+environment:
+  - HOST=192.168.40.10
+  - USER=odoo
+  - PASSWORD=${POSTGRES_PASSWORD}
+```
+
+El script `vagrant/provision_postgres.sh` se encarga de:
+- Instalar PostgreSQL 16
+- Crear el usuario `odoo` con los permisos necesarios
+- Configurar `pg_hba.conf` para aceptar conexiones desde la VLAN DMZ (192.168.30.0/24)
+- Registrar el runner `db-runner` en GitHub Actions
+
+---
+
+## Nginx — Proxy inverso HTTPS
+
+Nginx actúa como única puerta de entrada al sistema. Recibe todas las peticiones HTTPS en el puerto 443 del host (`192.168.30.10`) y las reenvía al contenedor `odoo-web:8069`.
+
+La configuración se encuentra en `config_nginx/odoo_proxy.conf` y cubre:
+- Redirección HTTP → HTTPS (puerto 80 → 443)
+- Terminación SSL con certificados autofirmados en `/etc/ssl/certs_local/`
+- Headers de seguridad (`X-Frame-Options`, `X-Content-Type-Options`, etc.)
+- Soporte de WebSocket para el cliente web de Odoo (`/websocket`)
+- Configuración de `proxy_pass` hacia el contenedor interno
+
+### Acceso a Odoo
+
+```
+https://192.168.30.10        → Odoo desde la red (IP directa)
+https://erp.odoo.tfg.com     → Odoo desde LAN/Admin (requiere DNS en pfSense)
+```
+
+Para que el dominio `erp.odoo.tfg.com` resuelva correctamente, el DNS Resolver (Unbound) de pfSense debe tener configurada la entrada:
+
+```
+erp.odoo.tfg.com → 192.168.30.10
+```
+
+---
+
+## GitHub Actions — CI/CD
+
+El pipeline CI/CD se compone de dos workflows:
+
+### CI — `ci.yml`
+
+Se ejecuta en cada push o pull request a `main`. Realiza validaciones de sintaxis y estructura del proyecto.
+
+### CD — `deploy.yml`
+
+Se activa automáticamente cuando el workflow CI finaliza con éxito en la rama `main`. Ejecuta los siguientes pasos sobre el runner `odoo-server`:
+
+1. **Verificar entorno** — muestra hostname, fecha y versión de Docker
+2. **Marcar directorio como seguro** — evita el error de Git con `safe.directory`
+3. **Sincronizar repositorio** — `git pull` con autenticación mediante `GH_PAT`
+4. **Actualizar imágenes Docker** — `docker pull odoo:17` y `docker pull nginx:alpine`
+5. **Ejecutar `deploy.sh`** — script de despliegue en `scripts/deploy/`
+6. **Verificar contenedores** — comprueba que `odoo-web` y `nginx-proxy` están `running`; si alguno está caído, ejecuta `docker compose up -d` automáticamente
+7. **Estado final** — muestra `docker compose ps` y hace health check de Odoo
+
+---
+
+## Runners self-hosted
+
+Cada VM tiene instalado un GitHub Actions runner que permite ejecutar los pipelines directamente sobre la infraestructura del TFG.
+
+| Runner | VM | IP | Label |
+|---|---|---|---|
+| `odoo-runner` | odoo-server | 192.168.30.10 | `self-hosted`, `linux`, `odoo` |
+| `db-runner` | db-server | 192.168.40.10 | `self-hosted`, `linux`, `db` |
+
+### Registrar runners manualmente
+
+Si las VMs se han levantado sin Vagrant o los tokens han caducado:
+
+```bash
+# 1. Generar token nuevo en GitHub:
+#    Settings → Actions → Runners → New self-hosted runner
+
+# 2. En odoo-server (192.168.30.10):
+cd /opt/actions-runner
+./config.sh \
+  --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+  --token <TOKEN_NUEVO> \
+  --name odoo-runner \
+  --labels self-hosted,linux,odoo \
+  --unattended
+sudo ./svc.sh install
+sudo ./svc.sh start
+
+# 3. En db-server (192.168.40.10):
+cd /opt/actions-runner
+./config.sh \
+  --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+  --token <TOKEN_NUEVO> \
+  --name db-runner \
+  --labels self-hosted,linux,db \
+  --unattended
+sudo ./svc.sh install
+sudo ./svc.sh start
+```
+
+### Verificar estado de los runners
+
+```bash
+# En cualquier VM
+sudo ./svc.sh status
+
+# O en GitHub: Settings → Actions → Runners
+```
+
+---
+
+## Scripts auxiliares
+
+| Script | Ubicación | Descripción |
+|---|---|---|
+| `setup_vmnet.ps1` | `scripts/` | Configura VMnets en Windows (ejecutar como Admin) |
+| `deploy.sh` | `scripts/deploy/` | Despliegue del stack Docker, llamado por el CD |
+| `repomix_lite.py` | `scripts/` | Genera volcado completo del repositorio para contexto IA |
+| Scripts LDAP | `scripts/ldap/` | Integración con directorio LDAP |
+| Scripts mantenimiento | `scripts/mantenimiento/` | Backups y tareas de mantenimiento |
+| Scripts Odoo | `scripts/odoo/` | Gestión específica de la instancia Odoo |
+
+---
+
+## Gestión de runners al destruir VMs
+
+El `Vagrantfile` incluye triggers `before :destroy` que desregistran automáticamente los runners de GitHub usando la API REST antes de destruir cada VM:
+
+```powershell
+# Se ejecuta automáticamente con:
+vagrant destroy db-server
+vagrant destroy odoo-server
+# o
+vagrant destroy -f
+```
+
+El trigger utiliza `GH_PAT` para autenticarse en la API de GitHub, localizar el runner por nombre y eliminarlo del repositorio. Si el runner no existe en GitHub (ya fue eliminado manualmente), el trigger continúa sin error.
+
+---
+
+## Secrets de GitHub requeridos
+
+Configurar en **GitHub → Repositorio → Settings → Secrets and variables → Actions**:
+
+| Secret | Descripción |
 |---|---|
-| `ci.yml` | `shellcheck` en `scripts/` y `vagrant/`; `yamllint`; `docker compose config -q` |
-| `deploy.yml` | Pull, rebuild y verificación de `odoo-web` + `nginx-proxy` (sin PostgreSQL ni LDAP) |
-
----
-
-## 👥 Reparto de Roles
-
-| Integrante | Especialización |
-| :--- | :--- |
-| **Sandra Fradejas Avedillo** | Sistemas y Orquestación |
-| **Mario García García** | Redes y Seguridad Perimetral |
-| **Javier Córdoba Del Valle** | Bases de Datos y Automatización |
-
----
-
-## 🔮 Mejoras Futuras
-
-| Mejora | Descripción |
-| :--- | :--- |
-| **LDAP / Active Directory** | Centralizar credenciales usando LDAP o AD. Material en `extras/ldap/`. |
-| **Ansible (IaC)** | Automatizar configuración del servidor Debian con Playbooks de Ansible. |
-| **VPN WireGuard en pfSense** | Acceso al ERP solo mediante túnel VPN cifrado — Zero Trust. |
-| **Stack de Monitorización** | Sustituir scripts de log por Prometheus + Grafana o Uptime Kuma. |
-| **Alta Disponibilidad BD** | Patroni + replicación para PostgreSQL. |
-
----
-
-## ❓ ¿Por qué Odoo?
-
-| Criterio | **Odoo 17** | Dolibarr | ERPNext |
-| :--- | :--- | :--- | :--- |
-| **Facilidad de uso** | ✅ Alta | Media | Media |
-| **Flexibilidad de API** | ✅ Muy alta | Limitada | Alta |
-| **Consumo de recursos** | Moderado | ✅ Muy ligero | Pesado |
-| **Cobertura funcional** | ✅ CRM, Ventas, RRHH, Inventario | Básico | Muy completo |
-| **Comunidad y soporte** | ✅ Muy activa | Activa | Activa |
-| **Idoneidad para el TFG** | ✅ **Elegido** | Descartado | Descartado |
-
----
-
-## 🎓 Módulos Académicos Cubiertos (ASIR)
-
-| Módulo | Contenido aplicado |
-| :--- | :--- |
-| **Seguridad y Alta Disponibilidad** | DMZ con pfSense, UFW, reglas de firewall, backups automatizados con retención |
-| **Gestión de Bases de Datos** | Triggers PL/pgSQL con auditoría JSONB, `asir_audit_log`, PostgreSQL en VM externa |
-| **Servicios de Red** | DHCP en pfSense, NAT, Port Forwarding, DNS interno, cabeceras HTTP |
-| **Redes** | VLANs 10/30/40, monitorización de red, topología segmentada |
-| **Arquitectura de la Nube** | Docker, proxy inverso Nginx con SSL/TLS, redes MACVLAN |
-| **Administración de Sistemas** | Vagrant, scripts Bash, backups remotos, Cockpit |
+| `GH_PAT` | Personal Access Token con scope `repo` |
+| `POSTGRES_PASSWORD` | Contraseña de la base de datos PostgreSQL |
