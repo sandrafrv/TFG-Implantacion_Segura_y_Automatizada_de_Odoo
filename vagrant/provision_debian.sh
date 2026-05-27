@@ -203,6 +203,21 @@ COMPOSE_FILE="${PROJECT_DIR}/docker/docker-compose.yml"
 ENV_FILE="${PROJECT_DIR}/.env"
 COMPOSE_BASE="docker compose -p erp-odoo --env-file ${ENV_FILE} -f ${COMPOSE_FILE}"
 
+# ── SSL: generar certs ANTES del compose up ──────────────────
+# nginx-proxy monta ../certs:/etc/ssl/certs_local y espera server.crt/server.key.
+# Si no existen cuando nginx arranca → crash loop. Generarlos aquí,
+# antes del compose up, garantiza que el volumen esté poblado.
+mkdir -p "${PROJECT_DIR}/certs"
+if [ ! -f "${PROJECT_DIR}/certs/server.crt" ]; then
+  openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout "${PROJECT_DIR}/certs/server.key" \
+    -out    "${PROJECT_DIR}/certs/server.crt" \
+    -subj "/C=ES/ST=Madrid/L=Madrid/O=TFG/OU=ASIR/CN=odoo.tfg" 2>/dev/null
+  echo "  [SSL] Certificado autofirmado generado."
+else
+  echo "  [SSL] Certificado ya existe, reutilizando."
+fi
+
 if [ -f "${COMPOSE_FILE}" ]; then
   echo "  [DOCKER] Esperando que Docker Hub sea accesible..."
   for i in $(seq 1 10); do
@@ -233,19 +248,15 @@ else
   echo "  [AVISO] ${COMPOSE_FILE} no encontrado. Saltando."
 fi
 
-# ── PASO 10: SSL + Nginx ─────────────────────────────────────
-mkdir -p "${PROJECT_DIR}/certs"
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout "${PROJECT_DIR}/certs/nginx.key" \
-  -out    "${PROJECT_DIR}/certs/nginx.crt" \
-  -subj "/C=ES/ST=Madrid/L=Madrid/O=TFG/OU=ASIR/CN=odoo.tfg" 2>/dev/null || true
-
+# ── PASO 10: Nginx del sistema (solo config, SSL ya generado) ─
+# El nginx del sistema está desactivado (el contenedor nginx-proxy
+# gestiona HTTPS). Esta config queda como referencia/fallback.
 cat > /etc/nginx/sites-available/odoo << 'NGINX_EOF'
 server {
     listen 443 ssl;
     server_name odoo.tfg;
-    ssl_certificate     /opt/erp-odoo/certs/nginx.crt;
-    ssl_certificate_key /opt/erp-odoo/certs/nginx.key;
+    ssl_certificate     /opt/erp-odoo/certs/server.crt;
+    ssl_certificate_key /opt/erp-odoo/certs/server.key;
     location / {
         proxy_pass         http://127.0.0.1:8069;
         proxy_set_header   Host            $host;
