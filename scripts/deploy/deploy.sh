@@ -23,9 +23,9 @@ docker info &>/dev/null         || { echo "[ERROR] Docker no está activo o sin 
 cd "$PROJECT_DIR" || exit 1
 
 ENV_FILE="$PROJECT_DIR/.env"
-COMPOSE_OPTS="-f $COMPOSE_FILE --env-file $ENV_FILE"
+COMPOSE_OPTS=(-f "$COMPOSE_FILE" --env-file "$ENV_FILE")
 
-docker compose $COMPOSE_OPTS config -q \
+docker compose "${COMPOSE_OPTS[@]}" config -q \
     || { echo "[ERROR] docker-compose.yml tiene errores de sintaxis."; exit 1; }
 
 # Comprobar si los puertos 80/443 los ocupa algo externo al stack
@@ -55,9 +55,9 @@ echo "[2/4] Levantando contenedores..."
 
 # Eliminar contenedores antiguos para evitar conflictos de nombre
 # (idempotente: no falla si no existen)
-docker compose $COMPOSE_OPTS down --remove-orphans 2>/dev/null || true
+docker compose "${COMPOSE_OPTS[@]}" down --remove-orphans 2>/dev/null || true
 
-docker compose $COMPOSE_OPTS up -d --force-recreate
+docker compose "${COMPOSE_OPTS[@]}" up -d --force-recreate
 
 # --- Inicialización BD (solo si es el primer despliegue) ---
 echo "[3/4] Comprobando base de datos..."
@@ -99,7 +99,7 @@ for i in $(seq 1 $MAX_INTENTOS); do
     if curl -sf -k https://localhost/web/health -o /dev/null 2>/dev/null; then
         echo ""
         echo "[OK] Stack operativo en https://erp.odoo.tfg.com"
-        docker compose $COMPOSE_OPTS ps
+        docker compose "${COMPOSE_OPTS[@]}" ps
         exit 0
     fi
     echo "  Intento $i/$MAX_INTENTOS — esperando 10s..."
@@ -107,5 +107,5 @@ for i in $(seq 1 $MAX_INTENTOS); do
 done
 
 echo "[ERROR] Odoo no respondió. Logs:"
-docker compose $COMPOSE_OPTS logs --tail=30
+docker compose "${COMPOSE_OPTS[@]}" logs --tail=30
 exit 1
