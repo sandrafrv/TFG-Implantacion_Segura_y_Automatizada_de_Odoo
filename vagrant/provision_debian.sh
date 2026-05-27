@@ -213,10 +213,13 @@ if [ -f "${COMPOSE_FILE}" ]; then
   docker rmi hello-world 2>/dev/null || true
 
   echo "  [DOCKER] Descargando imágenes..."
-  (cd "${PROJECT_DIR}" && docker compose -f docker/docker-compose.yml pull) || \
+  (cd "${PROJECT_DIR}" && docker compose -p erp-odoo -f docker/docker-compose.yml pull) || \
     echo "  [AVISO] Pull fallido."
 
-  (cd "${PROJECT_DIR}" && docker compose -f docker/docker-compose.yml up -d --pull never) || \
+  # Bajar contenedores anteriores (idempotencia en re-provisioning)
+  (cd "${PROJECT_DIR}" && docker compose -p erp-odoo -f docker/docker-compose.yml down --remove-orphans 2>/dev/null) || true
+
+  (cd "${PROJECT_DIR}" && docker compose -p erp-odoo -f docker/docker-compose.yml up -d --pull never) || \
     echo "  [AVISO] docker compose up falló. Re-ejecuta: vagrant provision odoo-server"
 
   docker ps --filter "name=odoo" \
@@ -283,7 +286,11 @@ if [ -f "${RUNNER_DIR}/config.sh" ] && [ -n "${GH_RUNNER_TOKEN:-}" ]; then
       --work '_work' --unattended --replace
   " "${RUNNER_USER}" || echo "  [AVISO] No se pudo registrar runner."
   cd "${RUNNER_DIR}"
-  ./svc.sh install "${RUNNER_USER}" || true && ./svc.sh start || true
+  # Idempotente: solo instalar el servicio si no existe ya
+  if ! systemctl list-units --full -all 2>/dev/null | grep -q "actions.runner"; then
+    ./svc.sh install "${RUNNER_USER}" || true
+  fi
+  ./svc.sh start 2>/dev/null || true
 fi
 
 # ── PASO 12: Persistir red ───────────────────────────────────
