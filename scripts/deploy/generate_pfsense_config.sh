@@ -53,15 +53,15 @@ mkdir -p "$(dirname "$OUTPUT_FILE")"
 # FIX Bug 2: <timeservers> duplicado dentro de <system>.
 #   El tag aparecía en las líneas 13 y 43 del bloque original.
 #   Se elimina la segunda ocurrencia (la del final del bloque <system>).
-cat > "$OUTPUT_FILE" << 'XMLEOF'
+cat > "$OUTPUT_FILE" << XMLEOF
 <?xml version="1.0"?>
 <pfsense>
  <version>24.0</version>
  <lastchange></lastchange>
  <system>
-  <hostname>pfsense-tfg</hostname>
-  <domain>local</domain>
-  <timezone>Europe/Madrid</timezone>
+  <hostname>${HOSTNAME}</hostname>
+  <domain>${DOMAIN}</domain>
+  <timezone>${TIMEZONE}</timezone>
   <language>es_ES</language>
   <dnsserver></dnsserver>
   <dnsallowoverride>on</dnsallowoverride>
@@ -79,7 +79,7 @@ cat > "$OUTPUT_FILE" << 'XMLEOF'
    <descr>System Administrator</descr>
    <scope>system</scope>
    <groupname>admins</groupname>
-   <bcrypt-hash>$2b$10$NZZJNp0sOiKvxgmMg3I10OKuseNxul2PwlGsc/6vknFGb9X8VvvrS</bcrypt-hash>
+   <bcrypt-hash>\$2b\$10\$NZZJNp0sOiKvxgmMg3I10OKuseNxul2PwlGsc/6vknFGb9X8VvvrS</bcrypt-hash>
    <uid>0</uid>
    <priv>user-shellcmd-access</priv>
    <page-login>page-all</page-login>
@@ -100,8 +100,9 @@ cat > "$OUTPUT_FILE" << 'XMLEOF'
  </system>
 XMLEOF
 
-# ── Interfaces ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+# ── Interfaces, DHCP, DNS, NAT, Aliases, Firewall ──
+{
+cat << XMLEOF
  <interfaces>
   <wan>
    <enable></enable>
@@ -142,8 +143,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
  </interfaces>
 XMLEOF
 
-# ── DHCP ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
  <dhcpd>
   <lan>
    <enable></enable>
@@ -170,8 +170,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
  </dhcpd>
 XMLEOF
 
-# ── DNS Resolver ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
  <unbound>
   <enable>on</enable>
   <active_interface>lan,opt1,opt2,lo0</active_interface>
@@ -186,8 +185,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
  </unbound>
 XMLEOF
 
-# ── NAT Port Forward ──
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
  <nat>
   <rule>
    <source>
@@ -226,7 +224,7 @@ XMLEOF
 # FIX: La IP de PostgreSQL ahora usa la variable ${PGSQL_IP} en lugar
 #      de estar hardcodeada como 192.168.40.10. Así queda sincronizada
 #      con las reglas de firewall que también usan ${PGSQL_IP}.
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
  <aliases>
   <alias>
    <name>Servidor_Debian</name>
@@ -275,7 +273,7 @@ XMLEOF
 # FIX Bug 4: <address>opt2ip</address> es sintaxis incorrecta.
 #   Para referirse a la propia interfaz se usa <network>(self)</network>,
 #   o bien la IP directa. Se sustituye por ${ADMIN_IP} en ambas reglas.
-cat >> "$OUTPUT_FILE" << XMLEOF
+cat << XMLEOF
  <filter>
   <rule>
    <type>pass</type>
@@ -665,6 +663,7 @@ cat >> "$OUTPUT_FILE" << XMLEOF
  </filter>
 </pfsense>
 XMLEOF
+} >> "$OUTPUT_FILE"
 
 echo ""
 echo "[OK] Archivo generado: $OUTPUT_FILE"
