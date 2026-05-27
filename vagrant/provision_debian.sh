@@ -188,20 +188,21 @@ ENVEOF
 chmod 640 "${PROJECT_DIR}/.env"
 
 # ── PASO 9: docker compose up ────────────────────────────────
-# ESTRATEGIA: cd a PROJECT_DIR antes de invocar compose.
-#   - El .env se carga desde el CWD (/opt/erp-odoo) ✓
-#   - Los paths relativos del yml (./odoo.conf, ../addons…) se
-#     resuelven desde docker/ (directorio del fichero yml) ✓
-#   NO usar --project-directory: cambia el base dir de los paths
-#   relativos del yml y rompe los volume mounts (./odoo.conf).
+# NOTAS:
+#   - --env-file explícito: con -f, compose usa como project dir el
+#     directorio del yml (docker/), NO el CWD. Sin --env-file no
+#     encuentra /opt/erp-odoo/.env y POSTGRES_PASSWORD queda vacía.
+#   - nginx del sistema se para antes del up: ocupa el puerto 80
+#     que necesita el contenedor nginx-proxy.
 docker network inspect macvlan_vlan30 >/dev/null 2>&1 || \
   docker network create --driver macvlan \
     --subnet=192.168.30.0/24 --gateway=192.168.30.1 \
     -o parent="eth1" macvlan_vlan30
 
 COMPOSE_FILE="${PROJECT_DIR}/docker/docker-compose.yml"
-# Todos los comandos compose se ejecutan desde PROJECT_DIR
-# (así el .env se carga del CWD y los paths relativos del yml van desde docker/)
+ENV_FILE="${PROJECT_DIR}/.env"
+COMPOSE_BASE="docker compose -p erp-odoo --env-file ${ENV_FILE} -f ${COMPOSE_FILE}"
+
 if [ -f "${COMPOSE_FILE}" ]; then
   echo "  [DOCKER] Esperando que Docker Hub sea accesible..."
   for i in $(seq 1 10); do
@@ -213,13 +214,17 @@ if [ -f "${COMPOSE_FILE}" ]; then
   docker rmi hello-world 2>/dev/null || true
 
   echo "  [DOCKER] Descargando imágenes..."
-  (cd "${PROJECT_DIR}" && docker compose -p erp-odoo -f docker/docker-compose.yml pull) || \
-    echo "  [AVISO] Pull fallido."
+  ${COMPOSE_BASE} pull || echo "  [AVISO] Pull fallido."
 
   # Bajar contenedores anteriores (idempotencia en re-provisioning)
-  (cd "${PROJECT_DIR}" && docker compose -p erp-odoo -f docker/docker-compose.yml down --remove-orphans 2>/dev/null) || true
+  ${COMPOSE_BASE} down --remove-orphans 2>/dev/null || true
 
-  (cd "${PROJECT_DIR}" && docker compose -p erp-odoo -f docker/docker-compose.yml up -d --pull never) || \
+  # Liberar puerto 80: nginx del sistema lo ocupa al arrancar la VM
+  echo "  [NET] Parando nginx del sistema para liberar puerto 80..."
+  systemctl stop nginx 2>/dev/null || true
+  systemctl disable nginx 2>/dev/null || true
+
+  ${COMPOSE_BASE} up -d --pull never || \
     echo "  [AVISO] docker compose up falló. Re-ejecuta: vagrant provision odoo-server"
 
   docker ps --filter "name=odoo" \
