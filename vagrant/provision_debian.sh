@@ -180,16 +180,20 @@ ENVEOF
 chmod 640 "${PROJECT_DIR}/.env"
 
 # ── PASO 9: docker compose up ────────────────────────────────
-# IMPORTANTE: --project-directory hace que compose cargue el .env
-# desde PROJECT_DIR (raíz), no desde el CWD ni desde docker/
+# ESTRATEGIA: cd a PROJECT_DIR antes de invocar compose.
+#   - El .env se carga desde el CWD (/opt/erp-odoo) ✓
+#   - Los paths relativos del yml (./odoo.conf, ../addons…) se
+#     resuelven desde docker/ (directorio del fichero yml) ✓
+#   NO usar --project-directory: cambia el base dir de los paths
+#   relativos del yml y rompe los volume mounts (./odoo.conf).
 docker network inspect macvlan_vlan30 >/dev/null 2>&1 || \
   docker network create --driver macvlan \
     --subnet=192.168.30.0/24 --gateway=192.168.30.1 \
     -o parent="eth1" macvlan_vlan30
 
 COMPOSE_FILE="${PROJECT_DIR}/docker/docker-compose.yml"
-COMPOSE_CMD="docker compose --project-directory ${PROJECT_DIR} -f ${COMPOSE_FILE}"
-
+# Todos los comandos compose se ejecutan desde PROJECT_DIR
+# (así el .env se carga del CWD y los paths relativos del yml van desde docker/)
 if [ -f "${COMPOSE_FILE}" ]; then
   echo "  [DOCKER] Esperando que Docker Hub sea accesible..."
   for i in $(seq 1 10); do
@@ -201,10 +205,10 @@ if [ -f "${COMPOSE_FILE}" ]; then
   docker rmi hello-world 2>/dev/null || true
 
   echo "  [DOCKER] Descargando imágenes..."
-  ${COMPOSE_CMD} pull || \
+  (cd "${PROJECT_DIR}" && docker compose -f docker/docker-compose.yml pull) || \
     echo "  [AVISO] Pull fallido."
 
-  ${COMPOSE_CMD} up -d --pull never || \
+  (cd "${PROJECT_DIR}" && docker compose -f docker/docker-compose.yml up -d --pull never) || \
     echo "  [AVISO] docker compose up falló. Re-ejecuta: vagrant provision odoo-server"
 
   docker ps --filter "name=odoo" \
