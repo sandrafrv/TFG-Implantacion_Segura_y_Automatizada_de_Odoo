@@ -49,13 +49,13 @@ jobs:
         run: git config --global --add safe.directory /opt/erp-odoo
 
       # El repo fue clonado por root durante el provisioning.
-      # El runner necesita escribir en .git/config (git remote set-url)
-      # y crear lock files (.git/*.lock). Sin esto falla con:
-      #   "could not lock config file .git/config: Permission denied"
-      # La regla sudoers NOPASSWD en /etc/sudoers.d/runner-git-chown
+      # El runner necesita escribir en .git/ (fetch, config, lock files)
+      # y en el working tree (git reset --hard sobreescribe archivos tracked).
+      # Sin esto falla con: "unable to unlink old '...': Permission denied"
+      # La regla sudoers NOPASSWD en /etc/sudoers.d/runner-deploy
       # permite exactamente este comando sin contraseña.
-      - name: Corregir permisos de .git/ para el runner
-        run: sudo /usr/bin/chown -R runner /opt/erp-odoo/.git
+      - name: Corregir permisos del proyecto para el runner
+        run: sudo /usr/bin/chown -R runner /opt/erp-odoo
 
       - name: Sincronizar repositorio en el servidor (git pull)
         working-directory: /opt/erp-odoo
@@ -71,6 +71,11 @@ jobs:
           # Limpiar el PAT de la URL del remote tras el pull (seguridad)
           git remote set-url origin https://github.com/${{ github.repository }}.git
           echo "Repositorio actualizado al commit: $(git rev-parse --short HEAD)"
+
+      # Los contenedores Docker (uid 101) necesitan escribir en los dirs de datos.
+      # El chown anterior los cambió a 'runner'; restauramos a 101:101.
+      - name: Restaurar permisos de datos Docker (uid 101)
+        run: sudo /usr/bin/chown -R 101:101 /opt/erp-odoo/odoo-data /opt/erp-odoo/odoo_sessions /opt/erp-odoo/addons
 
       - name: Descargar imágenes Docker (docker pull)
         run: |

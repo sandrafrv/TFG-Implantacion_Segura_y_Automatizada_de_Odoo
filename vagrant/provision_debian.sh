@@ -177,13 +177,12 @@ if [ ! -d "${PROJECT_DIR}/.git" ]; then
   }
 fi
 
-# El runner de GitHub Actions (usuario 'runner') necesita escribir en .git/config
-# para poder ejecutar 'git remote set-url', 'git fetch', etc. durante el deploy.
-# Sin esto falla con: "could not lock config file .git/config: Permission denied"
-if [ -d "${PROJECT_DIR}/.git" ]; then
-  chown -R "${RUNNER_USER}:${RUNNER_USER}" "${PROJECT_DIR}/.git"
-  echo "  [PERMS] .git/ asignado a ${RUNNER_USER} para deploy CI/CD."
-fi
+# El runner de GitHub Actions (usuario 'runner') necesita escribir en todo
+# el directorio del proyecto: .git/ (fetch, config) y el working tree
+# (git reset --hard sobreescribe archivos tracked que son propiedad de root).
+# Sin esto falla con: "unable to unlink old '...': Permission denied"
+chown -R "${RUNNER_USER}:${RUNNER_USER}" "${PROJECT_DIR}"
+echo "  [PERMS] ${PROJECT_DIR} asignado a ${RUNNER_USER} para deploy CI/CD."
 
 # Crear directorios de datos y asignar propietario uid 101 (odoo en el contenedor)
 # Sin esto, el contenedor (user: 101:101) no puede escribir en los volúmenes montados
@@ -298,15 +297,17 @@ nginx -t && systemctl restart nginx || echo "  [AVISO] Nginx no arrancó."
 if ! id "${RUNNER_USER}" &>/dev/null; then useradd -m -s /bin/bash "${RUNNER_USER}"; fi
 usermod -aG docker "${RUNNER_USER}" || true
 
-# Sudoers: el workflow de deploy (deploy.yml) necesita ejecutar
-#   sudo chown -R runner /opt/erp-odoo/.git
-# para corregir permisos del .git/ clonado por root.
+# Sudoers: el workflow de deploy (deploy.yml) necesita:
+#   1. sudo chown -R runner /opt/erp-odoo        → para git fetch/reset
+#   2. sudo chown -R 101:101 /opt/erp-odoo/...   → restaurar dirs de datos Docker
 # Sin NOPASSWD, sudo pide contraseña y el runner falla con:
 #   "sudo: a terminal is required to read the password"
-echo "${RUNNER_USER} ALL=(root) NOPASSWD: /usr/bin/chown -R ${RUNNER_USER} ${PROJECT_DIR}/.git" \
-  > /etc/sudoers.d/runner-git-chown
-chmod 440 /etc/sudoers.d/runner-git-chown
-echo "  [SUDO] Regla NOPASSWD creada para chown .git/"
+cat > /etc/sudoers.d/runner-deploy << SUDOEOF
+${RUNNER_USER} ALL=(root) NOPASSWD: /usr/bin/chown -R ${RUNNER_USER} ${PROJECT_DIR}
+${RUNNER_USER} ALL=(root) NOPASSWD: /usr/bin/chown -R 101\:101 ${PROJECT_DIR}/odoo-data ${PROJECT_DIR}/odoo_sessions ${PROJECT_DIR}/addons
+SUDOEOF
+chmod 440 /etc/sudoers.d/runner-deploy
+echo "  [SUDO] Reglas NOPASSWD creadas para deploy CI/CD"
 
 mkdir -p "${RUNNER_DIR}"
 chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_DIR}"
