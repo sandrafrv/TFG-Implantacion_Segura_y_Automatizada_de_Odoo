@@ -116,9 +116,14 @@ PG_CONF="/etc/postgresql/16/main/postgresql.conf"
 PG_HBA="/etc/postgresql/16/main/pg_hba.conf"
 sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" "${PG_CONF}"
 sed -i "s/^listen_addresses = 'localhost'/listen_addresses = '*'/"  "${PG_CONF}"
+# Fix pg_hba: 'all' en vez de 'odoo_erp' — Odoo conecta primero a 'postgres'
+# para listar/crear BDs (database manager). Sin 'all' falla con:
+# FATAL: no pg_hba.conf entry for host ..., database "postgres"
+sed -i 's/^host[[:space:]]\+odoo_erp[[:space:]]\+odoo[[:space:]]\+192.168.30.0\/24/host  all  odoo  192.168.30.0\/24/' "${PG_HBA}"
 grep -q "192.168.30.0/24" "${PG_HBA}" || \
-  echo "host  odoo_erp  odoo  192.168.30.0/24  md5" >> "${PG_HBA}"
+  echo "host  all  odoo  192.168.30.0/24  md5" >> "${PG_HBA}"
 systemctl restart postgresql
+
 
 # ── Cockpit ───────────────────────────────────────────────────
 apt-get install -y "${APT_OPTS[@]}" cockpit || echo "  [AVISO] Cockpit no instalado."
@@ -169,9 +174,14 @@ if [ "\$IFACE" = "${VLAN_IFACE}" ] || [ "\$IFACE" = "--all" ]; then
   else
     echo "[NET] pfSense no disponible → Internet por eth0"
   fi
+  # Ruta de retorno a la DMZ (192.168.30.0/24 — odoo-server)
+  # Necesaria para que PostgreSQL pueda responder a odoo-web
+  ip route add 192.168.30.0/24 via ${VLAN_GW} dev ${VLAN_IFACE} 2>/dev/null || true
+  echo "[NET] Ruta DMZ activa: 192.168.30.0/24 via ${VLAN_GW}"
 fi
 UPEOF
 chmod +x /etc/network/if-up.d/vlan40-pfsense-gw
+
 
 echo ""
 echo "=========================================="
