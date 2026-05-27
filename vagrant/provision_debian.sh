@@ -123,42 +123,50 @@ apt-get install -y -qq "${APT_OPTS[@]}" \
   lsb-release apt-transport-https software-properties-common || true
 
 # ── PASO 6: Docker CE ────────────────────────────────────────
+# Idempotente: si docker ya está instalado (re-provisioning), saltar.
+if command -v docker &>/dev/null && docker compose version &>/dev/null; then
+  echo "  [DOCKER] Docker ya instalado — saltando instalación."
+else
+  apt-get remove -y -qq docker docker-engine docker.io containerd runc 2>/dev/null || true
+  install -m 0755 -d /etc/apt/keyrings
 
-apt-get remove -y -qq docker docker-engine docker.io containerd runc 2>/dev/null || true
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/debian/gpg \
-  | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-chmod a+r /etc/apt/keyrings/docker.gpg
+  # --batch --yes: evita que gpg intente abrir /dev/tty en modo no interactivo
+  curl -fsSL https://download.docker.com/linux/debian/gpg \
+    | gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg
+  chmod a+r /etc/apt/keyrings/docker.gpg
 
-# Para Debian 13 (Trixie) Docker CE aún no tiene rama oficial → usar bookworm como fallback
-DOCKER_CODENAME="${OS_CODENAME}"
-if [ "${OS_CODENAME}" = "trixie" ]; then
-  echo "  [DOCKER] Trixie detectado — usando repositorio bookworm de Docker CE como fallback."
-  DOCKER_CODENAME="bookworm"
-fi
+  # Para Debian 13 (Trixie) Docker CE aún no tiene rama oficial → usar bookworm como fallback
+  DOCKER_CODENAME="${OS_CODENAME}"
+  if [ "${OS_CODENAME}" = "trixie" ]; then
+    echo "  [DOCKER] Trixie detectado — usando repositorio bookworm de Docker CE como fallback."
+    DOCKER_CODENAME="bookworm"
+  fi
 
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
   https://download.docker.com/linux/debian \
   ${DOCKER_CODENAME} stable" \
-  > /etc/apt/sources.list.d/docker.list
+    > /etc/apt/sources.list.d/docker.list
 
-apt-get "${APT_OPTS[@]}" update -qq || true
-apt-get install -y -qq "${APT_OPTS[@]}" \
-  docker-ce docker-ce-cli containerd.io \
-  docker-buildx-plugin docker-compose-plugin || {
-  echo "[ERROR] No se pudo instalar docker-ce." >&2; exit 1
-}
+  apt-get "${APT_OPTS[@]}" update -qq || true
+  apt-get install -y -qq "${APT_OPTS[@]}" \
+    docker-ce docker-ce-cli containerd.io \
+    docker-buildx-plugin docker-compose-plugin || {
+    echo "[ERROR] No se pudo instalar docker-ce." >&2; exit 1
+  }
 
-mkdir -p /etc/docker
-cat > /etc/docker/daemon.json << 'DOCKEREOF'
+  mkdir -p /etc/docker
+  cat > /etc/docker/daemon.json << 'DOCKEREOF'
 {
   "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
 }
 DOCKEREOF
 
-systemctl enable docker && systemctl restart docker
+  systemctl enable docker && systemctl restart docker
+fi
+
 docker compose version || { echo "[ERROR] docker compose no encontrado." >&2; exit 1; }
+
 
 # ── PASO 7: Clonar repo ──────────────────────────────────────
 mkdir -p "${PROJECT_DIR}"
