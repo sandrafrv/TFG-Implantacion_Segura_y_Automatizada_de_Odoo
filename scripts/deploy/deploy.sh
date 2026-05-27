@@ -23,7 +23,9 @@ docker info &>/dev/null         || { echo "[ERROR] Docker no está activo o sin 
 cd "$PROJECT_DIR" || exit 1
 
 ENV_FILE="$PROJECT_DIR/.env"
-COMPOSE_OPTS=(-f "$COMPOSE_FILE" --env-file "$ENV_FILE")
+# -p erp-odoo: debe coincidir con el project name usado en el provisioning
+# (provision_debian.sh) para que 'down' encuentre los contenedores existentes.
+COMPOSE_OPTS=(-p erp-odoo -f "$COMPOSE_FILE" --env-file "$ENV_FILE")
 
 docker compose "${COMPOSE_OPTS[@]}" config -q \
     || { echo "[ERROR] docker-compose.yml tiene errores de sintaxis."; exit 1; }
@@ -53,9 +55,10 @@ fi
 # --- Despliegue ---
 echo "[2/4] Levantando contenedores..."
 
-# Eliminar contenedores antiguos para evitar conflictos de nombre
-# (idempotente: no falla si no existen)
+# Eliminar contenedores anteriores (idempotente: no falla si no existen)
 docker compose "${COMPOSE_OPTS[@]}" down --remove-orphans 2>/dev/null || true
+# Safety net: eliminar contenedores huérfanos por nombre si 'down' no los alcanzó
+docker rm -f odoo-web nginx-proxy 2>/dev/null || true
 
 docker compose "${COMPOSE_OPTS[@]}" up -d --force-recreate
 
