@@ -36,7 +36,7 @@ jobs:
       - name: Verificar entorno del servidor
         run: |
           echo "============================================="
-          echo " Iniciando despliegue automático"
+          echo " Iniciando despliegue automático:"
           echo " Servidor: $(hostname)"
           echo " Fecha:    $(date '+%Y-%m-%d %H:%M:%S')"
           echo " Docker:   $(docker --version)"
