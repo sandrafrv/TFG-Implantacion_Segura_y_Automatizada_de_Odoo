@@ -1,7 +1,12 @@
 #!/bin/bash
 # ============================================================
 # Provisioning VM Debian - Odoo 17 + Nginx
-# ESTRATEGIA: Internet por eth0 (NAT VMware) | DMZ→BD por eth1 (pfSense)
+# ARQUITECTURA:
+#   eth0 → NAT VMware (Internet)
+#   eth1 → VMnet2 (192.168.30.0/24 — DMZ)
+#          pfSense es MANUAL: puede estar apagado durante el provision.
+#          La ruta a la BD (192.168.40.0/24) se configura si pfSense
+#          responde, pero NO bloquea el provision si está apagado.
 # ============================================================
 set -euo pipefail
 
@@ -58,17 +63,19 @@ ip addr flush dev "${VLAN_IFACE}" 2>/dev/null || true
 ip addr add "${VLAN_IP}/24" dev "${VLAN_IFACE}" 2>/dev/null || true
 ip addr show "${VLAN_IFACE}"
 
-# ── PASO 2: Ruta a BD vía pfSense ────────────────────────────
+# ── PASO 2: Ruta a BD vía pfSense (no bloqueante) ───────────
+# pfSense es MANUAL: puede no estar encendido durante el provision.
+# Se intenta añadir la ruta si pfSense responde; si no, el provision continúa.
 ip route del default via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
-ip route add 192.168.40.0/24 via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
-ip route
-
-# ── PASO 3: Estado pfSense (solo informativo) ────────────────
 if ping -c 2 -W 3 "${VLAN_GW}" > /dev/null 2>&1; then
-    echo "  [NET] pfSense alcanzable."
+    echo "  [NET] pfSense alcanzable → añadiendo ruta 192.168.40.0/24."
+    ip route add 192.168.40.0/24 via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
 else
-    echo "  [AVISO] pfSense no responde. La ruta a BD se activará al encenderlo."
+    echo "  [AVISO] pfSense apagado o no disponible en ${VLAN_GW}."
+    echo "          La ruta a 192.168.40.0/24 se activará al encender pfSense"
+    echo "          (script persistente en /etc/network/if-up.d/)."
 fi
+ip route
 
 # ── PASO 4: Esperar Internet por eth0 ────────────────────────
 echo "  [NET] Esperando conectividad Internet..."
@@ -100,10 +107,14 @@ APT_OPTS=(
   --allow-unauthenticated
 )
 
-cat > /etc/apt/sources.list << 'SOURCES'
-deb [trusted=yes] https://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-deb [trusted=yes] https://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
-deb [trusted=yes] https://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+# Detectar codename real del SO (bookworm para Debian 12, trixie para Debian 13, etc.)
+OS_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
+echo "  [APT] Codename detectado: ${OS_CODENAME}"
+
+cat > /etc/apt/sources.list << SOURCES
+deb [trusted=yes] https://deb.debian.org/debian ${OS_CODENAME} main contrib non-free non-free-firmware
+deb [trusted=yes] https://deb.debian.org/debian ${OS_CODENAME}-updates main contrib non-free non-free-firmware
+deb [trusted=yes] https://deb.debian.org/debian-security ${OS_CODENAME}-security main contrib non-free non-free-firmware
 SOURCES
 
 apt-get "${APT_OPTS[@]}" update -qq || true
@@ -119,10 +130,17 @@ curl -fsSL https://download.docker.com/linux/debian/gpg \
   | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 chmod a+r /etc/apt/keyrings/docker.gpg
 
+# Para Debian 13 (Trixie) Docker CE aún no tiene rama oficial → usar bookworm como fallback
+DOCKER_CODENAME="${OS_CODENAME}"
+if [ "${OS_CODENAME}" = "trixie" ]; then
+  echo "  [DOCKER] Trixie detectado — usando repositorio bookworm de Docker CE como fallback."
+  DOCKER_CODENAME="bookworm"
+fi
+
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
   https://download.docker.com/linux/debian \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  ${DOCKER_CODENAME} stable" \
   > /etc/apt/sources.list.d/docker.list
 
 apt-get "${APT_OPTS[@]}" update -qq || true
@@ -151,13 +169,15 @@ if [ ! -d "${PROJECT_DIR}/.git" ]; then
   }
 fi
 
-# ── PASO 8: .env Odoo ────────────────────────────────────────
-mkdir -p "${PROJECT_DIR}/docker"
-cat > "${PROJECT_DIR}/docker/.env" << ENVEOF
+# ── PASO 8: .env Odoo (en RAÍZ del proyecto, no en docker/) ─
+# docker compose busca el .env en el directorio de trabajo (/opt/erp-odoo)
+mkdir -p "${PROJECT_DIR}"
+cat > "${PROJECT_DIR}/.env" << ENVEOF
 POSTGRES_HOST=${POSTGRES_HOST}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 ODOO_MASTER_PASSWORD=${ODOO_MASTER_PASSWORD}
 ENVEOF
+chmod 640 "${PROJECT_DIR}/.env"
 
 # ── PASO 9: docker compose up ────────────────────────────────
 docker network inspect macvlan_vlan30 >/dev/null 2>&1 || \

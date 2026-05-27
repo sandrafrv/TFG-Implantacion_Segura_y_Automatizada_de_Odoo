@@ -1,7 +1,11 @@
 #!/bin/bash
 # ============================================================
 # Provisioning VM PostgreSQL — TFG Odoo
-# VLAN 40 — 192.168.40.10
+# ARQUITECTURA:
+#   eth0 → NAT VMware (Internet)
+#   eth1 → VMnet3 (192.168.40.0/24 — VLAN Admin/BD)
+#          pfSense es MANUAL: eth1 tiene solo IP estática,
+#          el gateway pfSense se activa si está encendido.
 # ============================================================
 set -euo pipefail
 
@@ -64,10 +68,13 @@ for i in $(seq 1 6); do
 done
 
 # ── APT ──────────────────────────────────────────────────────
-cat > /etc/apt/sources.list << 'SOURCES'
-deb [trusted=yes] https://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-deb [trusted=yes] https://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
-deb [trusted=yes] https://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+OS_CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME}")"
+echo "  [APT] Codename detectado: ${OS_CODENAME}"
+
+cat > /etc/apt/sources.list << SOURCES
+deb [trusted=yes] https://deb.debian.org/debian ${OS_CODENAME} main contrib non-free non-free-firmware
+deb [trusted=yes] https://deb.debian.org/debian ${OS_CODENAME}-updates main contrib non-free non-free-firmware
+deb [trusted=yes] https://deb.debian.org/debian-security ${OS_CODENAME}-security main contrib non-free non-free-firmware
 SOURCES
 
 apt-get "${APT_OPTS[@]}" update || true
@@ -77,6 +84,7 @@ apt-get install -y "${APT_OPTS[@]}" curl ca-certificates gnupg || true
 curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
   | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
 
+# pgdg siempre usa bookworm como base estable para Debian 12/13
 echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg trusted=yes] \
 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
   > /etc/apt/sources.list.d/pgdg.list

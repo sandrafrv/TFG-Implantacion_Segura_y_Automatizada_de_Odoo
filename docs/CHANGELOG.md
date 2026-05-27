@@ -15,6 +15,37 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ---
 
+## [v1.9 — 2026-05-27]
+
+### Corregido
+
+- **BUG-12 `vagrant/provision_debian.sh` y `provision_postgres.sh` — repos APT hardcodeados a `bookworm`** (🔴 CRÍTICA):
+  Los scripts de provision tenían las fuentes APT fijadas literalmente a `bookworm`.
+  Ahora detectan el codename real con `VERSION_CODENAME` de `/etc/os-release` en tiempo de ejecución,
+  funcionando con Debian 12 (Bookworm) y Debian 13 (Trixie).
+  Para Docker CE y pgdg se mantiene `bookworm` como base estable (sin soporte oficial para Trixie aún).
+
+- **BUG-13 `provision_debian.sh` — ruta a BD bloqueaba el provision si pfSense estaba apagado** (🔴 CRÍTICA):
+  Con la nueva arquitectura de **VMnets** (vmnet2/vmnet3 en vez de LAN segments), pfSense es una VM
+  **manual** que puede estar apagada durante `vagrant up`. El PASO 2 intentaba añadir la ruta
+  `192.168.40.0/24 via 192.168.30.1` incondicionalmente — si pfSense no responde, la ruta simplemente
+  no se añade en ese momento pero el provision continúa. Se activa automáticamente al arrancar pfSense
+  mediante el script persistente en `/etc/network/if-up.d/`.
+
+- **BUG-05 `provision_debian.sh` — `.env` se escribía en `docker/.env` en vez de la raíz** (🟠 MEDIA):
+  `docker compose` busca el `.env` en el directorio de trabajo (`/opt/erp-odoo/`), no en `docker/`.
+  Corregido: el `.env` ahora se escribe en `${PROJECT_DIR}/.env` con permisos `640`.
+
+### Modificado
+
+- **Arquitectura de red actualizada** — Se pasa de **LAN segments** a **VMnets** en VMware:
+  - `odoo-server` (eth1) → **VMnet2** — red `192.168.30.0/24` (DMZ)
+  - `db-server` (eth1) → **VMnet3** — red `192.168.40.0/24` (VLAN Admin/BD)
+  - pfSense es ahora una **VM manual** en VMware (no gestionada por Vagrant).
+  - Orden de arranque obligatorio: `1. pfSense manual → 2. vagrant up db-server → 3. vagrant up odoo-server`
+
+---
+
 ## [v1.8 — 2026-05-22]
 
 ### Corregido
