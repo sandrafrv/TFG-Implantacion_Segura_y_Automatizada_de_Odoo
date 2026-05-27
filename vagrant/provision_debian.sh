@@ -177,6 +177,14 @@ if [ ! -d "${PROJECT_DIR}/.git" ]; then
   }
 fi
 
+# El runner de GitHub Actions (usuario 'runner') necesita escribir en .git/config
+# para poder ejecutar 'git remote set-url', 'git fetch', etc. durante el deploy.
+# Sin esto falla con: "could not lock config file .git/config: Permission denied"
+if [ -d "${PROJECT_DIR}/.git" ]; then
+  chown -R "${RUNNER_USER}:${RUNNER_USER}" "${PROJECT_DIR}/.git"
+  echo "  [PERMS] .git/ asignado a ${RUNNER_USER} para deploy CI/CD."
+fi
+
 # Crear directorios de datos y asignar propietario uid 101 (odoo en el contenedor)
 # Sin esto, el contenedor (user: 101:101) no puede escribir en los volúmenes montados
 # y la inicialización de la BD falla con PermissionError: /var/lib/odoo/.local
