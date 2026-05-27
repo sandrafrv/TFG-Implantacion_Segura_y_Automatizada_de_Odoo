@@ -328,6 +328,12 @@ if [ "$IFACE" = "eth1" ] || [ "$IFACE" = "--all" ]; then
     else
         echo "[NET] pfSense no disponible. Ruta BD no añadida."
     fi
+    # MASQUERADE: el tráfico Docker (172.18.0.0/16) que sale por eth1
+    # debe aparecer con la IP del host (192.168.30.10) ante pfSense.
+    # Sin esta regla, pfSense ve 172.18.0.2 como origen y lo bloquea.
+    iptables -t nat -C POSTROUTING -s 172.18.0.0/16 -o eth1 -j MASQUERADE 2>/dev/null || \
+        iptables -t nat -A POSTROUTING -s 172.18.0.0/16 -o eth1 -j MASQUERADE
+    echo "[NET] MASQUERADE eth1 para contenedores Docker activado."
 fi
 ROUTE_EOF
 chmod +x /etc/network/if-up.d/vlan30-bd-route
