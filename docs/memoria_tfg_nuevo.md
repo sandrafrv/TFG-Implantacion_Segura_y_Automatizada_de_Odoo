@@ -7,7 +7,7 @@
 ## 1.- Introducción
 
 ### 1.1.- Descripción y contexto del proyecto
-El presente proyecto se centra en el diseño, despliegue y automatización de la infraestructura técnica necesaria para alojar un sistema ERP (Enterprise Resource Planning) — concretamente Odoo 17 CE — bajo el nombre de empresa simulada **TechSolutions S.L.** La arquitectura desplegada se basa en tres máquinas virtuales orquestadas con **Vagrant + VirtualBox**: un firewall perimetral pfSense, un servidor Debian 13 con Nginx y Odoo en contenedores Docker (red MACVLAN) y una VM dedicada exclusivamente a PostgreSQL 16 en una VLAN separada. El acceso de los usuarios se gestiona mediante autenticación nativa de Odoo.
+El presente proyecto se centra en el diseño, despliegue y automatización de la infraestructura técnica necesaria para alojar un sistema ERP (Enterprise Resource Planning) — concretamente Odoo 17 CE — bajo el nombre de empresa simulada **TechSolutions S.L.** La arquitectura desplegada se basa en tres máquinas virtuales orquestadas con **Vagrant + VirtualBox**: un firewall perimetral pfSense, un servidor Debian 13 con Nginx y Odoo en contenedores Docker y una VM dedicada exclusivamente a PostgreSQL 16 en una VLAN separada. El acceso de los usuarios se gestiona mediante autenticación nativa de Odoo.
 
 ### 1.2.- Motivación del proyecto
 El proyecto surge de la necesidad que tienen las pequeñas y medianas empresas (PYMES) de digitalizar su gestión empresarial utilizando soluciones Open Source, pero enfrentándose al problema recurrente de instalaciones frágiles, monolíticas y altamente vulnerables. Tradicionalmente, los despliegues se realizan en servidores compartidos sin aislamiento de red, sin políticas de copias de seguridad automatizadas y sin auditoría interna. Este proyecto soluciona ese problema ofreciendo una arquitectura "Zero Trust" con cuatro redes segmentadas, base de datos aislada en VM separada y un ciclo de vida completamente automatizado basado en prácticas DevOps e Infraestructura como Código (Vagrant).
@@ -34,13 +34,13 @@ El proyecto surge de la necesidad que tienen las pequeñas y medianas empresas (
 ---
 
 ## 2.- Objetivo/s generales del proyecto
-Desarrollar e implementar una solución de infraestructura automatizada, segura y reproducible para alojar el sistema ERP Odoo 17, contemplando todas las etapas de diseño de red (segmentación en cuatro VLANs), base de datos aislada en VM dedicada, contenerización con MACVLAN, orquestación con Vagrant e Integración Continua con GitHub Actions.
+Desarrollar e implementar una solución de infraestructura automatizada, segura y reproducible para alojar el sistema ERP Odoo 17, contemplando todas las etapas de diseño de red (segmentación en cuatro VLANs), base de datos aislada en VM dedicada, contenerización con Docker Compose, orquestación con Vagrant e Integración Continua con GitHub Actions.
 
 ---
 
 ## 3.- Objetivos específicos
 - Identificar los requisitos de red y seguridad para establecer un firewall perimetral (pfSense) segmentando el tráfico en cuatro VLANs: WAN, VLAN 10 (Clientes), VLAN 30 (DMZ) y VLAN 40 (Administración/BD).
-- Contenerizar el ERP y el proxy inverso (Nginx + Odoo 17) utilizando Docker Compose con redes MACVLAN, garantizando el aislamiento de procesos y la asignación de IPs propias a los contenedores.
+- Contenerizar el ERP y el proxy inverso (Nginx + Odoo 17) utilizando Docker Compose, garantizando el aislamiento de procesos y la comunicación segura entre contenedores mediante redes internas de Docker.
 - Desplegar PostgreSQL 16 en una VM dedicada (VLAN 40), completamente separada del stack Docker, comunicada con Odoo únicamente por regla explícita de firewall.
 - Aplicar un modelo de seguridad de **tres capas** (Nginx por IP/VLAN, tipo de usuario Odoo y grupos/roles Odoo) que restrinja el acceso a las rutas de administración únicamente desde VLAN 40.
 - Desarrollar un conjunto de scripts en Bash que automaticen el ciclo de vida del servicio (instalación, backup remoto `pg_dump`, monitorización y restauración).
@@ -58,7 +58,7 @@ Desarrollar e implementar una solución de infraestructura automatizada, segura 
 - **VLAN de Administración (VLAN 40):** Red segregada dedicada a administradores del sistema y DBAs, con acceso privilegiado a SSH, Cockpit, PostgreSQL y panel de pfSense.
 - **Proxy Inverso:** Servidor que recupera recursos en nombre de un cliente desde uno o más servidores. Nginx actúa como primera barrera de seguridad (terminación SSL + restricción de rutas por IP/VLAN).
 - **Contenerización:** Virtualización a nivel de SO para desplegar aplicaciones de forma aislada (Docker).
-- **MACVLAN:** Driver de red Docker que asigna una dirección MAC e IP física de la red del host a cada contenedor, haciéndolos visibles directamente desde el firewall pfSense.
+- **Red interna Docker:** Mecanismo de red virtual que permite la comunicación aislada entre contenedores dentro del mismo host, sin exponer los servicios directamente a la red física. Nginx actúa como único punto de entrada desde el exterior.
 - **Infraestructura como Código (IaC):** Práctica de definir y aprovisionar infraestructura mediante archivos de configuración versionados. En este proyecto se usa Vagrant.
 - **Zero Trust:** Modelo de seguridad basado en el principio estricto de "no confiar en nadie por defecto" — cada acceso requiere autenticación y autorización explícita.
 
@@ -121,10 +121,10 @@ Internet (WAN)
   [ pfSense — vm-pfsense ]
   ├── VLAN 10 (192.168.10.0/24) ── Usuarios/Empleados del ERP
   ├── VLAN 30 / DMZ (192.168.30.0/24) ── Servidores
-  │       ├── vm-odoo (192.168.30.10) — Debian 13, Docker engine
-  │       │     ├── nginx-proxy  → MACVLAN 192.168.30.20 (:80/:443)
-  │       │     └── odoo-web     → MACVLAN 192.168.30.21 (:8069/:8072)
-  │       │                             │ TCP :5432
+  │       └── vm-odoo (192.168.30.10) — Debian 13, Docker engine
+  │                 ├── nginx-proxy  (:80/:443)
+  │                 └── odoo-web     (:8069/:8072)
+  │                             │ TCP :5432
   └── VLAN 40 (192.168.40.0/24) ── Administración + BD
           ├── vm-postgres (192.168.40.10) — PostgreSQL 16 nativo
           └── Admins/DBAs (192.168.40.20–50)
@@ -135,7 +135,7 @@ Internet (WAN)
 | Decisión | Justificación |
 |---|---|
 | PostgreSQL en VM separada (VLAN 40) | Aislamiento máximo: si el stack Docker se compromete, la BD permanece inaccesible desde la DMZ sin regla explícita de firewall |
-| Docker MACVLAN para Nginx + Odoo | Los contenedores tienen IPs propias visibles por pfSense, permitiendo aplicar reglas de firewall por IP de contenedor |
+| Docker Compose con red interna | Los contenedores se comunican por red interna de Docker; Nginx actúa como único punto de entrada expuesto en la DMZ |
 | Vagrant como IaC | Reproducibilidad: el entorno completo se regenera desde cero con `vagrant up` |
 | LDAP fuera del despliegue principal | Reducción de superficie de ataque y complejidad operativa; autenticación nativa de Odoo es suficiente para el TFG |
 | SSL autofirmado (OpenSSL) | Cifrado en tránsito sin dependencia de CA externa para entorno de laboratorio |
@@ -158,7 +158,7 @@ La vista `v_audit_resumen` permite consultas rápidas sobre los últimos usuario
 |---|---|---|
 | **Debian 13 (Trixie)** | SO del servidor Odoo | Alta estabilidad, ciclo de soporte largo, estándar de producción |
 | **Vagrant + VirtualBox** | Infraestructura como Código | Reproducibilidad total del entorno: `vagrant up` = entorno completo |
-| **Docker + Docker Compose** | Orquestación de contenedores | Modularidad y aislamiento; MACVLAN para IPs propias |
+| **Docker + Docker Compose** | Orquestación de contenedores | Modularidad y aislamiento; red interna para comunicación segura entre Nginx y Odoo |
 | **pfSense** | Firewall perimetral | Open Source de grado empresarial; gestiona 4 interfaces/VLANs |
 | **Nginx Alpine** | Proxy inverso | Extremadamente ligero, terminación SSL, restricción de rutas por IP |
 | **Odoo 17 CE** | ERP/CRM | Modular, API XML-RPC potente, comunidad muy activa |
@@ -176,7 +176,7 @@ Interfaz CLI creada en Bash para abstraer los comandos complejos de Docker y ges
 #### Infraestructura como Código — Vagrant
 Tres `Vagrantfile`s que aprovisionan automáticamente:
 - `vm-pfsense`: reglas de firewall, interfaces de red
-- `vm-odoo`: Docker, MACVLAN, SSL, Nginx, Odoo
+- `vm-odoo`: Docker, SSL, Nginx, Odoo
 - `vm-postgres`: PostgreSQL 16, usuario `odoo`, `pg_hba.conf`
 
 Esto garantiza que cualquier miembro del equipo puede reproducir el entorno en un equipo de laboratorio con `vagrant up`.
@@ -247,14 +247,14 @@ El proyecto se dividió en fases secuenciales:
 1. Investigación y diseño de red (cuatro VLANs, diagrama, tabla de IPs).
 2. Despliegue de pfSense y configuración de VLANs, DHCP, DNS y NAT.
 3. Instalación de vm-postgres: PostgreSQL 16 nativo, usuario odoo, pg_hba.conf.
-4. Instalación de vm-odoo: Debian 13, Docker, MACVLAN, Nginx, SSL, Odoo.
+4. Instalación de vm-odoo: Debian 13, Docker, Nginx, SSL, Odoo.
 5. Desarrollo de scripts (Vagrant IaC, deploy, erp.sh, backup_postgres.sh).
 6. Modelo de control de acceso en 3 capas (Nginx + tipos usuario + grupos Odoo).
 7. Auditoría de base de datos (triggers PL/pgSQL).
 8. CI/CD y hardening (GitHub Actions, UFW, SSH por clave).
 
 ### 8.2.- Temporalización y secuenciación
-*(Aquí debes crear y pegar una tabla o diagrama de Gantt indicando cuánto tiempo en semanas te llevó cada fase. Ejemplo orientativo: Diseño de red y VLANs — 1 semana; pfSense y networking — 1 semana; PostgreSQL VM + Vagrant — 1 semana; Docker + MACVLAN + Odoo — 2 semanas; Bash scripting y backups — 1 semana; Auditoría SQL + control acceso — 1 semana; CI/CD + hardening — 1 semana; Documentación — 1 semana).*
+*(Aquí debes crear y pegar una tabla o diagrama de Gantt indicando cuánto tiempo en semanas te llevó cada fase. Ejemplo orientativo: Diseño de red y VLANs — 1 semana; pfSense y networking — 1 semana; PostgreSQL VM + Vagrant — 1 semana; Docker + Odoo — 2 semanas; Bash scripting y backups — 1 semana; Auditoría SQL + control acceso — 1 semana; CI/CD + hardening — 1 semana; Documentación — 1 semana).*
 
 ---
 
@@ -287,22 +287,22 @@ Se ejecutaron los siguientes tipos de pruebas para garantizar la calidad del sis
 El proyecto aborda de manera integral las competencias del ciclo de ASIR:
 - **Seguridad y Alta Disponibilidad (SAD):** Segmentación en cuatro VLANs, firewalling perimetral con pfSense, cortafuegos local UFW, cifrado SSL/TLS y modelo Zero Trust. Backups automáticos con retención.
 - **Servicios de Red e Internet (SRI):** Proxy inverso HTTP/HTTPS con Nginx (restricciones por IP), DHCP y DNS con pfSense.
-- **Implantación de Aplicaciones Web (IAW):** Contenerización y despliegue del ERP web Odoo 17 con MACVLAN y Docker Compose.
+- **Implantación de Aplicaciones Web (IAW):** Contenerización y despliegue del ERP web Odoo 17 con Docker Compose.
 - **Gestión de Bases de Datos (GBD):** Triggers PL/pgSQL, datos JSONB y `pg_dump` remoto en PostgreSQL 16 en VM externa.
 - **Sistemas Operativos en Red (SOR):** Administración GNU/Linux Debian, automatización con Bash y Cron, Cockpit para gestión visual, Vagrant para IaC.
 
 ---
 
 ## 11.- Conclusiones
-El proyecto ha demostrado con éxito que es posible implementar un sistema complejo como Odoo en una infraestructura local simulando estándares *Enterprise*, incluyendo base de datos aislada en VM dedicada, red MACVLAN para los contenedores y orquestación completa con Vagrant.
+El proyecto ha demostrado con éxito que es posible implementar un sistema complejo como Odoo en una infraestructura local simulando estándares *Enterprise*, incluyendo base de datos aislada en VM dedicada, contenerización del servicio y orquestación completa con Vagrant.
 
 A nivel técnico, se ha conseguido aislar la carga de trabajo en una DMZ, separar la base de datos en una VLAN dedicada (VLAN 40) impidiendo que usuarios internos o atacantes accedan directamente a PostgreSQL, y reproducir el entorno completo con un único comando (`vagrant up`).
 
-A nivel metodológico, la inversión de tiempo en planificar la infraestructura como código (Vagrant + Docker + MACVLAN) y automatizar el ciclo de vida (Bash/Cron) ha reducido drásticamente los errores de despliegue en comparación con una instalación manual.
+A nivel metodológico, la inversión de tiempo en planificar la infraestructura como código (Vagrant + Docker) y automatizar el ciclo de vida (Bash/Cron) ha reducido drásticamente los errores de despliegue en comparación con una instalación manual.
 
 **Lección aprendida sobre LDAP:** Durante el proyecto se implementó y probó OpenLDAP con éxito, pero se tomó la decisión de retirarlo del despliegue activo tras evaluar la relación coste/beneficio: la autenticación nativa de Odoo cubre los requisitos del TFG con menor complejidad y menor superficie de ataque. Esta decisión refleja un criterio de ingeniería real: no añadir complejidad sin una necesidad clara que la justifique.
 
-Uno de los mayores desafíos técnicos fue la configuración de MACVLAN: con este driver, el host Debian no puede comunicarse directamente con las IPs MACVLAN de sus propios contenedores. Esto requirió ajustar los scripts de verificación para usar un contenedor de diagnóstico temporal en lugar de `curl` directo desde el host.
+Uno de los principales aprendizajes del proyecto fue priorizar soluciones viables y mantenibles dentro del tiempo disponible, descartando alternativas más complejas que no aportaban una mejora proporcional al objetivo final del TFG.
 
 ---
 
@@ -317,11 +317,11 @@ Uno de los mayores desafíos técnicos fue la configuración de MACVLAN: con est
 
 ## 13.- Bibliografía/Webgrafía
 *(Recuerda mantener el formato APA).* Ejemplos:
-- Docker Inc., (2024), "Docker Documentation — Networking overview (MACVLAN)", https://docs.docker.com/network/drivers/macvlan/
 - Netgate, (2024), "pfSense Documentation — VLAN Configuration", https://docs.netgate.com/pfsense/en/latest/vlan/configuration.html
 - Odoo S.A., (2024), "Odoo 17 Developer Documentation", https://www.odoo.com/documentation/17.0/
 - HashiCorp, (2024), "Vagrant Documentation", https://developer.hashicorp.com/vagrant/docs
 - PostgreSQL Global Development Group, (2024), "PostgreSQL 16 Documentation — PL/pgSQL", https://www.postgresql.org/docs/16/plpgsql.html
+- Docker Inc., (2024), "Docker Documentation — Networking overview", https://docs.docker.com/network/
 
 ---
 
