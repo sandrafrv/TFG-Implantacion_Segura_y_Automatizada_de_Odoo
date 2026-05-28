@@ -127,7 +127,7 @@ sudo bash scripts/ldap/configurar_cliente_ldap.sh
 - [Documentación osixia/openldap](https://github.com/osixia/docker-openldap)
 - [Integración Odoo-LDAP](https://www.odoo.com/documentation/17.0/applications/general/auth/ldap.html)
 - Scripts relacionados: `scripts/ldap/`
-- Guía extendida: `docs/guias/INSTALACION_LDAP_CICD_HARDENING.md` (Parte 1)
+- Guía extendida: `docs/guias/GUIA_COMPLETA.md` (Apéndice C — LDAP)
 
 ---
 

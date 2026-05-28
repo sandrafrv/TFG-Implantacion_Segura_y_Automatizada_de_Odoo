@@ -35,7 +35,7 @@ OpenLDAP fue descartado del stack activo por:
 4. Ejecutar `ldap_crear_usuarios.sh` para crear los usuarios de empleados.
 5. (Opcional) Ejecutar `configurar_cliente_ldap.sh` en cada PC cliente de VLAN 10.
 
-Ver también: [`docs/guias/INSTALACION_LDAP_CICD_HARDENING.md`](../../docs/guias/INSTALACION_LDAP_CICD_HARDENING.md) — Parte 1.
+Ver también: [`docs/guias/GUIA_COMPLETA.md`](../../docs/guias/GUIA_COMPLETA.md#apéndice-c--ldap-material-de-referencia) — Apéndice C.
 
 ---
 

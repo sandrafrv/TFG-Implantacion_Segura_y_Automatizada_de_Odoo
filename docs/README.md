@@ -14,15 +14,14 @@
 |:--------|:------------|
 | [`INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md) | **Punto de entrada único.** Describe las 8 fases de instalación desde cero con resumen de cada módulo, orden de arranque y checklist final |
 
-### Guías de Instalación por Módulo
+### Guías de Instalación
 
 Ubicadas en [`guias/`](guias/):
 
 | Archivo | Contenido |
 |:--------|:----------|
-| [`guias/INSTALACION_RED.md`](guias/INSTALACION_RED.md) | pfSense: VM, interfaces, DHCP, DNS, NAT, reglas de firewall por VLAN, aislamiento VLAN 40 |
-| [`guias/INSTALACION_SERVIDOR.md`](guias/INSTALACION_SERVIDOR.md) | Debian 13: IP estática, Docker, Cockpit, MACVLAN, SSL, stack Docker, post-instalación Odoo, módulos, auditoría SQL |
-| [`guias/INSTALACION_LDAP_CICD_HARDENING.md`](guias/INSTALACION_LDAP_CICD_HARDENING.md) | Material LDAP de referencia (inactivo) · GitHub Actions: runner, pipeline · Hardening: UFW, SSH por clave, headless |
+| [`guias/GUIA_COMPLETA.md`](guias/GUIA_COMPLETA.md) | **Guía técnica unificada:** pfSense (VM, interfaces, DHCP, DNS, NAT, ACLs) + PostgreSQL (VM, instalación, acceso remoto) + Debian + Docker + Odoo (SSL, stack, usuarios, auditoría) + CI/CD + Hardening + Apéndices (Vagrant box, correcciones red, LDAP) |
+| [`guias/GUIA_TRABAJO_PASO_A_PASO.md`](guias/GUIA_TRABAJO_PASO_A_PASO.md) | **Cuaderno de trabajo:** Narrativa cronológica del proyecto desde la idea inicial hasta el estado final, mostrando cada decisión, bug y solución |
 
 ### Referencia Técnica
 
@@ -62,10 +61,9 @@ docs/
 ├── memoria_tfg_nuevo.md            ← Memoria del TFG
 ├── memoria_tfg_borrador.md         ← Borrador de la memoria
 │
-├── guias/                          ← Sub-guías de instalación
-│   ├── INSTALACION_RED.md          (pfSense + VLAN 40)
-│   ├── INSTALACION_SERVIDOR.md     (Debian + Docker + Odoo)
-│   └── INSTALACION_LDAP_CICD_HARDENING.md (CI/CD + Hardening + Info LDAP legacy)
+├── guias/                          ← Guías de instalación
+│   ├── GUIA_COMPLETA.md          (Guía técnica unificada)
+│   └── GUIA_TRABAJO_PASO_A_PASO.md (Cuaderno de trabajo)
 │
 ├── archive/                        ← Documentos históricos de planificación
 └── mas_info/                       ← Investigación técnica y comparativa ERP

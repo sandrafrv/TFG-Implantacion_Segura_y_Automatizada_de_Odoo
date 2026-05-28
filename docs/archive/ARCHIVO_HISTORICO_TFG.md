@@ -152,7 +152,7 @@ sudo docker compose up -d
 
 ## 3. Guía de Aislamiento Admin (VLAN 40)
 
-> Esta guía fue absorbida en `docs/guias/INSTALACION_RED.md` (sección 11).
+> Esta guía fue absorbida en `docs/guias/GUIA_COMPLETA.md` (sección 1.11).
 > Se conserva aquí para referencia histórica.
 
 ### FASE 1: Preparar la nueva red de Administradores (VLAN 40)

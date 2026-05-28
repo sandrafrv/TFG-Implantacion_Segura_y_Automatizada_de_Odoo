@@ -414,5 +414,5 @@ nc -zv 192.168.40.10 5432            # → Timeout ✅ (BD no accesible)
 ---
 
 *Referencia de arquitectura: [`docs/diagrama_red.md`](diagrama_red.md)*
-*Guía de instalación red: [`docs/guias/INSTALACION_RED.md`](guias/INSTALACION_RED.md)*
+*Guía de instalación red: [`docs/guias/GUIA_COMPLETA.md`](guias/GUIA_COMPLETA.md#parte-1--red-y-firewall-pfsense)*
 *Control de acceso: [`docs/CONTROL_ACCESO.md`](CONTROL_ACCESO.md)*

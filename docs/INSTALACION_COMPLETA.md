@@ -5,9 +5,11 @@
 
 > [!IMPORTANT]
 > Este es el **punto de entrada único**. Sigue las fases en orden.
-> Cada sección resume lo esencial y enlaza a la sub-guía detallada.
+> Cada sección resume lo esencial y enlaza a la guía técnica detallada.
 >
-> **→ Índice completo de documentación: [`docs/README.md`](README.md)**
+> **→ Guía técnica completa:** [`guias/GUIA_COMPLETA.md`](guias/GUIA_COMPLETA.md)
+> **→ Cuaderno de trabajo paso a paso:** [`guias/GUIA_TRABAJO_PASO_A_PASO.md`](guias/GUIA_TRABAJO_PASO_A_PASO.md)
+> **→ Índice de documentación:** [`docs/README.md`](README.md)
 
 ---
 
@@ -100,7 +102,7 @@ vagrant up             # Levanta las 3 VMs automáticamente
 
 **Tiempo estimado: 45–60 min**
 
-**→ Guía completa:** [`guias/INSTALACION_RED.md`](guias/INSTALACION_RED.md)
+**→ Guía completa:** [`guias/GUIA_COMPLETA.md — Parte 1`](guias/GUIA_COMPLETA.md#parte-1--red-y-firewall-pfsense)
 
 | Paso | Descripción |
 |:-----|:------------|
@@ -160,7 +162,7 @@ psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'
 
 **Tiempo estimado: 30–60 min (+ 5 min primer arranque Odoo)**
 
-**→ Guía completa:** [`guias/INSTALACION_SERVIDOR.md`](guias/INSTALACION_SERVIDOR.md)
+**→ Guía completa:** [`guias/GUIA_COMPLETA.md — Parte 3`](guias/GUIA_COMPLETA.md#parte-3--servidor-debian--docker--odoo)
 
 | Paso | Descripción |
 |:-----|:------------|
@@ -183,7 +185,7 @@ curl -k -I https://erp.odoo.tfg.com   # → HTTP/2 200
 
 **Tiempo estimado: 30–45 min**
 
-**→ Guía completa:** [`guias/INSTALACION_LDAP_CICD_HARDENING.md`](guias/INSTALACION_LDAP_CICD_HARDENING.md)
+**→ Guía completa:** [`guias/GUIA_COMPLETA.md — Partes 4 y 5`](guias/GUIA_COMPLETA.md#parte-4--cicd-con-github-actions)
 
 | Parte | Descripción |
 |:------|:------------|
@@ -259,6 +261,8 @@ FASE 4 — Seguridad
 
 | Documento | Para qué sirve |
 |:----------|:--------------|
+| [`GUIA_COMPLETA.md`](guias/GUIA_COMPLETA.md) | **📘 Guía técnica unificada — pfSense + PostgreSQL + Odoo + CI/CD + Hardening** |
+| [`GUIA_TRABAJO_PASO_A_PASO.md`](guias/GUIA_TRABAJO_PASO_A_PASO.md) | **📋 Cuaderno de trabajo — Narrativa paso a paso desde cero** |
 | [`README.md`](README.md) | Índice completo de toda la documentación |
 | [`CONTROL_ACCESO.md`](CONTROL_ACCESO.md) | Modelo de seguridad en 3 capas |
 | [`reglas_pfsense.md`](reglas_pfsense.md) | Referencia completa de reglas pfSense |
