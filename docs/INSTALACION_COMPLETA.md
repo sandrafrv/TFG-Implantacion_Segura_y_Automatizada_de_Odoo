@@ -45,15 +45,15 @@ Internet (WAN)
   192.168.10  192.168.30  192.168.40
   Clientes    DMZ Server  Admin + BD
      │           │           │
-  PCs           Debian 13   PCs Admin
+  PCs           Debian 12   PCs Admin
                 192.168.30.10  SSH/Cockpit/pfSense
                 │
-    ┌───────────┴──────────────────────┐
-    │ nginx-proxy  → MACVLAN .20       │  Docker en vm-odoo
-    │ odoo-web     → MACVLAN .21       │
+    ┌──────────────────────────────────┐
+    │ nginx-proxy  :80/:443 (port map)  │  Docker bridge odoo_net
+    │ odoo-web     :8069 (solo interno) │
     └──────────────────────────────────┘
                          │ TCP :5432
-                 [ vm-postgres — 192.168.40.10 ]
+                 [ db-server — 192.168.40.10 ]
                    PostgreSQL 16 — VM nativa
 ```
 
@@ -68,10 +68,10 @@ Internet (WAN)
 | pfSense gateway LAN | 10 | 192.168.10.1 | Solo VLAN 40 (panel) |
 | pfSense gateway DMZ | 30 | 192.168.30.1 | — |
 | pfSense gateway Admin/BD | 40 | 192.168.40.1 | Solo VLAN 40 |
-| **vm-odoo** — Debian 13 host | DMZ (VLAN 30) | 192.168.30.10 | SSH/Cockpit solo VLAN 40 |
-| **nginx-proxy** | DMZ (MACVLAN) | 192.168.30.20 | VLAN 10 + 40 + WAN (:443) |
-| **odoo-web** | DMZ (MACVLAN) | 192.168.30.21 | Solo vía Nginx |
-| **vm-postgres** — PostgreSQL 16 | BD (VLAN 40) | 192.168.40.10 | Solo :5432 desde VLAN 30 (Odoo) y VLAN 40 (admins) |
+| **odoo-server** — Debian 12 host | DMZ (VLAN 30) | 192.168.30.10 | SSH/Cockpit solo VLAN 40 — HTTPS todos |
+| └─ **nginx-proxy** (Docker, port mapping) | DMZ (VLAN 30) | — (usa IP del host) | :80/:443 vía 192.168.30.10 |
+| └─ **odoo-web** (Docker, red interna) | DMZ (VLAN 30) | — (red `odoo_net`) | Solo vía nginx-proxy |
+| **db-server** — PostgreSQL 16 | BD (VLAN 40) | 192.168.40.10 | Solo :5432 desde VLAN 30 (Odoo) y VLAN 40 (admins) |
 
 ---
 
@@ -87,7 +87,7 @@ vagrant up             # Levanta las 3 VMs automáticamente
 
 | VM Vagrant | Rol | IP | Provision script |
 |---|---|---|---|
-| `pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | `vagrant/provision_pfsense.sh` |
+| `pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | VM manual — importar config.xml desde panel |
 | `odoo-server` | Debian 12 + Docker (Nginx + Odoo) | 192.168.30.10 | `vagrant/provision_debian.sh` |
 | `db-server` | PostgreSQL 16 nativo | 192.168.40.10 | `vagrant/provision_postgres.sh` |
 
@@ -111,8 +111,8 @@ vagrant up             # Levanta las 3 VMs automáticamente
 | 4 | Acceso a la interfaz web desde LAN |
 | 5 | Configuración OPT1 (VLAN 30 — DMZ) y OPT2 (VLAN 40 — Admin/BD) |
 | 6 | DHCP: LAN (.100–.200) y VLAN 40 (.10–.50) |
-| 7 | DNS Resolver: Host Override `erp.odoo.tfg.com → 192.168.30.20` |
-| 8 | NAT: WAN:80/443 → `192.168.30.20` (nginx MACVLAN) |
+| 7 | DNS Resolver: Host Override `erp.odoo.tfg.com → 192.168.30.10` (host odoo-server) |
+| 8 | NAT: WAN:80/443 → `192.168.30.10` (Nginx expone puertos del host) |
 | 9 | Reglas firewall: bloqueos anti-pivoting + permisos mínimos |
 | 10 | Desactivar Anti-Lockout tras confirmar acceso VLAN 40 |
 
@@ -121,7 +121,7 @@ Importar en **Diagnostics → Backup/Restore**.
 
 **Verificación rápida:**
 ```bash
-nslookup erp.odoo.tfg.com   # → 192.168.30.20 desde VLAN 10
+nslookup erp.odoo.tfg.com   # → 192.168.30.10 desde VLAN 10
 nc -zv 192.168.40.10 5432   # → Timeout (bloqueado) desde VLAN 10
 ```
 
@@ -164,10 +164,10 @@ psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'
 
 **→ Guía completa:** [`guias/GUIA_COMPLETA.md — Parte 3`](guias/GUIA_COMPLETA.md#parte-3--servidor-debian--docker--odoo)
 
-| Paso | Descripción |
-|:-----|:------------|
-| Parte 1 | VM Debian 13: IP estática `192.168.30.10`, Docker, Cockpit, clonar repo, `.env` |
-| Parte 2 | Red MACVLAN, SSL autofirmado, `docker compose up -d`, 2 contenedores `healthy`, cron |
+| Parte | Descripción |
+|:------|:------------|
+| Parte 1 | VM Debian 12: IP estática `192.168.30.10`, Docker, Cockpit, clonar repo, `.env` |
+| Parte 2 | SSL autofirmado, `docker compose up -d`, 2 contenedores `healthy` (bridge + port mapping), cron |
 | Parte 3 | Post-instalación Odoo: empresa, módulos, usuarios con roles, auditoría SQL |
 
 **Atajo:** `sudo bash vagrant/provision_debian.sh` ejecuta las partes 1 y 2 automáticamente.
@@ -226,8 +226,8 @@ sudo ufw status                # → active
 FASE 1 — Red
   ✅ pfSense: 4 interfaces activas (WAN + VLAN 10 + 30 + 40)
   ✅ DHCP VLAN 10 y VLAN 40
-  ✅ DNS: erp.odoo.tfg.com → 192.168.30.20
-  ✅ NAT: WAN 80/443 → nginx-proxy (192.168.30.20)
+  ✅ DNS: erp.odoo.tfg.com → 192.168.30.10
+  ✅ NAT: WAN 80/443 → nginx-proxy en host (192.168.30.10)
   ✅ Reglas: anti-pivoting + permisos mínimos
   ✅ Panel pfSense: solo VLAN 40
   ✅ Anti-Lockout desactivado
@@ -240,9 +240,9 @@ FASE 2 — PostgreSQL
   ✅ Conectividad verificada desde vm-odoo
 
 FASE 3 — Servidor Odoo
-  ✅ vm-odoo: IP estática 192.168.30.10
+  ✅ odoo-server: IP estática 192.168.30.10
   ✅ Docker + Cockpit activos
-  ✅ MACVLAN: .20 (nginx-proxy) · .21 (odoo-web)
+  ✅ Bridge odoo_net: nginx-proxy (:80/:443 port mapping) + odoo-web (interno)
   ✅ 2 contenedores healthy (odoo-web + nginx-proxy)
   ✅ Odoo: empresa + módulos + usuarios con roles
   ✅ Auditoría SQL aplicada (audit_triggers.sql)

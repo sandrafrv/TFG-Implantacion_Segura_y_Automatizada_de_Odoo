@@ -2,22 +2,26 @@
 # ============================================================
 # SCRIPT: generate_pfsense_config.sh
 # DESCRIPCIÓN: Genera un config.xml completo para pfSense
-# con todas las reglas del proyecto TFG.
+#   con todas las reglas del proyecto TFG.
+#   Arquitectura: bridge Docker + port mapping (sin MACVLAN).
+#   Nginx y Odoo usan la IP del host (192.168.30.10).
 # USO: ./scripts/deploy/generate_pfsense_config.sh
 # ============================================================
 
 set -eu
 
-# ── Variables de red ──
+# ── Variables de red ──────────────────────────────────────────
 HOSTNAME="pfsense-tfg"
 DOMAIN="local"
 TIMEZONE="Europe/Madrid"
 
+# Interfaces físicas (adaptadores VMware: em0=WAN, em1=LAN, em2=DMZ, em3=ADMIN)
 WAN_IF="em0"
 LAN_IF="em1"
 DMZ_IF="em2"
 ADMIN_IF="em3"
 
+# IPs de gateways por interfaz
 LAN_IP="192.168.10.1"
 LAN_SUBNET="24"
 DMZ_IP="192.168.30.1"
@@ -25,34 +29,34 @@ DMZ_SUBNET="24"
 ADMIN_IP="192.168.40.1"
 ADMIN_SUBNET="24"
 
+# DHCP: LAN para clientes, ADMIN para administradores
 LAN_DHCP_START="192.168.10.100"
 LAN_DHCP_END="192.168.10.200"
 ADMIN_DHCP_START="192.168.40.10"
 ADMIN_DHCP_END="192.168.40.50"
 
-SERVER_IP="192.168.30.10"
-NGINX_IP="192.168.30.20"
-ODOO_IP="192.168.30.21"
-PGSQL_IP="192.168.40.10"
+# IPs de servidores
+# ARQUITECTURA ACTUAL (v2.0 — sin MACVLAN):
+#   Nginx y Odoo corren en Docker bridge en odoo-server.
+#   Nginx expone :80/:443 del HOST via port mapping.
+#   No existen IPs .20 ni .21 — solo la IP del host .10.
+SERVER_IP="192.168.30.10"   # odoo-server: nginx expone :80/:443, Odoo interno :8069
+PGSQL_IP="192.168.40.10"    # db-server: PostgreSQL 16 nativo
 
+# DNS Override: resuelve erp.odoo.tfg.com → host odoo-server
 DNS_HOST="erp"
 DNS_DOMAIN="odoo.tfg"
-DNS_TARGET="192.168.30.20"
+DNS_TARGET="${SERVER_IP}"   # 192.168.30.10 — Nginx port mapping en el host
 
 OUTPUT_FILE="config/pfsense_config.xml"
 
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 
-# ── Inicio del XML ──
-# FIX Bug 1: bcrypt-hash con valor placeholder inválido.
-#   El hash original "$2y$10$..." no es un hash bcrypt válido y pfSense
-#   rechaza la importación o impide el login. Se sustituye por un hash
+# ── Bloque XML: Sistema ───────────────────────────────────────
+# FIX v1: bcrypt-hash con valor placeholder inválido sustituido por hash
 #   real (coste 10) de la contraseña provisional "pfsense2024".
-#   IMPORTANTE: cambia la contraseña en el primer login tras importar.
-#
-# FIX Bug 2: <timeservers> duplicado dentro de <system>.
-#   El tag aparecía en las líneas 13 y 43 del bloque original.
-#   Se elimina la segunda ocurrencia (la del final del bloque <system>).
+#   IMPORTANTE: cambiar contraseña en el primer login tras importar.
+# FIX v2: <timeservers> duplicado dentro de <system> eliminado.
 cat > "$OUTPUT_FILE" << XMLEOF
 <?xml version="1.0"?>
 <pfsense>
@@ -100,7 +104,7 @@ cat > "$OUTPUT_FILE" << XMLEOF
  </system>
 XMLEOF
 
-# ── Interfaces, DHCP, DNS, NAT, Aliases, Firewall ──
+# ── Interfaces ────────────────────────────────────────────────
 {
 cat << XMLEOF
  <interfaces>
@@ -143,6 +147,7 @@ cat << XMLEOF
  </interfaces>
 XMLEOF
 
+# ── DHCP ──────────────────────────────────────────────────────
 cat << XMLEOF
  <dhcpd>
   <lan>
@@ -170,6 +175,9 @@ cat << XMLEOF
  </dhcpd>
 XMLEOF
 
+# ── DNS Resolver (Unbound) ────────────────────────────────────
+# Host Override: erp.odoo.tfg.com → 192.168.30.10 (host odoo-server)
+# Redirección DNS forzada: intercepta consultas externas en LAN y ADMIN
 cat << XMLEOF
  <unbound>
   <enable>on</enable>
@@ -180,13 +188,17 @@ cat << XMLEOF
    <host>${DNS_HOST}</host>
    <domain>${DNS_DOMAIN}</domain>
    <ip>${DNS_TARGET}</ip>
-   <descr>Odoo ERP</descr>
+   <descr>Odoo ERP — odoo-server host (Nginx port mapping 80/443)</descr>
   </hosts>
  </unbound>
 XMLEOF
 
+# ── NAT Port Forward ──────────────────────────────────────────
+# WAN:80/443 → SERVER_IP:80/443 (nginx-proxy vía Docker port mapping)
+# Redirección DNS: intercepta consultas :53 que salgan fuera
 cat << XMLEOF
  <nat>
+  <!-- WAN → odoo-server: Nginx expone :80/:443 del host vía Docker port mapping -->
   <rule>
    <source>
     <any></any>
@@ -196,10 +208,10 @@ cat << XMLEOF
     <port>80</port>
    </destination>
    <protocol>tcp</protocol>
-   <target>${NGINX_IP}</target>
+   <target>${SERVER_IP}</target>
    <local-port>80</local-port>
    <interface>wan</interface>
-   <descr>NAT HTTP to Nginx</descr>
+   <descr>NAT HTTP WAN to odoo-server (nginx port mapping)</descr>
    <associated-rule-id>nat</associated-rule-id>
   </rule>
   <rule>
@@ -211,70 +223,101 @@ cat << XMLEOF
     <port>443</port>
    </destination>
    <protocol>tcp</protocol>
-   <target>${NGINX_IP}</target>
+   <target>${SERVER_IP}</target>
    <local-port>443</local-port>
    <interface>wan</interface>
-   <descr>NAT HTTPS to Nginx</descr>
+   <descr>NAT HTTPS WAN to odoo-server (nginx port mapping)</descr>
    <associated-rule-id>nat</associated-rule-id>
+  </rule>
+  <!-- Forzar DNS interno: intercepta :53 externo en VLAN 10 y VLAN 40 -->
+  <rule>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <not></not>
+    <network>lan</network>
+    <port>53</port>
+   </destination>
+   <protocol>tcp/udp</protocol>
+   <target>${LAN_IP}</target>
+   <local-port>53</local-port>
+   <interface>lan</interface>
+   <descr>Redirect DNS VLAN10 to pfSense (fuerza DNS interno)</descr>
+  </rule>
+  <rule>
+   <source>
+    <network>opt2</network>
+   </source>
+   <destination>
+    <not></not>
+    <network>opt2</network>
+    <port>53</port>
+   </destination>
+   <protocol>tcp/udp</protocol>
+   <target>${ADMIN_IP}</target>
+   <local-port>53</local-port>
+   <interface>opt2</interface>
+   <descr>Redirect DNS VLAN40 to pfSense (fuerza DNS interno)</descr>
   </rule>
  </nat>
 XMLEOF
 
-# ── Aliases ──
-# FIX: La IP de PostgreSQL ahora usa la variable ${PGSQL_IP} en lugar
-#      de estar hardcodeada como 192.168.40.10. Así queda sincronizada
-#      con las reglas de firewall que también usan ${PGSQL_IP}.
+# ── Aliases ───────────────────────────────────────────────────
+# NOTA v2.0: Con bridge Docker, solo existe una IP real en la DMZ:
+#   SERVER_IP (192.168.30.10) = odoo-server host.
+#   Nginx y Odoo comparten la IP del host (port mapping).
 cat << XMLEOF
  <aliases>
+  <!-- odoo-server: host Debian donde corren nginx-proxy y odoo-web (Docker bridge) -->
   <alias>
-   <name>Servidor_Debian</name>
+   <name>Odoo_Server</name>
    <type>host</type>
    <address>${SERVER_IP}</address>
-   <descr></descr>
+   <descr>odoo-server host — Nginx :80/:443 (port mapping) + Odoo :8069 (interno)</descr>
   </alias>
-  <alias>
-   <name>Nginx_Proxy</name>
-   <type>host</type>
-   <address>${NGINX_IP}</address>
-   <descr></descr>
-  </alias>
-  <alias>
-   <name>Odoo_Web</name>
-   <type>host</type>
-   <address>${ODOO_IP}</address>
-   <descr></descr>
-  </alias>
+  <!-- db-server: PostgreSQL 16 nativo en VLAN 40 -->
   <alias>
    <name>PostgreSQL_VM</name>
    <type>host</type>
    <address>${PGSQL_IP}</address>
-   <descr></descr>
+   <descr>db-server — PostgreSQL 16 nativo VLAN 40</descr>
   </alias>
+  <!-- Redes por VLAN -->
   <alias>
    <name>VLAN_Clientes</name>
    <type>network</type>
    <address>192.168.10.0/24</address>
-   <descr></descr>
+   <descr>VLAN 10 — PCs empleados</descr>
+  </alias>
+  <alias>
+   <name>VLAN_DMZ</name>
+   <type>network</type>
+   <address>192.168.30.0/24</address>
+   <descr>VLAN 30 — DMZ (odoo-server)</descr>
   </alias>
   <alias>
    <name>VLAN_Admin</name>
    <type>network</type>
    <address>192.168.40.0/24</address>
-   <descr></descr>
+   <descr>VLAN 40 — Administración y Base de Datos</descr>
   </alias>
  </aliases>
 XMLEOF
 
-# ── Firewall Rules ──
-# FIX Bug 3: Reglas con <destination> que solo tenían <port> sin dirección.
-#   pfSense requiere siempre un destino explícito. Se añade <any></any>
-#   en todas las reglas de internet (HTTP/HTTPS/DNS) de DMZ y ADMIN.
+# ── Firewall Rules ────────────────────────────────────────────
+# ORDEN CRÍTICO: los BLOCK van siempre ANTES que los PASS.
 #
-# FIX Bug 4: <address>opt2ip</address> es sintaxis incorrecta.
-#   Para referirse a la propia interfaz se usa <network>(self)</network>,
-#   o bien la IP directa. Se sustituye por ${ADMIN_IP} en ambas reglas.
+# FIX v3: <destination> con solo <port> sin dirección es inválido en pfSense.
+#   Las reglas de salida a Internet usan <any></any> como destino.
+# FIX v4: pfSense panel se referencia con <network>(self)</network>,
+#   no con la IP de la interfaz en el destino de reglas allow-admin.
+# FIX v5: Regla Odoo→PostgreSQL usa SERVER_IP como origen
+#   (los contenedores Docker salen con la IP del host, no con IP propia).
 cat << XMLEOF
  <filter>
+  <!-- ═══════ WAN ═══════════════════════════════════════════ -->
+  <!-- Solo HTTP/HTTPS público; todo lo demás bloqueado -->
   <rule>
    <type>pass</type>
    <interface>wan</interface>
@@ -287,7 +330,7 @@ cat << XMLEOF
     <network>wanip</network>
     <port>80</port>
    </destination>
-   <descr>Allow HTTP WAN</descr>
+   <descr>WAN: Allow HTTP publico (redirige a HTTPS via Nginx)</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -301,7 +344,7 @@ cat << XMLEOF
     <network>wanip</network>
     <port>443</port>
    </destination>
-   <descr>Allow HTTPS WAN</descr>
+   <descr>WAN: Allow HTTPS publico → Odoo via Nginx</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -313,8 +356,11 @@ cat << XMLEOF
    <destination>
     <any></any>
    </destination>
-   <descr>Block all other WAN</descr>
+   <descr>WAN: Deny all (excepto 80/443 arriba)</descr>
   </rule>
+
+  <!-- ═══════ LAN / VLAN 10 — Clientes ═══════════════════════ -->
+  <!-- BLOQUEOS primero (orden crítico) -->
   <rule>
    <type>block</type>
    <interface>lan</interface>
@@ -325,7 +371,7 @@ cat << XMLEOF
    <destination>
     <address>192.168.40.0/24</address>
    </destination>
-   <descr>Block LAN to Admin</descr>
+   <descr>LAN: Block → VLAN Admin/BD (anti-pivoting)</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -338,7 +384,7 @@ cat << XMLEOF
     <address>${SERVER_IP}</address>
     <port>22</port>
    </destination>
-   <descr>Block SSH to DMZ Server</descr>
+   <descr>LAN: Block SSH a odoo-server</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -351,7 +397,7 @@ cat << XMLEOF
     <address>${SERVER_IP}</address>
     <port>9090</port>
    </destination>
-   <descr>Block Cockpit to DMZ Server</descr>
+   <descr>LAN: Block Cockpit a odoo-server</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -361,11 +407,12 @@ cat << XMLEOF
     <network>lan</network>
    </source>
    <destination>
-    <address>192.168.30.0/24</address>
-    <port>5432</port>
+    <address>${SERVER_IP}</address>
+    <port>8069</port>
    </destination>
-   <descr>Block LAN to DMZ PostgreSQL port</descr>
+   <descr>LAN: Block acceso directo a Odoo (solo via Nginx)</descr>
   </rule>
+  <!-- PERMISOS: solo Odoo e Internet -->
   <rule>
    <type>pass</type>
    <interface>lan</interface>
@@ -375,10 +422,10 @@ cat << XMLEOF
     <network>lan</network>
    </source>
    <destination>
-    <address>${NGINX_IP}</address>
+    <address>${SERVER_IP}</address>
     <port>80</port>
    </destination>
-   <descr>Allow LAN HTTP to Nginx</descr>
+   <descr>LAN: Allow HTTP → odoo-server (Nginx port mapping)</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -389,10 +436,52 @@ cat << XMLEOF
     <network>lan</network>
    </source>
    <destination>
-    <address>${NGINX_IP}</address>
+    <address>${SERVER_IP}</address>
     <port>443</port>
    </destination>
-   <descr>Allow LAN HTTPS to Nginx</descr>
+   <descr>LAN: Allow HTTPS → odoo-server (Nginx port mapping)</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <any></any>
+    <port>80</port>
+   </destination>
+   <descr>LAN: Allow HTTP Internet (navegacion)</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>tcp</protocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <any></any>
+    <port>443</port>
+   </destination>
+   <descr>LAN: Allow HTTPS Internet (navegacion)</descr>
+  </rule>
+  <rule>
+   <type>pass</type>
+   <interface>lan</interface>
+   <ipprotocol>inet</ipprotocol>
+   <protocol>udp</protocol>
+   <source>
+    <network>lan</network>
+   </source>
+   <destination>
+    <network>lanip</network>
+    <port>53</port>
+   </destination>
+   <descr>LAN: Allow DNS → pfSense (forzado por NAT redirect)</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -404,8 +493,11 @@ cat << XMLEOF
    <destination>
     <any></any>
    </destination>
-   <descr>Block all other LAN</descr>
+   <descr>LAN: Deny all (resto)</descr>
   </rule>
+
+  <!-- ═══════ OPT1 / DMZ / VLAN 30 ════════════════════════════ -->
+  <!-- BLOQUEOS anti-pivoting primero (CRÍTICO) -->
   <rule>
    <type>block</type>
    <interface>opt1</interface>
@@ -416,7 +508,7 @@ cat << XMLEOF
    <destination>
     <address>192.168.10.0/24</address>
    </destination>
-   <descr>Anti-pivoting: DMZ to LAN</descr>
+   <descr>DMZ: Block → VLAN 10 (anti-pivoting)</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -428,21 +520,23 @@ cat << XMLEOF
    <destination>
     <address>${LAN_IP}</address>
    </destination>
-   <descr>Block DMZ to pfSense LAN</descr>
+   <descr>DMZ: Block → pfSense LAN gateway</descr>
   </rule>
+  <!-- Regla explícita Odoo→PostgreSQL ANTES del bloque general a VLAN40 -->
+  <!-- FIX v5: origen es SERVER_IP (los contenedores salen con la IP del host) -->
   <rule>
    <type>pass</type>
    <interface>opt1</interface>
    <ipprotocol>inet</ipprotocol>
    <protocol>tcp</protocol>
    <source>
-    <address>${ODOO_IP}</address>
+    <address>${SERVER_IP}</address>
    </source>
    <destination>
     <address>${PGSQL_IP}</address>
     <port>5432</port>
    </destination>
-   <descr>Allow Odoo to PostgreSQL VLAN 40</descr>
+   <descr>DMZ: Allow odoo-server → PostgreSQL VLAN 40 (Odoo→BD)</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -454,8 +548,9 @@ cat << XMLEOF
    <destination>
     <address>192.168.40.0/24</address>
    </destination>
-   <descr>Block DMZ to rest of Admin VLAN</descr>
+   <descr>DMZ: Block → VLAN Admin (resto, excepto regla Odoo→PG arriba)</descr>
   </rule>
+  <!-- Salida mínima a Internet para actualizaciones del servidor -->
   <rule>
    <type>pass</type>
    <interface>opt1</interface>
@@ -468,7 +563,7 @@ cat << XMLEOF
     <any></any>
     <port>80</port>
    </destination>
-   <descr>Allow DMZ HTTP</descr>
+   <descr>DMZ: Allow HTTP salida (actualizaciones Docker/apt)</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -482,7 +577,7 @@ cat << XMLEOF
     <any></any>
     <port>443</port>
    </destination>
-   <descr>Allow DMZ HTTPS</descr>
+   <descr>DMZ: Allow HTTPS salida (GitHub Actions, Docker Hub, apt)</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -496,7 +591,7 @@ cat << XMLEOF
     <any></any>
     <port>53</port>
    </destination>
-   <descr>Allow DMZ DNS</descr>
+   <descr>DMZ: Allow DNS salida</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -508,8 +603,12 @@ cat << XMLEOF
    <destination>
     <any></any>
    </destination>
-   <descr>Block all other DMZ</descr>
+   <descr>DMZ: Deny all (resto)</descr>
   </rule>
+
+  <!-- ═══════ OPT2 / VLAN 40 — Admin + BD ═════════════════════ -->
+  <!-- Acceso total a gestión: pfSense panel, SSH, Cockpit, PostgreSQL, Odoo admin -->
+  <!-- FIX v4: panel pfSense referenciado con <network>(self)</network> -->
   <rule>
    <type>pass</type>
    <interface>opt2</interface>
@@ -519,24 +618,10 @@ cat << XMLEOF
     <network>opt2</network>
    </source>
    <destination>
-    <address>${ADMIN_IP}</address>
+    <network>(self)</network>
     <port>443</port>
    </destination>
-   <descr>Allow Admin HTTPS to pfSense</descr>
-  </rule>
-  <rule>
-   <type>pass</type>
-   <interface>opt2</interface>
-   <ipprotocol>inet</ipprotocol>
-   <protocol>tcp</protocol>
-   <source>
-    <network>opt2</network>
-   </source>
-   <destination>
-    <address>${ADMIN_IP}</address>
-    <port>22</port>
-   </destination>
-   <descr>Allow Admin SSH to pfSense</descr>
+   <descr>ADMIN: Allow → panel pfSense HTTPS (acceso exclusivo VLAN40)</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -550,7 +635,7 @@ cat << XMLEOF
     <address>${SERVER_IP}</address>
     <port>22</port>
    </destination>
-   <descr>Allow Admin SSH to DMZ Server</descr>
+   <descr>ADMIN: Allow SSH → odoo-server</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -564,7 +649,7 @@ cat << XMLEOF
     <address>${SERVER_IP}</address>
     <port>9090</port>
    </destination>
-   <descr>Allow Admin Cockpit to DMZ Server</descr>
+   <descr>ADMIN: Allow Cockpit → odoo-server</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -575,10 +660,10 @@ cat << XMLEOF
     <network>opt2</network>
    </source>
    <destination>
-    <address>${NGINX_IP}</address>
+    <address>${SERVER_IP}</address>
     <port>443</port>
    </destination>
-   <descr>Allow Admin HTTPS to Nginx</descr>
+   <descr>ADMIN: Allow HTTPS → odoo-server (Nginx admin panel completo)</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -592,7 +677,7 @@ cat << XMLEOF
     <address>${PGSQL_IP}</address>
     <port>5432</port>
    </destination>
-   <descr>Allow Admin to PostgreSQL</descr>
+   <descr>ADMIN: Allow DBA → PostgreSQL directo</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -606,7 +691,7 @@ cat << XMLEOF
     <any></any>
     <port>80</port>
    </destination>
-   <descr>Allow Admin HTTP</descr>
+   <descr>ADMIN: Allow HTTP Internet (actualizaciones)</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -620,7 +705,7 @@ cat << XMLEOF
     <any></any>
     <port>443</port>
    </destination>
-   <descr>Allow Admin HTTPS</descr>
+   <descr>ADMIN: Allow HTTPS Internet (actualizaciones)</descr>
   </rule>
   <rule>
    <type>pass</type>
@@ -634,7 +719,7 @@ cat << XMLEOF
     <any></any>
     <port>53</port>
    </destination>
-   <descr>Allow Admin DNS</descr>
+   <descr>ADMIN: Allow DNS</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -646,7 +731,7 @@ cat << XMLEOF
    <destination>
     <address>192.168.10.0/24</address>
    </destination>
-   <descr>Block Admin to LAN</descr>
+   <descr>ADMIN: Block → VLAN 10 (segmentacion estricta)</descr>
   </rule>
   <rule>
    <type>block</type>
@@ -658,7 +743,7 @@ cat << XMLEOF
    <destination>
     <any></any>
    </destination>
-   <descr>Block all other Admin</descr>
+   <descr>ADMIN: Deny all (resto)</descr>
   </rule>
  </filter>
 </pfsense>
@@ -671,10 +756,12 @@ echo ""
 echo "=== Instrucciones de importacion ==="
 echo "1. Copiar el archivo a un USB o compartirlo por red"
 echo "2. En pfSense: Diagnostics → Backup/Restore"
-echo "3. Pestaña 'Restore Backup Configuration'"
+echo "3. Pestana 'Restore Backup Configuration'"
 echo "4. Seleccionar el archivo y pulsar 'Restore Configuration'"
 echo "5. pfSense se reiniciara con la configuracion aplicada"
 echo ""
 echo "=== Post-importacion ==="
 echo "6. Cambiar la contrasena admin en el primer login (password actual: pfsense2024)"
-echo "7. Verificar acceso desde VLAN 40: https://192.168.40.1"
+echo "7. Verificar acceso desde VLAN 40: https://${ADMIN_IP}"
+echo "8. Verificar DNS: nslookup erp.odoo.tfg.com  →  ${DNS_TARGET}"
+echo "9. Verificar NAT: curl -k https://${SERVER_IP}  →  debe devolver Odoo"

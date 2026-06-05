@@ -1,6 +1,6 @@
 # Configuración de Reglas en pfSense (Firewall y NAT)
 
-> **Última actualización:** Mayo 2026 — v1.7 (arquitectura con 3 VMs Vagrant, PostgreSQL en VLAN 40, sin LDAP)
+> **Última actualización:** Junio 2026 — v2.0 (arquitectura con 2 VMs Vagrant, PostgreSQL en VLAN 40, sin LDAP, sin MACVLAN — bridge Docker + port mapping)
 
 Este documento detalla todas las reglas configuradas en pfSense para la arquitectura de red del proyecto TFG.
 La infraestructura cuenta con **cuatro interfaces**: **WAN** (red pública), **LAN/VLAN 10** (clientes 192.168.10.0/24), **OPT1/DMZ/VLAN 30** (zona desmilitarizada 192.168.30.0/24) y **OPT2/VLAN 40** (administración y base de datos 192.168.40.0/24).
@@ -79,8 +79,8 @@ Controla el tráfico desde la red de clientes (192.168.10.0/24). Los clientes so
 | 3 |  Block | * | LAN | `192.168.30.10` | 9090 | Bloquear Cockpit |
 | 4 |  Block | * | LAN | `192.168.30.0/24` | 5432 | Bloquear PostgreSQL (VLAN 40 ya bloqueada por regla 1) |
 | 5 | ~~Pass~~ | IPv4 * | LAN subnets | * | * | ~~Default allow LAN to any~~ *(desactivada)* |
-| 6 |  Pass | IPv4 TCP | LAN subnets | `192.168.30.20` | 80 | Odoo HTTP vía Nginx (MACVLAN) |
-| 7 |  Pass | IPv4 TCP | LAN subnets | `192.168.30.20` | 443 | Odoo HTTPS vía Nginx (MACVLAN) |
+| 6 |  Pass | IPv4 TCP | LAN subnets | `192.168.30.10` | 80 | Odoo HTTP vía Nginx (host odoo-server) |
+| 7 |  Pass | IPv4 TCP | LAN subnets | `192.168.30.10` | 443 | Odoo HTTPS vía Nginx (host odoo-server) |
 | 8 |  Pass | IPv4 * | LAN subnets | * | * | Navegación general Internet |
 | 9 |  Block | IPv4 * | * | * | * | **Deny all** ← ¡ÚLTIMO! |
 
@@ -88,7 +88,7 @@ Controla el tráfico desde la red de clientes (192.168.10.0/24). Los clientes so
 
 - La **"Default allow LAN to any"** (regla 5) debe estar **desactivada** (en gris). Se sustituye por reglas específicas.
 - La regla Anti-Lockout automática de pfSense debe desactivarse desde *System → Advanced → Admin Access → Disable anti-lockout rule* **solo después** de confirmar acceso desde VLAN 40.
-- Los puertos 8069 y 8072 (Odoo nativo y WebSocket) **no se abren directamente** — los clientes acceden solo a través de Nginx en los puertos 80/443 de la IP MACVLAN `192.168.30.20`.
+- Los puertos 8069 y 8072 (Odoo nativo y WebSocket) **no se abren directamente** — los clientes acceden solo a través de Nginx en los puertos 80/443 del host `192.168.30.10` (Docker port mapping).
 - **LDAP eliminado:** no hay reglas de acceso a `192.168.30.22`. Si se despliega LDAP opcional, añadir regla antes del Deny all.
 
 ---
@@ -115,7 +115,7 @@ Controla el tráfico desde el servidor Debian y los contenedores (192.168.30.0/2
 ###  Puntos clave — DMZ
 
 - La regla 3 (`odoo-web → PostgreSQL`) debe ir **antes** del bloqueo general a VLAN 40 (regla 4).
-- PostgreSQL en VLAN 40 (`192.168.40.10:5432`) solo es accesible desde `192.168.30.21` (odoo-web MACVLAN).
+- PostgreSQL en VLAN 40 (`192.168.40.10:5432`) solo es accesible desde `192.168.30.10` (odoo-server — el host Debian donde corre el contenedor odoo-web).
 - Las reglas 1 y 2 de bloqueo deben estar siempre arriba del todo para evitar pivoting.
 - **LDAP eliminado:** no hay ninguna regla de acceso a `192.168.30.22`.
 
@@ -180,7 +180,7 @@ La VLAN 40 (`192.168.40.0/24`) es la **red exclusiva de administración y base d
 | 1 |  Pass | TCP | VLAN 40 | `This Firewall` | 443 | **Panel pfSense** ← acceso exclusivo |
 | 2 |  Pass | TCP | VLAN 40 | `192.168.30.10` | 22 | SSH al servidor Debian |
 | 3 |  Pass | TCP | VLAN 40 | `192.168.30.10` | 9090 | Cockpit — gestión visual |
-| 4 |  Pass | TCP | VLAN 40 | `192.168.30.20` | 443 | Nginx/Odoo admin completo (MACVLAN) |
+| 4 |  Pass | TCP | VLAN 40 | `192.168.30.10` | 443 | Nginx/Odoo admin completo (host port mapping) |
 | 5 |  Pass | TCP | VLAN 40 | `192.168.40.10` | 5432 | **Acceso DBA directo a PostgreSQL** |
 | 6 |  Pass | TCP | VLAN 40 | * | 80, 443 | Actualizaciones Internet |
 | 7 |  Pass | UDP | VLAN 40 | * | 53 | DNS resolución |
@@ -199,12 +199,12 @@ La VLAN 40 (`192.168.40.0/24`) es la **red exclusiva de administración y base d
 
 ### Entradas WAN → DMZ (acceso público a Odoo)
 
-El tráfico público entra por la WAN y se redirige a la IP MACVLAN de `nginx-proxy` (`192.168.30.20`):
+El tráfico público entra por la WAN y se redirige al host `odoo-server` (`192.168.30.10`) donde nginx-proxy expone los puertos vía Docker port mapping:
 
 | Interfaz | Proto | Source | Destino | Puerto entrada | Redirige a | Puerto destino | Descripción |
 |:---:|:---:|:---:|:---|:---:|:---|:---:|:---|
-| WAN | TCP | * | WAN address | 80 | `192.168.30.20` | 80 | HTTP → nginx-proxy MACVLAN |
-| WAN | TCP | * | WAN address | 443 | `192.168.30.20` | 443 | HTTPS → nginx-proxy MACVLAN |
+| WAN | TCP | * | WAN address | 80 | `192.168.30.10` | 80 | HTTP → nginx-proxy (port mapping host) |
+| WAN | TCP | * | WAN address | 443 | `192.168.30.10` | 443 | HTTPS → nginx-proxy (port mapping host) |
 
 ### Redirección DNS (forzar DNS interno por VLAN)
 
@@ -213,7 +213,7 @@ El tráfico público entra por la WAN y se redirige a la IP MACVLAN de `nginx-pr
 | LAN | TCP/UDP | `192.168.10.0/24` | * | 53 | `192.168.10.1` | Forzar DNS VLAN 10 → pfSense |
 | OPT2 | TCP/UDP | `192.168.40.0/24` | * | 53 | `192.168.40.1` | Forzar DNS VLAN 40 → pfSense |
 
-> **Por qué es necesario:** Los clientes Linux modernos con `systemd-resolved` pueden ignorar el DNS del DHCP y enviar consultas a 8.8.8.8. Esta regla intercepta cualquier consulta DNS desde cada VLAN y la redirige a pfSense, garantizando que `erp.odoo.tfg.com` resuelva siempre a `192.168.30.20`.
+> **Por qué es necesario:** Los clientes Linux modernos con `systemd-resolved` pueden ignorar el DNS del DHCP y enviar consultas a 8.8.8.8. Esta regla intercepta cualquier consulta DNS desde cada VLAN y la redirige a pfSense, garantizando que `erp.odoo.tfg.com` resuelva siempre a `192.168.30.10`.
 
 ### NAT Outbound
 
@@ -252,7 +252,7 @@ Con el modo automático pfSense aplica NAT a todas las subnets internas. Si usas
 | Range | `192.168.40.10 – 192.168.40.50` |
 | DNS Server 1 | `192.168.40.1` |
 
-> La DMZ (VLAN 30) **no usa DHCP**. Las IPs son estáticas configuradas directamente en el servidor Debian y en los ficheros Docker MACVLAN.
+> La DMZ (VLAN 30) **no usa DHCP**. Las IPs son estáticas configuradas directamente en el servidor Debian. Los contenedores no tienen IP propia en la VLAN 30 — usan Docker port mapping al host.
 
 ---
 
@@ -273,11 +273,12 @@ Con el modo automático pfSense aplica NAT a todas las subnets internas. Si usas
 |---|---|
 | Host | `erp.odoo` |
 | Domain | `tfg.com` |
-| IP Address | `192.168.30.20` |
-| Description | `nginx-proxy Odoo ERP — DMZ MACVLAN` |
+| IP Address | `192.168.30.10` |
+| Description | `nginx-proxy Odoo ERP — DMZ host odoo-server (port mapping 80/443)` |
 
-> **⚠️ Importante:** La IP debe apuntar a `192.168.30.20` (`nginx-proxy` MACVLAN), **no** a `192.168.30.10` (servidor Debian host).
-> Es Nginx quien termina SSL y redirige a Odoo. Apuntar al host Debian haría que el DNS resolviese a una IP que no escucha en 443 directamente.
+> **⚠️ Nota v2.0:** Con MACVLAN descartado, el DNS debe apuntar a `192.168.30.10` (host odoo-server),
+> que es donde Nginx expone los puertos 80 y 443 vía Docker port mapping.
+> Nginx termina SSL y redirige a odoo-web internamente a través de la red `odoo_net`.
 
 ### Flujo completo de resolución DNS
 
@@ -289,21 +290,22 @@ Cliente VLAN 10 (systemd-resolved envía consulta a 8.8.8.8:53)
         ▼  Redirige a 192.168.10.1:53
         │
 [ pfSense DNS Resolver ]
-        │  Host Override → erp.odoo.tfg.com = 192.168.30.20
+        │  Host Override → erp.odoo.tfg.com = 192.168.30.10
         ▼
-Cliente recibe 192.168.30.20 → abre HTTPS → nginx-proxy → Odoo
+Cliente recibe 192.168.30.10 → abre HTTPS → nginx-proxy (port mapping :443) → Odoo
 ```
 
 ---
 
-## Tabla IPs MACVLAN — DMZ
+## Tabla IPs DMZ
 
-| Contenedor | Red interna (`odoo_net`) | IP MACVLAN (`macvlan_vlan30`) | Acceso |
+| Contenedor | Red interna (`odoo_net`) | IP en red VLAN 30 | Acceso externo |
 |:---|:---|:---|:---|
-| `nginx-proxy` (Nginx Alpine) | 172.19.0.4 | `192.168.30.20` | Todos (80/443) — entrada principal |
-| `odoo-web` (Odoo 17) | 172.19.0.3 | `192.168.30.21` | Solo vía Nginx (8069/8072 internos) |
+| `nginx-proxy` (Nginx Alpine) | 172.19.0.x | — (usa IP del host `192.168.30.10`) | Via port mapping :80/:443 del host |
+| `odoo-web` (Odoo 17) | 172.19.0.x | — (sin IP en VLAN 30) | Solo vía nginx-proxy (interno :8069) |
 
-> **PostgreSQL:** no es un contenedor Docker — está en `vm-postgres` (`192.168.40.10`, VLAN 40).
+> **MACVLAN descartado (v1.9):** VMware host-only no permite promiscuous mode. Los contenedores usan Docker bridge + port mapping.
+> **PostgreSQL:** no es un contenedor Docker — está en `db-server` (`192.168.40.10`, VLAN 40).
 > **LDAP eliminado:** no hay `openldap` ni IP `192.168.30.22` en el despliegue principal.
 
 ---
@@ -358,7 +360,7 @@ docker exec nginx-proxy nginx -t
 
 ```bash
 # Desde cliente VLAN 10
-nslookup erp.odoo.tfg.com            # Debe devolver 192.168.30.20
+nslookup erp.odoo.tfg.com            # Debe devolver 192.168.30.10
 curl -k -I https://erp.odoo.tfg.com  # Debe devolver HTTP/2 200
 
 # Desde admin VLAN 40
@@ -375,6 +377,8 @@ nc -zv 192.168.40.10 5432            # → Timeout ✅ (BD no accesible)
 
 ## Checklist de configuración completa
 
+### Flujo completo de resolución DNS
+
 ```
 ✅ Interfaces asignadas
    ├─ WAN  → IP externa (DHCP o estática)
@@ -389,13 +393,13 @@ nc -zv 192.168.40.10 5432            # → Timeout ✅ (BD no accesible)
 
 ✅ Firewall Rules
    ├─ WAN  → solo 80/443 público + deny all
-   ├─ LAN  → bloqueos VLAN40+admin primero + Odoo(MACVLAN.20)/Internet + deny all
+   ├─ LAN  → bloqueos VLAN40+admin primero + Odoo(:443 → host .10)/Internet + deny all
    ├─ OPT1 → bloqueos anti-pivoting + regla Odoo→PG(:5432) + salida mínima + deny all
    └─ OPT2 → panel pfSense + SSH/Cockpit/psql + deny all (sin reglas LDAP)
 
 ✅ NAT Port Forward
-   ├─ WAN :80  → 192.168.30.20:80   (nginx-proxy MACVLAN)
-   ├─ WAN :443 → 192.168.30.20:443  (nginx-proxy MACVLAN)
+   ├─ WAN :80  → 192.168.30.10:80   (nginx-proxy port mapping host)
+   ├─ WAN :443 → 192.168.30.10:443  (nginx-proxy port mapping host)
    ├─ LAN  DNS :53 → 192.168.10.1   (forzar DNS VLAN 10)
    └─ OPT2 DNS :53 → 192.168.40.1   (forzar DNS VLAN 40)
 
@@ -403,7 +407,7 @@ nc -zv 192.168.40.10 5432            # → Timeout ✅ (BD no accesible)
 
 ✅ DNS Resolver
    ├─ Habilitado en LAN, OPT1, OPT2, Localhost
-   └─ Host Override: erp.odoo.tfg.com → 192.168.30.20 (nginx-proxy MACVLAN) ← NO apuntar a .30.10
+   └─ Host Override: erp.odoo.tfg.com → 192.168.30.10 (host odoo-server, Nginx port mapping)
 
 ✅ System → Advanced → Admin Access
    └─ Disable anti-lockout rule (tras confirmar acceso desde VLAN 40)

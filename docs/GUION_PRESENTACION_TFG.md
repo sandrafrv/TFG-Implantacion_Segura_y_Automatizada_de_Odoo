@@ -30,7 +30,7 @@
 *   **VMware Workstation:** "Utilizando Vagrant junto a VMware, defino la CPU, RAM y los adaptadores de red (VMnet1, VMnet2, VMnet3) por código."
 *   **El Provisionamiento:** "Una vez Vagrant crea la 'cáscara' de la máquina, entra en juego mi suite de scripts en Bash (`provision_debian.sh`, `provision_postgres.sh`). Estos scripts hacen el trabajo duro sin que yo toque el teclado:"
     *   Instalan Docker y dependencias.
-    *   Configuran redes avanzadas como **MACVLAN**.
+    *   Configuran la red estática en la VLAN correspondiente.
     *   Instalan e inicializan PostgreSQL de forma remota.
     *   *Mencionar pfSense:* "Incluso el firewall pfSense se configura por código mediante un script en Bash que inyecta un archivo XML preconfigurado, ahorrando docenas de clics en la interfaz web."
 
@@ -39,7 +39,7 @@
 ## 4. Contenedores y Redes Avanzadas (3 min)
 
 *   **Docker Compose:** "La capa de aplicación corre sobre contenedores. El archivo `docker-compose.yml` define Odoo y Nginx. Al tenerlo en código, el entorno de desarrollo y el de producción son idénticos."
-*   **El reto técnico (MACVLAN):** "Para que el firewall pfSense pudiera filtrar tráfico a nivel de contenedor individual, implementé redes MACVLAN. Así, Nginx tiene la IP `.20` y Odoo la `.21`, siendo IPs reales dentro de la red DMZ, no IPs ocultas en la red interna de Docker."
+*   **La red Docker interna:** "Nginx y Odoo se comunican a través de una red bridge interna (`odoo_net`). Nginx es el único punto de entrada desde el exterior: expone los puertos 80 y 443 del host (`192.168.30.10`), y en su interior redirige el tráfico al contenedor Odoo por HTTP en el puerto 8069. Odoo nunca queda expuesto directamente al exterior."
 
 ---
 

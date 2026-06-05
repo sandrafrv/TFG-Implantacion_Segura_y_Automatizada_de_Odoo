@@ -5,6 +5,68 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ---
 
+## [v2.0 — 2026-06-03]
+
+### Corregido
+
+- **`scripts/deploy/configure.sh` — comentario de cabecera incorrecto** (🟡 BAJA):
+  El header del script indicaba que creaba `docker/.env` pero desde v1.7 el `.env` va
+  en la raíz del proyecto (`/opt/erp-odoo/.env`). Comentario actualizado con nota aclaratoria.
+
+- **`vagrant/provision_postgres.sh` — `cd` dentro de `if` con `./svc.sh` fuera del bloque** (🟠 MEDIA):
+  El bloque `if cd "${RUNNER_DIR}"; then ... fi` aislaba la instalación del servicio pero
+  `./svc.sh start` quedaba fuera, ejecutándose sin garantía de estar en el directorio correcto.
+  Corregido: `cd "${RUNNER_DIR}" || true` seguido de `./svc.sh install` y `./svc.sh start`
+  en el mismo nivel, sin condicional redundante.
+
+- **`scripts/deploy/erp.sh` — IPs de MACVLAN obsoletas en la cabecera** (🟠 MEDIA):
+  La función `cabecera()` mostraba `https://192.168.30.20` (nginx MACVLAN) y
+  `https://192.168.30.21` (odoo MACVLAN). MACVLAN fue descartado en v1.9.
+  Corregido: muestra `https://192.168.30.10` (odoo-server, port mapping) y
+  `192.168.40.10:5432` (db-server, PostgreSQL nativo VLAN 40).
+
+- **`scripts/mantenimiento/update.sh` — docker compose sin `--env-file`** (🟠 MEDIA):
+  `docker compose pull` y `docker compose up` no pasaban `--env-file`, por lo que
+  `POSTGRES_PASSWORD` podía no estar disponible al recrear los contenedores.
+  Corregido: se añade `--env-file "$ENV_FILE"` en ambas llamadas, coherente con
+  `deploy.sh` y `provision_debian.sh`. También añadida comprobación de existencia del `.env`.
+
+- **`docs/GUION_PRESENTACION_TFG.md` — referencias a MACVLAN en la sección de presentación** (🟡 BAJA):
+  El guión mencionaba redes MACVLAN e IPs `.20`/`.21` como reto técnico.
+  Actualizado para describir la arquitectura bridge Docker real, con Nginx haciendo
+  port mapping en el host `192.168.30.10` y Odoo aislado en la red interna `odoo_net`.
+
+- **`CLAUDE.md` — arquitectura y árbol de ficheros desactualizados** (🟡 BAJA):
+  - Se eliminan referencias a `provision_pfsense.sh` y `Explicacion_provision_postgres.md`
+    que no existen en el repositorio.
+  - Se corrige la descripción de los contenedores Docker (MACVLAN → bridge + port mapping).
+  - Se actualiza el árbol de ficheros para reflejar el repo real.
+  - Se añade advertencia explícita de por qué MACVLAN está descartado.
+  - Fecha de arquitectura actualizada de Mayo a Junio 2026.
+
+- **`scripts/deploy/generate_pfsense_config.sh` — variables de red apuntando a IPs MACVLAN** (🔴 CRÍTICA):
+  `NGINX_IP="192.168.30.20"` y `ODOO_IP="192.168.30.21"` eran las IPs de MACVLAN descartadas en v1.9.
+  El script generaba reglas NAT y firewall apuntando a IPs que ya no existen en la red.
+  Con bridge + port mapping, el único punto de entrada es el host `192.168.30.10`.
+  Corregido: `NGINX_IP="$SERVER_IP"` y `ODOO_IP="$SERVER_IP"` (ambas al host 192.168.30.10).
+  `DNS_TARGET` también actualizado a `$SERVER_IP` en lugar de la IP MACVLAN.
+
+- **`docs/HISTORIAL_IMPLEMENTACION.md` — tabla de estado con MACVLAN activa** (🟡 BAJA):
+  La tabla de estado del proyecto marcaba MACVLAN como "✅ Activa" y el DNS apuntando a `192.168.30.20`.
+  Actualizado: MACVLAN → "❌ Descartada", DNS → `192.168.30.10`, Vagrant → "2 VMs Debian".
+
+
+### Verificado
+
+- Revisión completa de todos los scripts (`deploy/`, `mantenimiento/`, `vagrant/`).
+- Revisión de todos los archivos de configuración (`docker-compose.yml`, `odoo.conf`, `odoo_proxy.conf`).
+- Revisión de pipelines CI/CD (`ci.yml`, `deploy.yml`).
+- Sin credenciales hardcodeadas en ningún archivo del repositorio.
+- `docker-compose.yml`: sintaxis YAML válida, healthchecks correctos.
+- Puerto 80 expuesto en `nginx` es **intencional** (redirección HTTP→HTTPS).
+
+---
+
 ## [Sin publicar]
 
 ### En progreso

@@ -1,8 +1,10 @@
 #!/bin/bash
 # ============================================================
 # SCRIPT: configure.sh
-# DESCRIPCIÓN: Crea el archivo docker/.env con las contraseñas
+# DESCRIPCIÓN: Crea el archivo .env en la raíz del proyecto con las contraseñas
 #              del entorno a partir de la plantilla .env.example.
+#              NOTA: el .env va en /opt/erp-odoo/.env (raíz), NO en docker/.env
+#              (docker compose busca el .env en el directorio de trabajo).
 # USO: bash scripts/deploy/configure.sh
 # ============================================================
 

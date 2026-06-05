@@ -154,9 +154,8 @@ if [ -f "${RUNNER_DIR}/config.sh" ] && [ -n "${GH_RUNNER_TOKEN:-}" ]; then
       --name '${RUNNER_NAME}' --labels 'self-hosted,linux,db' \
       --work '_work' --unattended --replace
   " || echo "  [AVISO] No se pudo registrar el runner."
-  if cd "${RUNNER_DIR}"; then
-    ./svc.sh install "${RUNNER_USER}" || true
-  fi
+  cd "${RUNNER_DIR}" || true
+  ./svc.sh install "${RUNNER_USER}" || true
   ./svc.sh start || true
 fi
 

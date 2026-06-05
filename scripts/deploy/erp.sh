@@ -68,8 +68,8 @@ cabecera() {
     echo "  ║         TechSolutions S.L. — Servidor DMZ               ║"
     echo "  ╚══════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
-    echo -e "  ${CYAN}Nginx${NC}  → https://192.168.30.20"
-    echo -e "  ${CYAN}Odoo${NC}   → https://192.168.30.21"
+    echo -e "  ${CYAN}Acceso${NC} → https://192.168.30.10  (odoo-server, Nginx expone 80/443)"
+    echo -e "  ${CYAN}BD${NC}     → 192.168.40.10:5432     (db-server, PostgreSQL nativo VLAN 40)"
     echo -e "  ${CYAN}Logs${NC}   → $LOG_FILE"
     echo ""
 }

@@ -13,7 +13,7 @@ Este archivo define cómo cualquier agente IA (Claude, Copilot, etc.) o colabora
 
 ---
 
-## Arquitectura Actual (Mayo 2026)
+## Arquitectura Actual (Junio 2026)
 
 | VM Vagrant | Rol | IP | VLAN |
 |---|---|---|---|
@@ -21,11 +21,15 @@ Este archivo define cómo cualquier agente IA (Claude, Copilot, etc.) o colabora
 | `odoo-server` | Debian 12 + Docker | 192.168.30.10 | VMnet2 (VLAN 30 — DMZ) |
 | `db-server` | PostgreSQL 16 nativo | 192.168.40.10 | VMnet3 (VLAN 40 — Admin/BD) |
 
-**Contenedores Docker activos** (solo en `odoo-server`):
-- `odoo-web` — Odoo 17, MACVLAN `192.168.30.21`
-- `nginx-proxy` — Nginx Alpine, MACVLAN `192.168.30.20`
+**Contenedores Docker activos** (solo en `odoo-server`, red bridge `odoo_net`):
+- `odoo-web` — Odoo 17, puerto interno 8069, no expuesto al exterior
+- `nginx-proxy` — Nginx Alpine, expone puertos 80/443 del host (192.168.30.10)
 
-> ⚠️ Los servicios `db` (PostgreSQL) y `ldap` (OpenLDAP) han sido **eliminados** del `docker-compose.yml`. PostgreSQL está en `vm-postgres` (`192.168.40.10`). LDAP está descartado — ver `extras/ldap/`.
+> ⚠️ **MACVLAN descartado**: VMware host-only (VMnet2/3) no permite modo promiscuo.
+> Los contenedores MACVLAN no son alcanzables desde el host ni desde otras IPs de la red.
+> La arquitectura actual usa bridge Docker + port mapping al host 192.168.30.10.
+
+> ⚠️ Los servicios `db` (PostgreSQL) y `ldap` (OpenLDAP) han sido **eliminados** del `docker-compose.yml`. PostgreSQL está en `db-server` (`192.168.40.10`). LDAP está descartado — ver `extras/ldap/`.
 
 ---
 
@@ -33,15 +37,14 @@ Este archivo define cómo cualquier agente IA (Claude, Copilot, etc.) o colabora
 
 ```
 TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
-├── Vagrantfile                        # Define las 3 VMs y sus redes (VMware)
+├── Vagrantfile                        # Define las 2 VMs Debian y sus redes (VMware)
 ├── scripts/setup_vmnet.ps1            # Configura VMnet1/2/3 antes de vagrant up
 ├── vagrant/                           # Scripts de aprovisionamiento
 │   ├── provision_debian.sh             # Aprovisiona odoo-server (Docker, Nginx, SSL, runner)
-│   ├── provision_pfsense.sh            # Aprovisiona pfsense
 │   ├── provision_postgres.sh           # Aprovisiona db-server (PG16, runner)
-│   └── Explicacion_provision_postgres.md
+│   └── Vagrantfile.pfsense-box         # Vagrantfile experimental para pfSense (referencia)
 ├── docker/
-│   ├── docker-compose.yml              # Solo odoo-web + nginx-proxy
+│   ├── docker-compose.yml              # Solo odoo-web + nginx-proxy (bridge odoo_net)
 │   └── odoo.conf                       # db_host = 192.168.40.10
 ├── scripts/
 │   ├── deploy/
@@ -55,7 +58,7 @@ TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
 │   │   ├── backup.sh                   # Backup legacy (referencia)
 │   │   ├── restore.sh                  # Restaura en BD externa
 │   │   ├── monitor.sh                  # Solo odoo-web + nginx-proxy
-│   │   └── update.sh                   # Actualiza imágenes Docker
+│   │   └── update.sh                   # Actualiza imágenes Docker (con --env-file)
 │   ├── odoo/
 │   │   ├── odoo_crear_usuarios.sh
 │   │   └── odoo_setup_wizard.sh
@@ -68,7 +71,6 @@ TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
 ├── config/logrotate.d/
 │   └── erp-odoo                        # Rota /var/log/backup_odoo.log y otros
 ├── extras/ldap/                       # LDAP descartado — mejora futura
-├── ldap/                              # estructura.ldif legacy
 ├── docs/                              # Documentación técnica completa
 ├── .env.example                       # Plantilla sin variables LDAP
 └── CLAUDE.md                          # Este archivo

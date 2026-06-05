@@ -2,9 +2,10 @@
 
 **TFG ASIR 2025/2026 — TechSolutions S.L.**
 
-> ⚠️ Este diagrama refleja la arquitectura **actual** (Mayo 2026):
-> PostgreSQL corre en una **VM externa** (`vm-postgres`, `192.168.40.10`, VLAN 40).
+> ⚠️ Este diagrama refleja la arquitectura **actual** (Junio 2026):
+> PostgreSQL corre en una **VM externa** (`db-server`, `192.168.40.10`, VLAN 40).
 > LDAP ha sido **descartado** del despliegue principal — ver `extras/ldap/`.
+> **MACVLAN descartado**: VMware host-only (VMnet2/3) no permite promiscuous mode.
 
 ---
 
@@ -29,21 +30,22 @@ graph TD
     end
 
     subgraph VLAN40["🟥 VLAN 40 — Administración & Base de Datos"]
-        POSTGRES["🗄️ vm-postgres\nPostgreSQL 16 — nativo\n192.168.40.10\n:5432"]
+        POSTGRES["🗄️ db-server\nPostgreSQL 16 — nativo\n192.168.40.10\n:5432"]
         ADMIN["👤 Admin / DBA\n192.168.40.x\nSSH · Cockpit · pfSense · psql"]
     end
 
     subgraph DMZ["🟩 VLAN 30 — DMZ"]
-        DEBIAN["🖧 vm-odoo · Host Debian 13\n192.168.30.10\nSSH :22 · Cockpit :9090"]
+        DEBIAN["🖧 odoo-server · Host Debian 12\n192.168.30.10\nSSH :22 · Cockpit :9090\nNginx expone :80/:443 (port mapping)"]
 
-        NGINX["🐳 nginx-proxy\nMACV: 192.168.30.20\n:80 :443"]
-        ODOO["🐳 odoo-web\nMACV: 192.168.30.21\n:8069 :8072"]
+        NGINX["🐳 nginx-proxy\nred interna odoo_net\n:80 :443 del host"]
+        ODOO["🐳 odoo-web\nred interna odoo_net\n:8069 solo interno"]
 
         NGINX -->|"reverse proxy :8069"| ODOO
     end
 
+    DEBIAN -->|"port mapping 80/443"| NGINX
     ODOO -->|"TCP :5432 — VLAN30→VLAN40"| POSTGRES
-    CLIENT -->|"HTTPS :443"| NGINX
+    CLIENT -->|"HTTPS :443"| DEBIAN
     ADMIN -->|"SSH :22"| DEBIAN
     ADMIN -->|"Cockpit :9090"| DEBIAN
     ADMIN -->|"psql :5432"| POSTGRES
@@ -76,38 +78,39 @@ graph TD
 | pfSense — gateway VLAN 10 | VLAN 10 | `192.168.10.1` | 443 (panel) | Solo VLAN 40 |
 | pfSense — gateway VLAN 30 (DMZ) | VLAN 30 | `192.168.30.1` | — | — |
 | pfSense — gateway VLAN 40 (Admin/BD) | VLAN 40 | `192.168.40.1` | 443 (panel) | Solo VLAN 40 |
-| **vm-odoo · Host Debian 13** | DMZ (VLAN 30) | `192.168.30.10` | 22, 9090 | Solo VLAN 40 |
-| **nginx-proxy** (MACVLAN) | DMZ (VLAN 30) | `192.168.30.20` | 80, 443 | VLAN 10 + VLAN 40 + WAN |
-| **odoo-web** (MACVLAN) | DMZ (VLAN 30) | `192.168.30.21` | 8069, 8072 (solo interno) | Solo vía Nginx |
-| **vm-postgres · PostgreSQL 16** | Admin/BD (VLAN 40) | `192.168.40.10` | 5432 | Solo VLAN 30 (Odoo) + VLAN 40 (admins) |
+| **odoo-server · Host Debian 12** | DMZ (VLAN 30) | `192.168.30.10` | 22, 9090, **80, 443** | SSH/Cockpit: VLAN 40 / HTTPS: todos |
+| └─ **nginx-proxy** (contenedor, port mapping) | DMZ (VLAN 30) | — (usa IP del host) | 80, 443 | Via host 192.168.30.10 |
+| └─ **odoo-web** (contenedor, red interna) | DMZ (VLAN 30) | — (solo red `odoo_net`) | 8069, 8072 (interno) | Solo vía nginx-proxy |
+| **db-server · PostgreSQL 16** | Admin/BD (VLAN 40) | `192.168.40.10` | 5432 | Solo VLAN 30 (Odoo) + VLAN 40 (admins) |
 | Clientes empleados | VLAN 10 | `192.168.10.100–200` | — | DHCP |
 | PCs administradores | VLAN 40 | `192.168.40.20–50` | — | DHCP |
 
 > **LDAP eliminado:** No hay ninguna IP `192.168.30.22` ni servicio `:389/:636` activo en el despliegue principal.
+> **MACVLAN eliminado:** Los contenedores NO tienen IPs propias en la red VLAN 30. Nginx expone los puertos 80/443 del host `192.168.30.10` vía Docker port mapping.
 
 ---
 
 ## Zonas de Seguridad y Políticas de Acceso
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│  INTERNET (WAN)                                                      │
-│  Solo puertos 80/443 redirigidos por NAT al nginx-proxy (192.168.30.20) │
-└───────────────────────────────┬──────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│  INTERNET (WAN)                                                       │
+│  Solo puertos 80/443 abiertos — NAT → 192.168.30.10 (host odoo)      │
+└────────────────────────────────┬──────────────────────────────────────┘
                                 │
                            [ pfSense ]
                                 │
-         ┌──────────────────────┼──────────────────────┐
+         ┌─────────────────────┼──────────────────────┐
          │                      │                      │
     VLAN 10                VLAN 30 (DMZ)          VLAN 40
   (Clientes)              (Servidor)           (Admin + BD)
  192.168.10.0/24         192.168.30.0/24     192.168.40.0/24
          │                      │                      │
-   PCs empleados       Debian 13 + Docker      Admins + DBAs
-   Acceso Odoo         Nginx / Odoo            PostgreSQL VM
-   solo HTTPS                 │                      │
-         │                    └──── :5432 ────────────┘
-         └─────── HTTPS :443 ──┘   (Odoo → PostgreSQL externo)
+   PCs empleados       Debian 12 + Docker      Admins + DBAs
+   Acceso Odoo         Nginx :80/:443          PostgreSQL VM
+   solo HTTPS          (port mapping host)            │
+         │                    └──── :5432 ─────────────┘
+         └─────── HTTPS :443 ──┤   (Odoo → PostgreSQL externo)
 ```
 
 ### Principio de anti-pivoting
@@ -128,19 +131,19 @@ graph TD
 ## Flujo de Acceso de un Empleado
 
 ```
-Empleado (VLAN 10) abre https://192.168.30.20
+Empleado (VLAN 10) abre https://192.168.30.10  ← (o https://erp.odoo.tfg.com → DNS resuelve a 192.168.30.10)
           │
           ▼  pfSense: VLAN10 → DMZ :443 → PASS ✅
           │
-     [ nginx-proxy — 192.168.30.20:443 ]
+     [ nginx-proxy — port mapping :443 en 192.168.30.10 ]
           │  Termina SSL/TLS
-          │  proxy_pass → odoo-web:8069
+          │  proxy_pass → odoo-web:8069 (red interna odoo_net)
           │
-     [ odoo-web — 192.168.30.21:8069 ]
+     [ odoo-web — 172.19.0.x:8069 (red Docker interna) ]
           │  Autenticación interna de Odoo
           │  Consulta BD remota → 192.168.40.10:5432
           │
-     [ vm-postgres — 192.168.40.10:5432 ]
+     [ db-server — 192.168.40.10:5432 ]
           │  PostgreSQL 16 nativo
           │  Responde consulta SQL
           │
@@ -156,21 +159,22 @@ Empleado (VLAN 10) abre https://192.168.30.20
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  Red Docker: odoo_net (bridge — 172.19.0.0/16)             │
-│                                                            │
-│  nginx-proxy ──────────────► odoo-web                     │
-│  (172.19.0.4)                (172.19.0.3)                  │
-│  + macvlan 192.168.30.20     + macvlan 192.168.30.21       │
-│                                │                           │
-│                                ▼ TCP :5432                 │
-│                       [ vm-postgres — 192.168.40.10 ]      │
-│                         (FUERA de Docker, VLAN 40)         │
+│  odoo-server (Debian 12) — 192.168.30.10                             │
+│                                                                      │
+│  Puerto 80/443 del host ← Docker port mapping                        │
+│                 │                                                    │
+│  Red Docker: odoo_net (bridge — 172.19.0.0/16)                       │
+│                                                                      │
+│  nginx-proxy (172.19.0.x) ────────► odoo-web (172.19.0.x)          │
+│  [puerto 80/443 mapeado al host]          │                          │
+│                                           ▼ TCP :5432               │
+│                              [ db-server — 192.168.40.10 ]           │
+│                                (FUERA de Docker, VLAN 40)            │
 └────────────────────────────────────────────────────────────┘
 ```
 
-> **Nota técnica MACVLAN:** Con el driver `macvlan`, el host Debian no puede comunicarse
-> directamente con las IPs MACVLAN de sus propios contenedores.
-> Para verificar desde el host: `docker run --rm --network macvlan_vlan30 alpine wget -qO- https://192.168.30.20`
+> **MACVLAN descartado** (v1.9): VMware host-only (VMnet2/3) no permite promiscuous mode.
+> Los contenedores acceden al exterior exclusivamente vía **Docker port mapping** al host `192.168.30.10`.
 
 ---
 
