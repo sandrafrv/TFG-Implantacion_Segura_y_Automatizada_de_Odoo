@@ -167,6 +167,11 @@ fi
 
 docker compose version || { echo "[ERROR] docker compose no encontrado." >&2; exit 1; }
 
+# ── Crear usuario runner ANTES del git clone ─────────────────
+if ! id "${RUNNER_USER}" &>/dev/null; then
+    useradd -m -s /bin/bash "${RUNNER_USER}"
+fi
+usermod -aG docker "${RUNNER_USER}" || true
 
 # ── PASO 7: Clonar repo ──────────────────────────────────────
 mkdir -p "${PROJECT_DIR}"
@@ -294,8 +299,8 @@ rm -f /etc/nginx/sites-enabled/default || true
 nginx -t && systemctl restart nginx || echo "  [AVISO] Nginx no arrancó."
 
 # ── PASO 11: Runner ──────────────────────────────────────────
-if ! id "${RUNNER_USER}" &>/dev/null; then useradd -m -s /bin/bash "${RUNNER_USER}"; fi
-usermod -aG docker "${RUNNER_USER}" || true
+###if ! id "${RUNNER_USER}" &>/dev/null; then useradd -m -s /bin/bash "${RUNNER_USER}"; fi
+###usermod -aG docker "${RUNNER_USER}" || true
 
 # Sudoers: el workflow de deploy (deploy.yml) necesita:
 #   1. sudo chown -R runner /opt/erp-odoo        → para git fetch/reset
