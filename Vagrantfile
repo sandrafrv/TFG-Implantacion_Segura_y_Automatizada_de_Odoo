@@ -20,6 +20,16 @@
 #   1. Encender pfSense manualmente en VMware
 #   2. vagrant up db-server      ← SIEMPRE primero
 #   3. vagrant up odoo-server
+#
+# RED:
+#   eth0 → NAT VMware (solo para provisioning inicial — se elimina como gateway)
+#   eth1 → VMnet personalizada (gateway: pfSense)
+#
+#   Al finalizar el provisioning, pfSense queda como único gateway.
+#   Persistencia garantizada mediante 3 capas:
+#     1. dhclient exit hook  → actúa en cada renovación DHCP de eth0
+#     2. systemd oneshot     → actúa en cada arranque del sistema
+#     3. interfaces.d        → gateway declarativo en eth1.cfg
 # ============================================================
 Vagrant.configure("2") do |config|
 
@@ -60,7 +70,9 @@ Vagrant.configure("2") do |config|
       }
     end
 
+    # ── Provisioner 1: PostgreSQL + GitHub Runner ────────────
     db.vm.provision "shell",
+      name:       "provision-postgres",
       path:       "vagrant/provision_postgres.sh",
       privileged: true,
       env: {
@@ -68,6 +80,31 @@ Vagrant.configure("2") do |config|
         "GH_PAT"            => ENV["GH_PAT"]             || "",
         "GH_RUNNER_TOKEN"   => ENV["GH_RUNNER_TOKEN_DB"] || "",
         "RUNNER_NAME"       => "db-runner"
+      }
+
+    # ── Provisioner 2: Deshabilitar NAT como gateway ─────────
+    # Se ejecuta DESPUÉS del provisioning principal.
+    # eth0 (NAT) se usó durante el provisioning para descargar
+    # paquetes. Al terminar, pfSense pasa a ser el único gateway.
+    #
+    # Persistencia (3 capas, ver vagrant/disable_nat_gateway.sh):
+    #   1. dhclient exit hook  → elimina ruta NAT en cada renovación DHCP
+    #   2. systemd oneshot     → elimina ruta NAT en cada arranque
+    #   3. interfaces.d/eth1   → gateway declarativo apuntando a pfSense
+    #
+    # Para re-aplicar en VMs ya creadas:
+    #   vagrant provision db-server --provision-with disable-nat-gateway
+    db.vm.provision "shell",
+      name:       "disable-nat-gateway",
+      path:       "vagrant/disable_nat_gateway.sh",
+      privileged: true,
+      env: {
+        "PFSENSE_GW"        => "192.168.40.1",
+        "VLAN_IFACE"        => "eth1",
+        "VLAN_IP"           => "192.168.40.10",
+        "VLAN_MASK"         => "255.255.255.0",
+        "EXTRA_ROUTE"       => "192.168.30.0/24",
+        "DOCKER_MASQUERADE" => "false"
       }
   end
 
@@ -105,7 +142,9 @@ Vagrant.configure("2") do |config|
       }
     end
 
+    # ── Provisioner 1: Odoo + Nginx + GitHub Runner ──────────
     deb.vm.provision "shell",
+      name:       "provision-odoo",
       path:       "vagrant/provision_debian.sh",
       privileged: true,
       env: {
@@ -115,6 +154,27 @@ Vagrant.configure("2") do |config|
         "GH_PAT"               => ENV["GH_PAT"]               || "",
         "GH_RUNNER_TOKEN"      => ENV["GH_RUNNER_TOKEN_ODOO"] || "",
         "RUNNER_NAME"          => "odoo-runner"
+      }
+
+    # ── Provisioner 2: Deshabilitar NAT como gateway ─────────
+    # Igual que db-server pero con la subred DMZ (192.168.30.x).
+    # DOCKER_MASQUERADE=true: los contenedores Odoo (172.18.0.0/16)
+    # deben aparecer con la IP del host ante pfSense; sin MASQUERADE,
+    # pfSense ve 172.18.0.x como origen y bloquea el tráfico.
+    #
+    # Para re-aplicar en VMs ya creadas:
+    #   vagrant provision odoo-server --provision-with disable-nat-gateway
+    deb.vm.provision "shell",
+      name:       "disable-nat-gateway",
+      path:       "vagrant/disable_nat_gateway.sh",
+      privileged: true,
+      env: {
+        "PFSENSE_GW"        => "192.168.30.1",
+        "VLAN_IFACE"        => "eth1",
+        "VLAN_IP"           => "192.168.30.10",
+        "VLAN_MASK"         => "255.255.255.0",
+        "EXTRA_ROUTE"       => "192.168.40.0/24",
+        "DOCKER_MASQUERADE" => "true"
       }
   end
 
