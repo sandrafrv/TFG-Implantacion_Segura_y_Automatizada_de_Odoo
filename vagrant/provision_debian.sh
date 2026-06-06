@@ -264,6 +264,33 @@ if [ -f "${COMPOSE_FILE}" ]; then
 
   docker ps --filter "name=odoo" \
     --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+
+  # ── Inicializar BD si PostgreSQL es alcanzable ───────────────
+  # Esperar hasta 5 minutos a que PostgreSQL (en db-server) esté disponible.
+  # Si pfSense está apagado, el timeout expira sin error y el usuario
+  # puede re-ejecutar 'sudo bash scripts/deploy/deploy.sh' más tarde.
+  echo "  [DB] Esperando PostgreSQL en ${POSTGRES_HOST}:5432 (máx. 5 min)..."
+  DB_READY=false
+  for i in $(seq 1 30); do
+    if timeout 3 bash -c "</dev/tcp/${POSTGRES_HOST}/5432" 2>/dev/null; then
+      DB_READY=true
+      echo "  [DB] PostgreSQL accesible (intento $i)."
+      break
+    fi
+    echo "  [DB] Intento $i/30 — esperando 10s..."
+    sleep 10
+  done
+
+  if [ "$DB_READY" = "true" ]; then
+    echo "  [DB] Lanzando inicialización de BD via deploy.sh..."
+    bash "${PROJECT_DIR}/scripts/deploy/deploy.sh" || \
+      echo "  [AVISO] deploy.sh terminó con error. Revisa los logs."
+  else
+    echo "  [DB] PostgreSQL no alcanzable — saltando inicialización BD."
+    echo "       Una vez que pfSense y db-server estén activos, ejecuta:"
+    echo "       sudo bash /opt/erp-odoo/scripts/deploy/deploy.sh"
+  fi
+
 else
   echo "  [AVISO] ${COMPOSE_FILE} no encontrado. Saltando."
 fi

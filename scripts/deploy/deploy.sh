@@ -93,18 +93,26 @@ except Exception:
 " 2>/dev/null || echo "f")
 
     if [ "$HAS_DB" = "f" ]; then
-        echo "  [!] BD vacía — inicializando Odoo (1-2 min)..."
+        echo "  [!] BD vacía — inicializando Odoo (2-5 min)..."
         MASTER_PASS=$(grep -E '^ODOO_MASTER_PASSWORD=' "$PROJECT_DIR/.env" \
             | cut -d= -f2- | tr -d '"')
-        docker exec odoo-web \
-            odoo -c /etc/odoo/odoo.conf \
-                 -w "$MASTER_PASS" \
-                 -d odoo_erp \
-                 -i base \
-                 --stop-after-init \
-                 --http-port=8070 \
-            || echo "  [AVISO] Inicialización BD falló. Se reintentará en el próximo deploy."
-        echo "  [OK] BD inicializada."
+        # IMPORTANTE: usar /entrypoint.sh como wrapper.
+        # El entrypoint lee las variables de entorno del contenedor
+        # (HOST, USER, PASSWORD) y las pasa como --db_host/--db_user/--db_password
+        # al proceso odoo. Sin el entrypoint, odoo no recibe la contraseña y
+        # falla con: FATAL: password authentication failed for user "odoo"
+        docker exec odoo-web /entrypoint.sh odoo \
+            -c /etc/odoo/odoo.conf \
+            -w "$MASTER_PASS" \
+            -d odoo_erp \
+            -i base \
+            --stop-after-init \
+            --http-port=8070 \
+            && echo "  [OK] BD inicializada." \
+            || echo "  [AVISO] Inicialización BD falló. Re-ejecuta: sudo bash scripts/deploy/deploy.sh"
+        # Reiniciar Odoo para que arranque limpio con la BD ya inicializada
+        docker restart odoo-web
+        echo "  [OK] Contenedor odoo-web reiniciado."
     else
         echo "  [OK] BD ya inicializada."
     fi

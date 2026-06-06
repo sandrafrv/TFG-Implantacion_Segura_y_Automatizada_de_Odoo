@@ -292,38 +292,40 @@ perl: warning: Falling back to the standard locale ("C").
 
 ## F.14 — Proxy Nginx → Odoo (puerto interno)
 
-**¿Qué muestra?** La respuesta 303 del endpoint interno de Odoo en el puerto 8069,
-verificando que Nginx redirige correctamente.
+**¿Qué muestra?** Que el contenedor `nginx-proxy` puede alcanzar `odoo-web` a través
+de la red Docker interna `odoo_net`, demostrando que el proxy inverso funciona correctamente.
 
 ### Cómo obtener la captura
 
-```bash
-# Dentro de la sesión SSH en odoo-server:
-curl -v http://localhost:8069/web/login 2>&1 | head -30
-```
-
-**Salida esperada:**
-
-```
-* Connected to localhost (127.0.0.1) port 8069
-> GET /web/login HTTP/1.1
-< HTTP/1.1 200 OK
-< Content-Type: text/html; charset=utf-8
-```
-
-O si se hace una petición a la raíz:
+> [!IMPORTANT]
+> El puerto 8069 de Odoo **NO está publicado al host VM** — solo existe dentro de la
+> red Docker interna `odoo_net`. Ejecutar `curl http://localhost:8069` desde la VM
+> siempre dará `Connection refused`. Los comandos correctos usan `docker exec`:
 
 ```bash
-curl -v http://localhost:8069/ 2>&1 | head -20
+# Dentro de la sesión SSH en odoo-server (como root):
+
+# Opción A — desde nginx-proxy hacia odoo-web (demuestra el routing interno Docker)
+# Esta es la ruta REAL que usa Nginx cuando reenvía peticiones HTTPS al backend Odoo
+docker exec nginx-proxy curl -s http://odoo-web:8069/web/health
+
+# Opción B — desde dentro del propio contenedor odoo-web
+docker exec odoo-web curl -s http://localhost:8069/web/health
 ```
 
-```
-< HTTP/1.1 303 See Other
-< Location: /web/login
+**Salida esperada (ambas opciones):**
+
+```json
+{"status": "pass"}
 ```
 
-4. **Capturar:** el terminal mostrando el comando `curl` y la respuesta con el código
-   HTTP (200 o 303) y las cabeceras de respuesta.
+> [!TIP]
+> **Usar la Opción A para la captura del TFG** — ejecutar el curl desde `nginx-proxy`
+> hacia `odoo-web:8069` demuestra visualmente que los dos contenedores se comunican
+> por la red interna `odoo_net` usando el nombre de servicio Docker como hostname,
+> que es exactamente el mecanismo que usa el proxy inverso.
+
+4. **Capturar:** el terminal mostrando ambos comandos y la respuesta `{"status": "pass"}`.
 
 > **Nombre del fichero sugerido:** `F14_nginx_proxy_odoo_interno.png`
 
@@ -648,6 +650,11 @@ self-hosted de `odoo-server`.
 
 **Capturar:** el job de CD con los steps expandidos y el label `self-hosted` visible.
 
+> [!NOTE]
+> Desde la corrección aplicada hoy, el `deploy.sh` usa `/entrypoint.sh odoo`
+> como wrapper para la inicialización de BD, por lo que el step `deploy.sh`
+> del pipeline CD incluirá la inicialización automática si la BD está vacía.
+
 > **Nombre del fichero sugerido:** `F10_workflow_cd_detalle.png`
 
 ---
@@ -659,6 +666,12 @@ self-hosted de `odoo-server`.
 >
 > ```powershell
 > ssh -i .vagrant\machines\odoo-server\vmware_desktop\private_key vagrant@192.168.40.20
+> ```
+>
+> Una vez dentro, elevar a root para tener permisos Docker:
+>
+> ```bash
+> sudo su
 > cd /opt/erp-odoo
 > ```
 
