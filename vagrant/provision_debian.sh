@@ -395,10 +395,50 @@ apt-get install -y -qq "${APT_OPTS[@]}" cockpit || echo "  [AVISO] Cockpit no in
 systemctl enable cockpit.socket || true
 systemctl start  cockpit.socket || true
 
+# ── PASO 14: Servicio systemd odoo-init (fallback de inicialización) ─
+# Si pfSense no estaba activo durante el vagrant up, la BD queda sin
+# inicializar. Este servicio ejecuta deploy.sh en cada arranque hasta
+# que Odoo responda correctamente, cubriendo el caso en que pfSense
+# se encienda DESPUÉS del provisioning.
+cat > /etc/systemd/system/odoo-init.service << 'SYSTEMD_EOF'
+[Unit]
+Description=Odoo BD init fallback (se ejecuta si Odoo no está healthy)
+After=docker.service network-online.target
+Wants=network-online.target
+# Solo si el servicio no ha tenido éxito antes
+ConditionPathExists=!/var/lib/odoo-init-done
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStartPre=/bin/sleep 30
+ExecStart=/bin/bash -c '\
+  for i in $(seq 1 18); do \
+    if timeout 3 bash -c "</dev/tcp/192.168.40.10/5432" 2>/dev/null; then \
+      bash /opt/erp-odoo/scripts/deploy/deploy.sh && \
+        touch /var/lib/odoo-init-done && exit 0; \
+      break; \
+    fi; \
+    sleep 10; \
+  done; \
+  exit 0'
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+SYSTEMD_EOF
+
+systemctl daemon-reload
+systemctl enable odoo-init.service
+echo "  [SYSTEMD] Servicio odoo-init instalado (fallback automático de inicialización BD)."
+
 echo ""
 echo "=========================================="
 echo " [OK] Odoo    → https://${VLAN_IP}"
 echo " [OK] Cockpit → https://${VLAN_IP}:9090"
 echo " [DB] ${POSTGRES_HOST}:5432 (via pfSense ${VLAN_GW})"
 echo " [RUNNER] '${RUNNER_NAME}'"
+echo " [INIT] Si pfSense no estaba activo, odoo-init.service"
+echo "        completará la inicialización en el próximo arranque."
 echo "=========================================="
