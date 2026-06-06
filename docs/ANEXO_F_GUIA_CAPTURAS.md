@@ -217,30 +217,74 @@ en `db-server` (192.168.40.10:5432).
 ### Cómo obtener la captura
 
 ```bash
-# Dentro de la sesión SSH en odoo-server:
-# Opción A — usando nc desde el contenedor
-docker exec odoo-web bash -c "apt-get install -y netcat-openbsd -qq && nc -zv 192.168.40.10 5432"
+# Dentro de la sesión SSH en odoo-server (como root):
 
-# Opción B — usando pg_isready (más limpia visualmente)
+# Opción A — pg_isready (recomendada para la captura, más limpia)
 docker exec odoo-web pg_isready -h 192.168.40.10 -p 5432 -U odoo
 
-# Opción C — usando psql directamente
-docker exec odoo-web psql -h 192.168.40.10 -U odoo -d odoo_erp -c "\conninfo"
+# Opción B — psql \conninfo (más detallada)
+# IMPORTANTE: docker exec no tiene TTY para introducir la contraseña interactivamente.
+# Leerla del .env y pasarla con PGPASSWORD:
+PGPASS=$(grep -E '^POSTGRES_PASSWORD=' /opt/erp-odoo/.env | cut -d= -f2- | tr -d '"')
+docker exec -e PGPASSWORD="$PGPASS" odoo-web \
+    psql -h 192.168.40.10 -U odoo -d odoo_erp -c "\conninfo"
 ```
 
-**Salida esperada (Opción B):**
+> [!NOTE]
+> Es normal que aparezcan advertencias de locale de Perl al ejecutar comandos
+> dentro del contenedor Odoo:
+> ```
+> perl: warning: Setting locale failed.
+> perl: warning: Falling back to the standard locale ("C").
+> ```
+> Son completamente **inofensivas** — el contenedor no tiene `en_US.UTF-8` generado
+> pero funciona correctamente. Lo relevante es la línea de resultado al final.
+
+**Salida esperada (Opción A — pg_isready):**
 
 ```
-192.168.40.10:5432 - accepting connections
+perl: warning: Setting locale failed.        ← ignorar, es normal
+perl: warning: Please check that your locale settings...
+perl: warning: Falling back to the standard locale ("C").
+192.168.40.10:5432 - accepting connections   ✅
 ```
 
-**Salida esperada (Opción C):**
+**Salida esperada (Opción B — psql `\conninfo`):**
 
 ```
-You are connected to database "odoo_erp" as user "odoo" on host "192.168.40.10" at port "5432".
+            Connection Information
+      Parameter       |         Value
+----------------------+------------------------
+ Database             | odoo_erp
+ Client User          | odoo
+ Host                 | 192.168.40.10
+ Server Port          | 5432
+ Protocol Version     | 3.0
+ Password Used        | true
+ GSSAPI Authenticated | false
+ Backend PID          | 27109
+ SSL Connection       | true
+ SSL Library          | OpenSSL
+ SSL Protocol         | TLSv1.3
+ SSL Key Bits         | 256
+ SSL Cipher           | TLS_AES_256_GCM_SHA384
+ SSL Compression      | false
+ Superuser            | off
+(18 rows)
 ```
 
-4. **Capturar:** el terminal mostrando el comando y la confirmación de conectividad.
+> [!CAUTION]
+> Si se usa `docker exec odoo-web psql ...` **sin** `-e PGPASSWORD`, psql pedirá la
+> contraseña interactivamente y fallará con `fe_sendauth: no password supplied`.
+> Usar siempre el comando con `PGPASSWORD` de la Opción B.
+
+4. **Capturar:** el terminal mostrando el comando y la salida completa.
+
+> [!TIP]
+> **Usar la Opción B para la captura del TFG** — la tabla `\conninfo` muestra
+> `SSL Connection: true` y `SSL Protocol: TLSv1.3`, evidenciando que la comunicación
+> Odoo → PostgreSQL está **cifrada en tránsito**, lo cual es especialmente relevante
+> para un TFG de seguridad. Mucho más informativo que un simple `accepting connections`.
 
 > **Nombre del fichero sugerido:** `F13_conectividad_odoo_postgresql.png`
 
