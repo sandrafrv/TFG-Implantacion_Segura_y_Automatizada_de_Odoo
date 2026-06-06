@@ -144,10 +144,18 @@ los scripts de provisioning se ejecutaron sin errores en ambas VMs.
 
 ## BLOQUE 2 — Verificación del estado de los contenedores
 
+> [!IMPORTANT]
+> `vagrant ssh` **no funciona** una vez deshabilitada la NAT.
+> Conectarse siempre por la red ADMIN usando SSH directo:
+
 ### Acceder a odoo-server
 
 ```powershell
-vagrant ssh odoo-server
+# Desde el host Windows (red ADMIN vmnet3 activa):
+ssh vagrant@192.168.40.20
+# Contraseña por defecto de Vagrant: vagrant
+# (o usa la clave privada del proyecto: .vagrant\machines\odoo-server\vmware_desktop\private_key)
+ssh -i .vagrant\machines\odoo-server\vmware_desktop\private_key vagrant@192.168.40.20
 ```
 
 ---
@@ -581,10 +589,10 @@ self-hosted de `odoo-server`.
 ## BLOQUE 6 — Verificaciones en la VM odoo-server
 
 > Las capturas F.13 a F.17 se obtienen dentro de la sesión SSH en `odoo-server`.
-> Conectarse si no se está ya conectado:
+> Conectarse si no se está ya conectado (SSH directo por la red ADMIN, sin NAT):
 >
 > ```powershell
-> vagrant ssh odoo-server
+> ssh -i .vagrant\machines\odoo-server\vmware_desktop\private_key vagrant@192.168.40.20
 > cd /opt/erp-odoo
 > ```
 
@@ -756,8 +764,8 @@ que los contenedores vuelven a estar en estado `running`.
 ### Cómo obtener la captura
 
 ```powershell
-# Conectar a odoo-server tras el reaprovisionamiento
-vagrant ssh odoo-server
+# Conectar a odoo-server tras el reaprovisionamiento (SSH directo por red ADMIN)
+ssh -i .vagrant\machines\odoo-server\vmware_desktop\private_key vagrant@192.168.40.20
 ```
 
 ```bash
