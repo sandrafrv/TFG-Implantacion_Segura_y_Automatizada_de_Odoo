@@ -158,6 +158,16 @@ ssh vagrant@192.168.40.20
 ssh -i .vagrant\machines\odoo-server\vmware_desktop\private_key vagrant@192.168.40.20
 ```
 
+> [!NOTE]
+> El usuario `vagrant` **no tiene permisos sobre el socket Docker** por defecto.
+> Todos los comandos `docker` dentro de la VM deben ejecutarse como `root`:
+>
+> ```bash
+> sudo su
+> # Ahora el prompt cambia a root@odoo-server-tfg:/home/vagrant#
+> cd /opt/erp-odoo
+> ```
+
 ---
 
 ## F.12 — Estado de los contenedores Docker
@@ -166,22 +176,34 @@ ssh -i .vagrant\machines\odoo-server\vmware_desktop\private_key vagrant@192.168.
 
 ### Cómo obtener la captura
 
+> [!IMPORTANT]
+> El script `deploy.sh` levanta los contenedores con el project name `erp-odoo` y
+> usando el fichero `.env` en `/opt/erp-odoo/.env`. Sin estos flags, `docker compose ps`
+> devuelve una tabla **vacía** aunque los contenedores estén corriendo.
+> Usar **siempre** el comando completo:
+
 ```bash
-# Dentro de la sesión SSH en odoo-server:
+# Dentro de la sesión SSH en odoo-server (como root):
 cd /opt/erp-odoo
-docker compose -f docker/docker-compose.yml ps
+docker compose -p erp-odoo --env-file .env -f docker/docker-compose.yml ps
 ```
 
 **Salida esperada:**
 
 ```
-NAME          IMAGE              COMMAND                  SERVICE    CREATED       STATUS                   PORTS
-nginx-proxy   nginx:alpine       "/docker-entrypoint.…"  nginx      2 hours ago   Up 2 hours (healthy)     0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
-odoo-web      odoo:17.0          "/entrypoint.sh odoo"   odoo       2 hours ago   Up 2 hours (healthy)     8069/tcp, 8072/tcp
+NAME          IMAGE          COMMAND                  SERVICE   CREATED          STATUS                             PORTS
+nginx-proxy   nginx:alpine   "/docker-entrypoint.…"   nginx     17 minutes ago   Up 17 minutes (healthy)            0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
+odoo-web      odoo:17        "/entrypoint.sh odoo"    odoo      9 minutes ago    Up 19 seconds (health: starting)   8069/tcp, 8071-8072/tcp
 ```
 
-4. **Capturar:** la terminal SSH mostrando el comando y su salida completa con ambos
-   contenedores en estado `Up` y `(healthy)`.
+Una vez que Odoo termine de iniciar (~2 min), el estado de `odoo-web` cambia a `(healthy)`.
+
+4. **Capturar:** la terminal SSH mostrando el comando completo con `-p erp-odoo` y su
+   salida con ambos contenedores en estado `Up` y `(healthy)`.
+
+> [!TIP]
+> Si el comando sin flags devuelve una tabla vacía pero `docker ps` sí muestra los
+> contenedores, es síntoma de que el project name no coincide. Usar siempre `-p erp-odoo`.
 
 > **Nombre del fichero sugerido:** `F12_docker_compose_ps.png`
 
@@ -769,20 +791,24 @@ ssh -i .vagrant\machines\odoo-server\vmware_desktop\private_key vagrant@192.168.
 ```
 
 ```bash
-# Dentro de la sesión SSH:
+# Dentro de la sesión SSH — elevar a root primero:
+sudo su
 cd /opt/erp-odoo
-docker compose -f docker/docker-compose.yml ps
+
+# Usar el project name correcto (igual que deploy.sh):
+docker compose -p erp-odoo --env-file .env -f docker/docker-compose.yml ps
 ```
 
 **Salida esperada** (idéntica a F.12):
 
 ```
-NAME          IMAGE              STATUS
-nginx-proxy   nginx:alpine       Up X minutes (healthy)   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
-odoo-web      odoo:17.0          Up X minutes (healthy)   8069/tcp, 8072/tcp
+NAME          IMAGE          COMMAND                  SERVICE   CREATED       STATUS                  PORTS
+nginx-proxy   nginx:alpine   "/docker-entrypoint.…"   nginx     X min ago     Up X min (healthy)      0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+odoo-web      odoo:17        "/entrypoint.sh odoo"    odoo      X min ago     Up X min (healthy)      8069/tcp, 8071-8072/tcp
 ```
 
-**Capturar:** el terminal mostrando el comando y los contenedores en estado `Up (healthy)`.
+**Capturar:** el terminal mostrando el comando completo con `-p erp-odoo` y los
+contenedores en estado `Up (healthy)`.
 
 > **Nombre del fichero sugerido:** `F20_docker_compose_ps_reprovisioned.png`
 
@@ -823,7 +849,7 @@ BLOQUE 1 — Aprovisionamiento inicial
   [ ] F.11 — vagrant up finalizado (ambas VMs sin errores)
 
 BLOQUE 2 — Estado del entorno
-  [ ] F.12 — docker compose ps (contenedores healthy)
+  [ ] F.12 — docker compose -p erp-odoo --env-file .env ps (contenedores healthy)
   [ ] F.13 — Conectividad Odoo → PostgreSQL (pg_isready / psql)
   [ ] F.14 — Proxy Nginx → Odoo (curl localhost:8069, respuesta 200/303)
   [ ] F.15 — Acceso HTTPS desde host Windows (curl -k -I https://192.168.30.10)
@@ -851,7 +877,7 @@ BLOQUE 6 — Backup (dentro de odoo-server vía SSH)
 BLOQUE 7 — Ciclo de regresión (destruir + reaprovisionar)
   [ ] F.18 — vagrant destroy -f (runners desregistrados + VMs destruidas)
   [ ] F.19 — vagrant up reprovisionamiento (salida final sin errores)
-  [ ] F.20 — docker compose ps tras reprovisión (contenedores healthy)
+  [ ] F.20 — docker compose -p erp-odoo --env-file .env ps (healthy)
   [ ] F.21 — Odoo accesible en navegador tras reprovisión
 ```
 
