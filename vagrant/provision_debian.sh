@@ -120,7 +120,9 @@ SOURCES
 apt-get "${APT_OPTS[@]}" update -qq || true
 apt-get install -y -qq "${APT_OPTS[@]}" \
   nginx git curl wget htop vim ca-certificates gnupg \
-  lsb-release apt-transport-https software-properties-common || true
+  lsb-release apt-transport-https software-properties-common \
+  postgresql-client || true
+
 
 # ── PASO 6: Docker CE ────────────────────────────────────────
 # Idempotente: si docker ya está instalado (re-provisioning), saltar.
