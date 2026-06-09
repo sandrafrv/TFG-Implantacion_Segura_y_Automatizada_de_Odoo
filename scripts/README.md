@@ -3,18 +3,18 @@
 **TFG ASIR 2025/2026 — TechSolutions S.L.**
 
 > [!IMPORTANT]
-> Todos los scripts están diseñados para ejecutarse **únicamente en el servidor Debian** (`vm-odoo`, `192.168.30.10`).
+> Todos los scripts están diseñados para ejecutarse **únicamente en el servidor Debian** (`odoo-server`, `192.168.30.10`).
 > **No ejecutar en PCs cliente, en pfSense ni en Windows/macOS localmente.**
 
 > [!NOTE]
-> PostgreSQL reside en la **VM externa `vm-postgres`** (`192.168.40.10`, VLAN 40). Los scripts de backup y restore se conectan a esa IP. No usar `localhost` ni ningún contenedor `db`.
+> PostgreSQL reside en la **VM externa `db-server`** (`192.168.40.10`, VLAN 40). Los scripts de backup y restore se conectan a esa IP. No usar `localhost` ni ningún contenedor `db`.
 
 ---
 
 ## Dar Permisos de Ejecución (Primera Vez)
 
 ```bash
-find /opt/odoo/scripts -name "*.sh" -exec chmod +x {} \;
+find /opt/erp-odoo/scripts -name "*.sh" -exec chmod +x {} \;
 ```
 
 ---
@@ -24,31 +24,32 @@ find /opt/odoo/scripts -name "*.sh" -exec chmod +x {} \;
 Scripts para el ciclo de vida del stack: instalación, configuración y arranque.
 
 | Script | Descripción | Cuándo usarlo |
-|:-------|:------------|:--------------|
+|:-------|:------------|:--------------:|
 | `erp.sh` | **Orquestador central.** Menú interactivo para gestionar el proyecto | Administración diaria |
-| `deploy.sh` | Verifica conectividad con la BD externa (`192.168.40.10:5432`) y luego levanta el stack Docker | Primer despliegue o arranque manual |
-| `configure.sh` | Configurador del archivo `.env` en la raíz del proyecto | Instalación inicial o cambio de credenciales |
-| `install_cron.sh` | Crea `/etc/backup_odoo.env` (permisos 600), instala cron de backup cada 4h y aplica logrotate | Una sola vez, en la instalación inicial |
+| `deploy.sh` | Verifica conectividad con la BD externa (`192.168.40.10:5432`), levanta el stack Docker e inicializa la BD si es necesario | Primer despliegue o arranque manual |
+| `configure.sh` | Configurador interactivo del archivo `.env` en la raíz del proyecto | Cambio manual de credenciales |
+| `install_cron.sh` | Crea `/etc/backup_odoo.env` (permisos 600) e instala cron de backup/monitor/actualización | Automático en `vagrant up` · re-ejecutar si se cambia la contraseña |
 | `generate_pfsense_config.sh` | Genera `config.xml` con interfaces, DHCP, NAT y reglas de firewall para pfSense | Instalación inicial de pfSense |
 
 ```bash
-# Menú interactivo
-bash scripts/deploy/erp.sh
+# Menú interactivo (administración diaria)
+sudo bash scripts/deploy/erp.sh
 
-# Desplegar (verifica BD antes de levantar contenedores)
-bash scripts/deploy/deploy.sh
+# Desplegar manualmente (verifica BD antes de levantar contenedores)
+sudo bash scripts/deploy/deploy.sh
 
-# Configurar .env
+# Cambiar contraseñas del .env manualmente
 bash scripts/deploy/configure.sh
 
-# Instalar cron de backup
+# Re-instalar cron (tras cambio de contraseña POSTGRES)
 sudo bash scripts/deploy/install_cron.sh
 
-# Generar config.xml de pfSense
+# Regenerar config.xml de pfSense
 bash scripts/deploy/generate_pfsense_config.sh
 ```
 
-> ⚠️ El `.env` debe estar en la **raíz del proyecto**, no dentro de `docker/`.
+> [!NOTE]
+> `deploy.sh` e `install_cron.sh` se ejecutan automáticamente durante el `vagrant up` a través de `provision_debian.sh`. Solo es necesario lanzarlos manualmente en re-despliegues o cambios de configuración.
 
 ---
 
@@ -57,52 +58,39 @@ bash scripts/deploy/generate_pfsense_config.sh
 Scripts para la configuración interna del ERP vía API XML-RPC.
 
 | Script | Descripción | Cuándo usarlo |
-|:-------|:------------|:--------------|
-| `odoo_setup_wizard.sh` | Asistente post-instalación: renombra la empresa e instala módulos | Tras el primer arranque de Odoo |
-| `odoo_crear_usuarios.sh` | Crea usuarios Odoo con sus grupos de rol vía XML-RPC | Tras la configuración inicial |
+|:-------|:------------|:--------------:|
+| `odoo_crear_usuarios.sh` | Crea usuarios Odoo con sus grupos de rol vía XML-RPC. Es idempotente: omite usuarios ya existentes | Automático al final de `deploy.sh` |
 
 ```bash
-bash scripts/odoo/odoo_setup_wizard.sh
+# Ejecutar manualmente si es necesario re-crear usuarios
 bash scripts/odoo/odoo_crear_usuarios.sh
 ```
 
 > [!WARNING]
-> `odoo_crear_usuarios.sh` muestra las contraseñas generadas **una sola vez**. Guárdalas inmediatamente.
-
----
-
-## 🔐 Scripts LDAP (`ldap/`) — DESACTIVADOS
-
-> ⚠️ **Estos scripts están desactivados.** LDAP fue descartado del despliegue principal. El servicio `openldap` ya no existe en `docker-compose.yml`.
->
-> Ver: [`scripts/ldap/README.md`](ldap/README.md) y [`extras/ldap/README.md`](../extras/ldap/README.md)
-
-| Script | Descripción | Estado |
-|:-------|:------------|:-------|
-| `configurar_cliente_ldap.sh` | Configura cliente LDAP en Debian (SSSD + PAM + NSS) | ⚠️ Desactivado |
-| `ldap_crear_usuarios.sh` | Crea usuarios en OpenLDAP | ⚠️ Desactivado |
-| `ldap_politica_acceso.sh` | Aplica ACLs de seguridad en LDAP | ⚠️ Desactivado |
+> `odoo_crear_usuarios.sh` muestra las contraseñas generadas **una sola vez**. Guárdalas inmediatamente o consúltalas en el journal: `sudo journalctl -u odoo-init`.
 
 ---
 
 ## 🛠️ Mantenimiento y Operaciones (`mantenimiento/`)
 
-Scripts para el mantenimiento automatizado del sistema.
+Scripts para el mantenimiento automatizado del sistema. Se instalan como tareas cron mediante `install_cron.sh`.
 
-| Script | Descripción | Cron |
-|:-------|:------------|:-----|
-| `backup_postgres.sh` | **NUEVO** — `pg_dump` remoto a `192.168.40.10`. Retención 7 días. Log en `/var/log/backup_odoo.log` | Cada 4h (vía `install_cron.sh`) |
-| `backup.sh` | Backup legacy — referencia histórica | Manual |
+| Script | Descripción | Frecuencia |
+|:-------|:------------|:----------:|
+| `backup_postgres.sh` | `pg_dump` remoto a `192.168.40.10`. Retención 7 días. Log en `/var/log/backup_odoo.log` | Cada 4h (cron) |
 | `restore.sh` | Restaura en la BD externa (`192.168.40.10`) usando credenciales de `/etc/backup_odoo.env` | Manual |
-| `monitor.sh` | Comprueba `odoo-web` y `nginx-proxy`. Si alguno falla, lo reinicia | Cada 15 min |
-| `update.sh` | Descarga nuevas imágenes Docker y reinicia contenedores | Domingos 03:00 |
+| `monitor.sh` | Comprueba `odoo-web` y `nginx-proxy`. Si alguno falla, lo reinicia automáticamente | Cada 15 min (cron) |
+| `update.sh` | Descarga nuevas imágenes Docker y recrea contenedores. Conserva los volúmenes | Domingos 03:00 (cron) |
 
 ```bash
 # Backup manual (BD externa)
 bash scripts/mantenimiento/backup_postgres.sh
 
 # Restaurar desde un backup específico
-bash scripts/mantenimiento/restore.sh /opt/odoo/backups/odoo_20260515_0200.sql.gz
+bash scripts/mantenimiento/restore.sh /backups/postgres/odoo_20260601_0400.sql.gz
+
+# Ver backups disponibles
+ls -lh /backups/postgres/
 
 # Chequeo de salud manual
 bash scripts/mantenimiento/monitor.sh
@@ -110,21 +98,8 @@ bash scripts/mantenimiento/monitor.sh
 # Actualización manual de imágenes Docker
 bash scripts/mantenimiento/update.sh
 
-# Ver backups disponibles
-ls -lh /opt/odoo/backups/postgres/
-
 # Ver log de backups
 tail -f /var/log/backup_odoo.log
-```
-
----
-
-## 🔧 Utilidades (`repomix_lite.py`)
-
-Script Python que genera un volcado completo del repositorio en un único archivo de texto (`repomix-output.md`), útil para pasar el código como contexto a modelos de lenguaje.
-
-```bash
-python3 scripts/repomix_lite.py
 ```
 
 ---
@@ -132,26 +107,26 @@ python3 scripts/repomix_lite.py
 ## Referencia Rápida — Docker
 
 ```bash
-# Estado de los contenedores (solo odoo-web y nginx-proxy)
+# Estado de los contenedores
 docker compose -f docker/docker-compose.yml ps
 
 # Logs en tiempo real
 docker compose -f docker/docker-compose.yml logs -f
 
-# Logs de un servicio
+# Logs de un servicio concreto
 docker compose -f docker/docker-compose.yml logs -f odoo-web
 
 # Reiniciar un servicio
 docker compose -f docker/docker-compose.yml restart nginx-proxy
 
-# Parar todo
+# Parar todo el stack
 docker compose -f docker/docker-compose.yml down
 
-# Arrancar todo
+# Arrancar todo el stack
 docker compose -f docker/docker-compose.yml up -d
 
 # Acceder a PostgreSQL externo
-psql -h 192.168.40.10 -U odoo -d odooerp
+psql -h 192.168.40.10 -U odoo -d odoo_erp
 
 # Limpiar imágenes sin usar
 docker system prune -f

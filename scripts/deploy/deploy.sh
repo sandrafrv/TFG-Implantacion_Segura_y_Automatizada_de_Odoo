@@ -13,6 +13,8 @@ PROJECT_DIR="/opt/erp-odoo"
 COMPOSE_FILE="$PROJECT_DIR/docker/docker-compose.yml"
 POSTGRES_HOST="192.168.40.10"
 MAX_INTENTOS=30   # 30 × 10s = 5 minutos máximo
+USUARIOS_SCRIPT="$PROJECT_DIR/scripts/odoo/odoo_crear_usuarios.sh"
+USUARIOS_FLAG="/var/lib/odoo-usuarios-creados"
 
 # --- Comprobaciones previas ---
 echo "[1/4] Comprobaciones previas..."
@@ -134,6 +136,23 @@ for i in $(seq 1 $MAX_INTENTOS); do
         echo ""
         echo "[OK] Stack operativo en https://erp.odoo.tfg.com"
         docker compose "${COMPOSE_OPTS[@]}" ps
+
+        # --- Creación automática de usuarios (si aún no se han creado) ---
+        if [ ! -f "$USUARIOS_FLAG" ]; then
+            echo ""
+            echo "[5/5] Comprobando usuarios de Odoo..."
+            if [ -f "$USUARIOS_SCRIPT" ]; then
+                bash "$USUARIOS_SCRIPT" \
+                    && touch "$USUARIOS_FLAG" \
+                    && echo "  [OK] Usuarios creados. Flag guardado en $USUARIOS_FLAG" \
+                    || echo "  [AVISO] odoo_crear_usuarios.sh terminó con error. Re-ejecuta manualmente."
+            else
+                echo "  [AVISO] No se encontró: $USUARIOS_SCRIPT"
+            fi
+        else
+            echo "[5/5] Usuarios ya creados previamente (flag: $USUARIOS_FLAG). Saltando."
+        fi
+
         exit 0
     fi
     echo "  Intento $i/$MAX_INTENTOS — esperando 10s..."
@@ -143,3 +162,4 @@ done
 echo "[ERROR] Odoo no respondió. Logs:"
 docker compose "${COMPOSE_OPTS[@]}" logs --tail=30
 exit 1
+

@@ -77,7 +77,7 @@ source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$')
 set +a
 
 # ── Configuración de conexión ─────────────────────────────────
-ODOO_URL="http://localhost:8069"
+ODOO_URL="https://localhost"
 ODOO_DB="${POSTGRES_DB:-odoo_erp}"
 ADMIN_LOGIN="admin"
 ADMIN_PASS="${ODOO_MASTER_PASSWORD:-cambia_esto}"
@@ -86,7 +86,7 @@ ADMIN_PASS="${ODOO_MASTER_PASSWORD:-cambia_esto}"
 xmlrpc_call() {
     local endpoint="$1"
     local body="$2"
-    curl -s --max-time 30 \
+    curl -s -k --max-time 30 \
         -H "Content-Type: text/xml" \
         -d "$body" \
         "${ODOO_URL}${endpoint}"
@@ -107,7 +107,7 @@ odoo_autenticar() {
     <param><value><struct/></value></param>
   </params>
 </methodCall>")
-    echo "$respuesta" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1
+    echo "$respuesta" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1 || true
 }
 
 # ── Función: comprobar si un usuario ya existe ────────────────
@@ -135,7 +135,7 @@ usuario_existe() {
     <param><value><struct/></value></param>
   </params>
 </methodCall>")
-    echo "$respuesta" | grep -q '<int>' && return 0 || return 1
+    (echo "$respuesta" | grep -q '<int>') && return 0 || return 1
 }
 
 # ── Función: obtener ID numérico de un grupo por XML-ID ───────
@@ -182,7 +182,7 @@ obtener_grupo_id() {
   </params>
 </methodCall>")
 
-    echo "$respuesta" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1
+    echo "$respuesta" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1 || true
 }
 
 # ── Función: crear usuario con tipo interno (Capa B) ──────────
@@ -211,19 +211,17 @@ crear_usuario() {
         <member><name>name</name><value><string>${nombre}</string></value></member>
         <member><name>login</name><value><string>${login}</string></value></member>
         <member><name>password</name><value><string>${password_nuevo}</string></value></member>
-        <member><name>lang</name><value><string>es_ES</string></value></member>
-        <member><name>tz</name><value><string>Europe/Madrid</string></value></member>
-        <member>
-          <name>sel_groups_1_10_11</name>
-          <value><int>${tipo_usuario}</int></value>
-        </member>
       </struct></value>
     </data></array></value></param>
     <param><value><struct/></value></param>
   </params>
 </methodCall>")
 
-    echo "$respuesta" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1
+    if echo "$respuesta" | grep -q "<fault>"; then
+        echo ""
+    else
+        echo "$respuesta" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1 || true
+    fi
 }
 
 # ── Función: asignar grupos adicionales a un usuario ──────────
@@ -373,7 +371,7 @@ fi
 ok "Contenedor odoo-web activo."
 
 # ── 2. Verificar que Odoo responde ───────────────────────────
-if ! curl -sf --max-time 10 "${ODOO_URL}/web/health" > /dev/null 2>&1; then
+if ! curl -sf -k --max-time 10 "${ODOO_URL}/web/health" > /dev/null 2>&1; then
     error "Odoo no responde en ${ODOO_URL}. Espera ~90s al arranque."
     exit 1
 fi

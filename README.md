@@ -107,25 +107,32 @@ TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
 ├── vagrant/
 │   ├── provision_debian.sh        # Provisioning de odoo-server
 │   ├── provision_postgres.sh      # Provisioning de db-server
-│   ├── Vagrantfile.pfsense-box    # Vagrantfile experimental para pfSense
+│   ├── disable_nat_gateway.sh     # Configura pfSense como único gateway
 │   └── README.md
 │
 ├── config_nginx/
 │   └── odoo_proxy.conf            # Configuración Nginx (proxy inverso HTTPS)
 │
 ├── scripts/
-│   ├── setup_vmnet.ps1            # Configura VMnets en Windows (PowerShell)
-│   ├── repomix_lite.py            # Utilidad para generar volcado del repo
-│   ├── deploy/                    # Scripts de despliegue (deploy.sh)
-│   ├── ldap/                      # Scripts de integración LDAP
-│   ├── mantenimiento/             # Scripts de mantenimiento y backups
-│   └── odoo/                      # Scripts específicos de Odoo
+│   ├── README.md                  # Índice y guía de uso de scripts
+│   ├── deploy/                    # Scripts de despliegue y ciclo de vida
+│   │   ├── deploy.sh              # Despliega y verifica el stack Docker
+│   │   ├── erp.sh                 # Menú interactivo de administración
+│   │   ├── configure.sh           # Configurador interactivo del .env
+│   │   ├── install_cron.sh        # Instala tareas cron de mantenimiento
+│   │   └── generate_pfsense_config.sh  # Genera config.xml para pfSense
+│   ├── mantenimiento/             # Backups, monitor y actualizaciones
+│   │   ├── backup_postgres.sh     # pg_dump remoto con retención 7 días
+│   │   ├── restore.sh             # Restauración desde backup .sql.gz
+│   │   ├── monitor.sh             # Chequeo de salud con auto-reinicio
+│   │   └── update.sh              # Actualización de imágenes Docker
+│   └── odoo/                      # Gestión de la instancia Odoo
+│       └── odoo_crear_usuarios.sh # Crea usuarios y roles vía XML-RPC
 │
-├── config/                        # Configuraciones adicionales
-├── sql/                           # Scripts SQL de inicialización PostgreSQL
-├── docs/                          # Documentación del proyecto
-├── extras/                        # Recursos adicionales
-└── ISOs/                          # Referencia a ISOs utilizadas
+├── config/                        # Configuraciones adicionales (logrotate)
+├── sql/                           # Scripts SQL de auditoría PostgreSQL
+├── extras/                        # Recursos adicionales (LDAP como referencia)
+└── docs/                          # Documentación del proyecto
 ```
 
 ---
@@ -143,15 +150,8 @@ TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
 
 ### VMnets requeridas en VMware
 
-Antes de levantar las VMs, ejecutar el script de configuración de redes:
+Antes de levantar las VMs, configurar manualmente las VMnets en VMware Network Editor:
 
-```powershell
-# Como Administrador en PowerShell
-Set-ExecutionPolicy Bypass -Scope Process
-.\scripts\setup_vmnet.ps1
-```
-
-Esto configura automáticamente las VMnets necesarias:
 - **vmnet1** → 192.168.10.0/24 (LAN)
 - **vmnet2** → 192.168.30.0/24 (DMZ)
 - **vmnet3** → 192.168.40.0/24 (ADMIN)
@@ -384,12 +384,18 @@ sudo ./svc.sh status
 
 | Script | Ubicación | Descripción |
 |---|---|---|
-| `setup_vmnet.ps1` | `scripts/` | Configura VMnets en Windows (ejecutar como Admin) |
-| `deploy.sh` | `scripts/deploy/` | Despliegue del stack Docker, llamado por el CD |
-| `repomix_lite.py` | `scripts/` | Genera volcado completo del repositorio para contexto IA |
-| Scripts LDAP | `scripts/ldap/` | Integración con directorio LDAP |
-| Scripts mantenimiento | `scripts/mantenimiento/` | Backups y tareas de mantenimiento |
-| Scripts Odoo | `scripts/odoo/` | Gestión específica de la instancia Odoo |
+| `deploy.sh` | `scripts/deploy/` | Despliegue del stack Docker, llamado por el CD y `odoo-init.service` |
+| `erp.sh` | `scripts/deploy/` | Menú interactivo de administración del ERP |
+| `configure.sh` | `scripts/deploy/` | Configurador interactivo del `.env` |
+| `install_cron.sh` | `scripts/deploy/` | Instala cron de backup/monitor/actualización (automático en `vagrant up`) |
+| `generate_pfsense_config.sh` | `scripts/deploy/` | Genera `config.xml` completo para pfSense |
+| `odoo_crear_usuarios.sh` | `scripts/odoo/` | Crea usuarios y roles en Odoo vía XML-RPC (automático al final de `deploy.sh`) |
+| `backup_postgres.sh` | `scripts/mantenimiento/` | Backup `pg_dump` remoto con retención 7 días |
+| `restore.sh` | `scripts/mantenimiento/` | Restauración desde backup `.sql.gz` |
+| `monitor.sh` | `scripts/mantenimiento/` | Chequeo de salud de contenedores con auto-reinicio |
+| `update.sh` | `scripts/mantenimiento/` | Actualización de imágenes Docker |
+
+> Ver [`scripts/README.md`](scripts/README.md) para instrucciones de uso detalladas.
 
 ---
 

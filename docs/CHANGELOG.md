@@ -5,7 +5,52 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ---
 
+## [v2.1 — 2026-06-09]
+
+### Eliminado — Limpieza de scripts huérfanos
+
+- **`scripts/mantenimiento/backup.sh`** — duplicado obsoleto de `backup_postgres.sh`.
+  El cron y `erp.sh` llamaban exclusivamente a `backup_postgres.sh`. El script genérico
+  quedó huérfano desde la introducción de `backup_postgres.sh` en v1.7.
+
+- **`scripts/odoo/odoo_setup_wizard.sh`** — escrito para arquitectura MACVLAN con contenedor
+  `openldap` (`192.168.30.22`) y PostgreSQL local (`odoo_erp`), ambos descartados.
+  El script fallaba en la comprobación de contenedores al no existir `openldap` ni `odoo_erp`.
+
+- **`scripts/ldap/` (carpeta completa)** — `configurar_cliente_ldap.sh`, `ldap_crear_usuarios.sh`,
+  `ldap_politica_acceso.sh` y `README.md`. LDAP fue descartado del despliegue principal (v1.9).
+  Scripts no referenciados en ningún provisioner, workflow ni compose. Se conserva `extras/ldap/`
+  como referencia documental.
+
+- **`scripts/setup_vmnet.ps1`** — el script indicaba en su cabecera que era llamado por un
+  trigger del `Vagrantfile`, pero dicho trigger nunca existió. Script huérfano. La configuración
+  de VMnets se realiza manualmente desde VMware Network Editor.
+
+### Añadido
+
+- **Integración automática de `install_cron.sh` en `provision_debian.sh`** (PASO 15):
+  El cron de mantenimiento (backup cada 4h, monitor cada 15min, update domingos 03:00)
+  ahora se instala automáticamente durante el `vagrant up`, sin necesidad de ejecución manual.
+
+- **Creación automática de usuarios en `deploy.sh`** (paso 5/5):
+  Tras confirmar que Odoo responde en `/web/health`, `deploy.sh` comprueba el flag
+  `/var/lib/odoo-usuarios-creados`. Si no existe, ejecuta `odoo_crear_usuarios.sh` y crea
+  el flag al terminar con éxito. Idempotente: en ejecuciones posteriores salta la creación.
+
+### Modificado
+
+- **`scripts/README.md`** — reescrito completamente para reflejar el estado actual:
+  eliminadas referencias a archivos borrados (`backup.sh`, `odoo_setup_wizard.sh`, `ldap/`, `setup_vmnet.ps1`),
+  actualizada la tabla de scripts con las frecuencias de cron y los automatismos.
+
+- **`README.md` (raíz)** — árbol de estructura actualizado sin los archivos eliminados,
+  sección VMnets actualizada (sin referencia a `setup_vmnet.ps1`),
+  tabla de scripts auxiliares ampliada con todos los scripts reales del proyecto.
+
+---
+
 ## [v2.0 — 2026-06-03]
+
 
 ### Corregido
 

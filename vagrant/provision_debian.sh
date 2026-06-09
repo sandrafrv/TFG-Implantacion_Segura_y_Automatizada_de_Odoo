@@ -433,12 +433,22 @@ systemctl daemon-reload
 systemctl enable odoo-init.service
 echo "  [SYSTEMD] Servicio odoo-init instalado (fallback automático de inicialización BD)."
 
+# ── PASO 15: Instalar tareas cron de mantenimiento ───────────
+# backup_postgres.sh (cada 4h), monitor.sh (cada 15min), update.sh (domingos 03:00)
+# Sin este paso, los backups automáticos nunca ocurren.
+echo "  [CRON] Instalando tareas cron de mantenimiento..."
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+    bash "${PROJECT_DIR}/scripts/deploy/install_cron.sh" \
+    && echo "  [CRON] Tareas cron instaladas correctamente." \
+    || echo "  [AVISO] install_cron.sh terminó con error. Revisa los logs."
+
 echo ""
 echo "=========================================="
 echo " [OK] Odoo    → https://${VLAN_IP}"
 echo " [OK] Cockpit → https://${VLAN_IP}:9090"
 echo " [DB] ${POSTGRES_HOST}:5432 (via pfSense ${VLAN_GW})"
 echo " [RUNNER] '${RUNNER_NAME}'"
+echo " [CRON] Backup cada 4h, monitor cada 15min, update domingos 03:00"
 echo " [INIT] Si pfSense no estaba activo, odoo-init.service"
 echo "        completará la inicialización en el próximo arranque."
 echo "=========================================="
