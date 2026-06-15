@@ -120,9 +120,25 @@ SOURCES
 apt-get "${APT_OPTS[@]}" update -qq || true
 apt-get install -y -qq "${APT_OPTS[@]}" \
   nginx git curl wget htop vim ca-certificates gnupg \
-  lsb-release apt-transport-https software-properties-common \
-  postgresql-client || true
+  lsb-release apt-transport-https software-properties-common || true
 
+# ── PASO 5b: PostgreSQL client 16 (PGDG) ─────────────────────
+# El servidor PostgreSQL es v16 (en db-server). Instalar el cliente
+# desde el repo oficial PGDG para evitar mismatch de versiones.
+# (Debian bookworm trae pg_dump 15 por defecto, que falla contra PG16)
+if ! command -v pg_dump &>/dev/null || ! pg_dump --version 2>&1 | grep -q ' 16\.'; then
+  echo "  [PGDG] Instalando postgresql-client-16 desde PGDG..."
+  curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
+  echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] \
+https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+    > /etc/apt/sources.list.d/pgdg.list
+  apt-get update -qq || true
+  apt-get install -y -qq postgresql-client-16 || true
+  echo "  [PGDG] $(pg_dump --version 2>/dev/null || echo 'pg_dump no disponible')"
+else
+  echo "  [PGDG] postgresql-client-16 ya instalado."
+fi
 
 # ── PASO 6: Docker CE ────────────────────────────────────────
 # Idempotente: si docker ya está instalado (re-provisioning), saltar.
