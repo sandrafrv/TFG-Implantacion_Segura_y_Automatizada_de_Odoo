@@ -80,17 +80,36 @@ if [ "$DB_REACHABLE" = "false" ]; then
     echo "          cuando pfSense y la VM de BD estén disponibles."
     echo "  [OK] Saltando inicialización de BD."
 else
-    # Verificar si Odoo puede conectar con la BD externa
-    HAS_DB=$(docker exec odoo-web \
+    # Verificar si Odoo puede conectar con la BD externa y si ya tiene schema
+    # Se inyectan las credenciales del .env de proyecto para no depender del
+    # entorno del contenedor (que puede no tener PASSWORD si el .env de Docker
+    # no se cargó correctamente).
+    DB_PASS_CHK=$(grep -E '^POSTGRES_PASSWORD=' "$PROJECT_DIR/.env" \
+        | cut -d= -f2- | tr -d '"')
+    HAS_DB=$(docker exec \
+        -e HOST=192.168.40.10 \
+        -e USER=odoo \
+        -e PASSWORD="$DB_PASS_CHK" \
+        odoo-web \
         python3 -c "
-import psycopg2, os
+import os, sys
 try:
-    c = psycopg2.connect(host='${POSTGRES_HOST}', user='odoo', dbname='odoo_erp',
-                         password=os.environ.get('PASSWORD',''))
+    import psycopg2
+    c = psycopg2.connect(
+        host=os.environ.get('HOST','192.168.40.10'),
+        user=os.environ.get('USER','odoo'),
+        dbname='odoo_erp',
+        password=os.environ.get('PASSWORD',''),
+        connect_timeout=5)
     cur = c.cursor()
     cur.execute(\"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='ir_module_module');\")
     print('t' if cur.fetchone()[0] else 'f')
-except Exception:
+    c.close()
+except ImportError:
+    # psycopg2 no disponible — intentar via pg_isready no da info del schema, asumir 'f'
+    print('f')
+except Exception as e:
+    sys.stderr.write(str(e) + '\n')
     print('f')
 " 2>/dev/null || echo "f")
 
@@ -98,20 +117,37 @@ except Exception:
         echo "  [!] BD vacía — inicializando Odoo (2-5 min)..."
         MASTER_PASS=$(grep -E '^ODOO_MASTER_PASSWORD=' "$PROJECT_DIR/.env" \
             | cut -d= -f2- | tr -d '"')
-        # IMPORTANTE: usar /entrypoint.sh como wrapper.
-        # El entrypoint lee las variables de entorno del contenedor
-        # (HOST, USER, PASSWORD) y las pasa como --db_host/--db_user/--db_password
-        # al proceso odoo. Sin el entrypoint, odoo no recibe la contraseña y
-        # falla con: FATAL: password authentication failed for user "odoo"
-        docker exec odoo-web /entrypoint.sh odoo \
-            -c /etc/odoo/odoo.conf \
-            -w "$MASTER_PASS" \
-            -d odoo_erp \
-            -i base \
-            --stop-after-init \
-            --http-port=8070 \
-            && echo "  [OK] BD inicializada." \
-            || echo "  [AVISO] Inicialización BD falló. Re-ejecuta: sudo bash scripts/deploy/deploy.sh"
+        DB_PASS=$(grep -E '^POSTGRES_PASSWORD=' "$PROJECT_DIR/.env" \
+            | cut -d= -f2- | tr -d '"')
+        # IMPORTANTE: pasar --workers 0 explícitamente.
+        # Si odoo.conf define workers > 0, Odoo arranca en modo multiworker
+        # y --stop-after-init NO inicializa la BD (el proceso muere sin error
+        # pero sin haber creado el schema). --workers 0 fuerza modo monoproceso.
+        #
+        # Se usa docker exec con -e para inyectar las credenciales directamente,
+        # en lugar de depender del entorno del contenedor ya arrancado.
+        # --no-http evita conflicto de puerto con el proceso odoo-web en ejecución.
+        echo "  [INIT] Ejecutando odoo --stop-after-init (workers=0)..."
+        if docker exec \
+            -e HOST=192.168.40.10 \
+            -e USER=odoo \
+            -e PASSWORD="$DB_PASS" \
+            odoo-web \
+            /entrypoint.sh odoo \
+                -c /etc/odoo/odoo.conf \
+                --workers 0 \
+                --no-http \
+                -w "$MASTER_PASS" \
+                -d odoo_erp \
+                -i base \
+                --stop-after-init \
+                2>&1 | tail -20; then
+            echo "  [OK] BD inicializada."
+        else
+            echo "  [AVISO] Inicialización BD falló. Revisa los logs:"
+            echo "          docker logs odoo-web --tail 40"
+            echo "          Re-ejecuta: sudo bash $PROJECT_DIR/scripts/deploy/deploy.sh"
+        fi
         # Reiniciar Odoo para que arranque limpio con la BD ya inicializada
         docker restart odoo-web
         echo "  [OK] Contenedor odoo-web reiniciado."
