@@ -313,9 +313,10 @@ else
   echo "  [AVISO] ${COMPOSE_FILE} no encontrado. Saltando."
 fi
 
-# ── PASO 10: Nginx del sistema (solo config, SSL ya generado) ─
-# El nginx del sistema está desactivado (el contenedor nginx-proxy
-# gestiona HTTPS). Esta config queda como referencia/fallback.
+# ── PASO 10: Nginx del sistema (solo config, referencia/fallback) ──
+# El nginx del SISTEMA está desactivado — el contenedor nginx-proxy
+# ocupa los puertos 80 y 443. Se escribe la config como referencia
+# pero NO se intenta arrancar el servicio del sistema.
 cat > /etc/nginx/sites-available/odoo << 'NGINX_EOF'
 server {
     listen 443 ssl;
@@ -341,7 +342,10 @@ NGINX_EOF
 
 ln -sf /etc/nginx/sites-available/odoo /etc/nginx/sites-enabled/odoo
 rm -f /etc/nginx/sites-enabled/default || true
-nginx -t && systemctl restart nginx || echo "  [AVISO] Nginx no arrancó."
+nginx -t && echo "  [OK] Config nginx del sistema validada (servicio desactivado — usa contenedor)." \
+    || echo "  [AVISO] nginx -t falló. Revisa /etc/nginx/sites-available/odoo."
+# NO se arranca nginx del sistema: los puertos 80/443 los ocupa nginx-proxy (Docker).
+echo "  [INFO] nginx.service desactivado — el stack Docker gestiona 80/443."
 
 # ── PASO 11: Runner ──────────────────────────────────────────
 ###if ! id "${RUNNER_USER}" &>/dev/null; then useradd -m -s /bin/bash "${RUNNER_USER}"; fi
@@ -398,12 +402,17 @@ if [ "$IFACE" = "eth1" ] || [ "$IFACE" = "--all" ]; then
     else
         echo "[NET] pfSense no disponible. Ruta BD no añadida."
     fi
-    # MASQUERADE: el tráfico Docker (172.18.0.0/16) que sale por eth1
-    # debe aparecer con la IP del host (192.168.30.10) ante pfSense.
-    # Sin esta regla, pfSense ve 172.18.0.2 como origen y lo bloquea.
-    iptables -t nat -C POSTROUTING -s 172.18.0.0/16 -o eth1 -j MASQUERADE 2>/dev/null || \
-        iptables -t nat -A POSTROUTING -s 172.18.0.0/16 -o eth1 -j MASQUERADE
-    echo "[NET] MASQUERADE eth1 para contenedores Docker activado."
+    # MASQUERADE: el tráfico del bridge Docker (odoo_net: 172.20.0.0/16) que
+    # sale por eth1 debe aparecer con la IP del host (192.168.30.10) ante
+    # pfSense y ante PostgreSQL. Sin esta regla, PostgreSQL ve la IP del
+    # contenedor Docker en lugar de la IP del host y pg_hba.conf lo rechaza.
+    # NOTA: la subred 172.20.0.0/16 se define explícitamente en docker-compose.yml
+    # para evitar que Docker elija 192.168.40.0/24 (colisión con VLAN BD).
+    for DOCKER_SUBNET in 172.20.0.0/16 172.18.0.0/16; do
+        iptables -t nat -C POSTROUTING -s "$DOCKER_SUBNET" -o eth1 -j MASQUERADE 2>/dev/null || \
+            iptables -t nat -A POSTROUTING -s "$DOCKER_SUBNET" -o eth1 -j MASQUERADE
+    done
+    echo "[NET] MASQUERADE eth1 para contenedores Docker activado (172.20.0.0/16 + 172.18.0.0/16)."
 fi
 ROUTE_EOF
 chmod +x /etc/network/if-up.d/vlan30-bd-route

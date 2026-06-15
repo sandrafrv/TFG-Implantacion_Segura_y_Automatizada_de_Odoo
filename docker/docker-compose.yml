@@ -92,7 +92,18 @@ services:
 # REDES DOCKER
 # Red bridge interna odoo_net: permite que nginx-proxy y odoo-web
 # se comuniquen por nombre (http://odoo-web:8069) aislados del host.
+#
+# IMPORTANTE: la subred se fija explícitamente en 172.20.0.0/16 para
+# evitar que Docker elija automáticamente 192.168.40.0/24 u otra red
+# que colisione con las VLANs del proyecto (VLAN30: 192.168.30.0/24,
+# VLAN40: 192.168.40.0/24). Sin esto, PostgreSQL ve la IP del contenedor
+# como origen y pg_hba.conf lo rechaza con "no pg_hba.conf entry".
 # ====================================================================
 networks:
   odoo_net:
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1

@@ -55,11 +55,18 @@ if [ -n "${EXTRA_ROUTE}" ]; then
     echo "      Ruta ${EXTRA_ROUTE} via ${PFSENSE_GW} añadida."
 fi
 
-# MASQUERADE para contenedores Docker (tráfico 172.18.0.0/16 → eth1)
+# MASQUERADE para contenedores Docker (tráfico Docker → eth1)
+# Se cubren dos subredes:
+#   172.20.0.0/16 → odoo_net (subred explícita en docker-compose.yml)
+#   172.18.0.0/16 → docker0  (bridge por defecto de Docker)
+# Sin esto, PostgreSQL ve la IP del contenedor como origen y
+# pg_hba.conf lo rechaza con "no pg_hba.conf entry".
 if [ "${DOCKER_MASQUERADE}" = "true" ]; then
-    iptables -t nat -C POSTROUTING -s 172.18.0.0/16 -o "${VLAN_IFACE}" -j MASQUERADE 2>/dev/null || \
-        iptables -t nat -A POSTROUTING -s 172.18.0.0/16 -o "${VLAN_IFACE}" -j MASQUERADE
-    echo "      MASQUERADE Docker (172.18.0.0/16 → ${VLAN_IFACE}) activado."
+    for DOCKER_SUBNET in 172.20.0.0/16 172.18.0.0/16; do
+        iptables -t nat -C POSTROUTING -s "${DOCKER_SUBNET}" -o "${VLAN_IFACE}" -j MASQUERADE 2>/dev/null || \
+            iptables -t nat -A POSTROUTING -s "${DOCKER_SUBNET}" -o "${VLAN_IFACE}" -j MASQUERADE
+    done
+    echo "      MASQUERADE Docker (172.20.0.0/16 + 172.18.0.0/16 → ${VLAN_IFACE}) activado."
 fi
 
 # ── PASO 3: dhclient exit hook ──────────────────────────────
@@ -113,6 +120,7 @@ IF_EOF
     echo "    post-up ip route add ${EXTRA_ROUTE} via ${PFSENSE_GW} dev ${VLAN_IFACE} 2>/dev/null || true"
   fi
   if [ "${DOCKER_MASQUERADE}" = "true" ]; then
+    echo "    post-up iptables -t nat -C POSTROUTING -s 172.20.0.0/16 -o ${VLAN_IFACE} -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 172.20.0.0/16 -o ${VLAN_IFACE} -j MASQUERADE"
     echo "    post-up iptables -t nat -C POSTROUTING -s 172.18.0.0/16 -o ${VLAN_IFACE} -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 172.18.0.0/16 -o ${VLAN_IFACE} -j MASQUERADE"
   fi
 } > /etc/network/interfaces.d/eth1.cfg
