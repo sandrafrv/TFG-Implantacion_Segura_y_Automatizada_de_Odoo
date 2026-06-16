@@ -39,7 +39,8 @@
 # REQUISITOS:
 #   - Contenedores activos: odoo-web y odoo_erp
 #   - curl instalado en el servidor Debian
-#   - docker/.env con las variables del proyecto
+#   - .env en la raíz del proyecto (generado por provision_debian.sh)
+#     o en docker/.env como alternativa
 # ============================================================
 
 set -euo pipefail
@@ -62,15 +63,23 @@ title()   { echo -e "\n${BOLD}${CYAN}$*${NC}"; echo "─────────
 # ── Ruta base del proyecto ────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-ENV_FILE="$PROJECT_DIR/docker/.env"
 
-# ── Leer variables del .env ───────────────────────────────────
-if [[ ! -f "$ENV_FILE" ]]; then
-    error "No se encontró: $ENV_FILE"
-    error "Copia docker/.env.example a docker/.env y rellena las credenciales."
+# El .env principal lo genera provision_debian.sh en la raíz del proyecto.
+# El docker/.env es opcional y puede tener variables adicionales.
+# Buscamos en este orden: raíz del proyecto → docker/ → error.
+if [[ -f "$PROJECT_DIR/.env" ]]; then
+    ENV_FILE="$PROJECT_DIR/.env"
+elif [[ -f "$PROJECT_DIR/docker/.env" ]]; then
+    ENV_FILE="$PROJECT_DIR/docker/.env"
+else
+    error "No se encontró ningún .env en:"
+    error "  $PROJECT_DIR/.env"
+    error "  $PROJECT_DIR/docker/.env"
+    error "Asegúrate de que provision_debian.sh ha ejecutado correctamente."
     exit 1
 fi
 
+# ── Leer variables del .env ───────────────────────────────────
 set -a
 # shellcheck disable=SC1090
 source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$')
