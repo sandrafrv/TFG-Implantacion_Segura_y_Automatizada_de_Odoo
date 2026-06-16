@@ -58,22 +58,10 @@ Vagrant.configure("2") do |config|
     db.trigger.before :destroy do |trigger|
       trigger.name     = "Desregistrar db-runner"
       trigger.on_error = :continue
-      if GH_PAT.empty?
-        trigger.run = { inline: "echo [SKIP] GH_PAT no definido — se omite desregistro de db-runner" }
-      else
-        trigger.run = {
-          inline: "powershell -ExecutionPolicy Bypass -Command " \
-                  "\"$ErrorActionPreference='Continue'; " \
-                  "$h = @{'Authorization'='Bearer #{GH_PAT}';'Accept'='application/vnd.github+json'}; " \
-                  "try { $runners = (Invoke-RestMethod 'https://api.github.com/repos/#{GH_REPO}/actions/runners' -Headers $h).runners } " \
-                  "catch { Write-Host '[WARN] No se pudo consultar runners: ' + $_.Exception.Message; exit 0 }; " \
-                  "$r = $runners | Where-Object { $_.name -eq 'db-runner' }; " \
-                  "if ($r) { Invoke-RestMethod -Method DELETE " \
-                  "-Uri ('https://api.github.com/repos/#{GH_REPO}/actions/runners/' + $r.id) -Headers $h; " \
-                  "Write-Host '[OK] db-runner eliminado de GitHub' } " \
-                  "else { Write-Host '[INFO] db-runner no encontrado en GitHub' }\""
-        }
-      end
+      trigger.run = {
+        path: "vagrant/deregister_runner.ps1",
+        args: ["db-runner", GH_PAT, GH_REPO]
+      }
     end
 
     # ── Provisioner 1: PostgreSQL + GitHub Runner ────────────
@@ -136,22 +124,10 @@ Vagrant.configure("2") do |config|
     deb.trigger.before :destroy do |trigger|
       trigger.name     = "Desregistrar odoo-runner"
       trigger.on_error = :continue
-      if GH_PAT.empty?
-        trigger.run = { inline: "echo [SKIP] GH_PAT no definido — se omite desregistro de odoo-runner" }
-      else
-        trigger.run = {
-          inline: "powershell -ExecutionPolicy Bypass -Command " \
-                  "\"$ErrorActionPreference='Continue'; " \
-                  "$h = @{'Authorization'='Bearer #{GH_PAT}';'Accept'='application/vnd.github+json'}; " \
-                  "try { $runners = (Invoke-RestMethod 'https://api.github.com/repos/#{GH_REPO}/actions/runners' -Headers $h).runners } " \
-                  "catch { Write-Host '[WARN] No se pudo consultar runners: ' + $_.Exception.Message; exit 0 }; " \
-                  "$r = $runners | Where-Object { $_.name -eq 'odoo-runner' }; " \
-                  "if ($r) { Invoke-RestMethod -Method DELETE " \
-                  "-Uri ('https://api.github.com/repos/#{GH_REPO}/actions/runners/' + $r.id) -Headers $h; " \
-                  "Write-Host '[OK] odoo-runner eliminado de GitHub' } " \
-                  "else { Write-Host '[INFO] odoo-runner no encontrado en GitHub' }\""
-        }
-      end
+      trigger.run = {
+        path: "vagrant/deregister_runner.ps1",
+        args: ["odoo-runner", GH_PAT, GH_REPO]
+      }
     end
 
     # ── Provisioner 1: Odoo + Nginx + GitHub Runner ──────────
