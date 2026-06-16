@@ -123,8 +123,13 @@ odoo_autenticar() {
     echo "$respuesta" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1 || true
 }
 
-# ── Función: comprobar si un usuario ya existe ────────────────
-usuario_existe() {
+# ── Función: comprobar si un usuario ya existe (devuelve su ID) ──
+#
+# Devuelve el ID numérico del usuario si existe, cadena vacía si no.
+# Esto permite reutilizar la misma llamada para verificar existencia
+# y obtener el ID para asignar grupos a usuarios ya creados.
+#
+obtener_id_usuario() {
     local uid="$1"; local pass="$2"; local login_buscar="$3"
     local respuesta
     respuesta=$(xmlrpc_call "/xmlrpc/2/object" "<?xml version='1.0'?>
@@ -148,7 +153,16 @@ usuario_existe() {
     <param><value><struct/></value></param>
   </params>
 </methodCall>")
-    (echo "$respuesta" | grep -q '<int>') && return 0 || return 1
+    echo "$respuesta" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1 || true
+}
+
+# ── Función: comprobar si un usuario ya existe ────────────────
+# Wrapper sobre obtener_id_usuario para uso booleano en condicionales.
+usuario_existe() {
+    local uid="$1"; local pass="$2"; local login_buscar="$3"
+    local id
+    id=$(obtener_id_usuario "$uid" "$pass" "$login_buscar")
+    [[ -n "$id" && "$id" =~ ^[0-9]+$ ]]
 }
 
 # ── Función: obtener ID numérico de un grupo por XML-ID ───────
@@ -434,9 +448,17 @@ echo ""
 for entrada in "${USUARIOS[@]}"; do
     IFS='|' read -r nombre login password_nuevo rol <<< "$entrada"
 
-    if usuario_existe "$ADMIN_UID" "$ADMIN_PASS" "$login"; then
-        warn "OMITIDO   '${nombre}' (${login}) — ya existe."
+    # Comprobar si el usuario ya existe para decidir crear o actualizar grupos
+    existente_id=$(obtener_id_usuario "$ADMIN_UID" "$ADMIN_PASS" "$login")
+
+    if [[ -n "$existente_id" && "$existente_id" =~ ^[0-9]+$ ]]; then
+        # Usuario ya existe: actualizar sus grupos (idempotente — [(4,id)] no duplica)
+        info "EXISTE    '${nombre}' (${login}) ID:${existente_id} — actualizando grupos..."
+        while IFS= read -r grupo_xml_id; do
+            [[ -n "$grupo_xml_id" ]] && asignar_grupo "$existente_id" "$grupo_xml_id"
+        done < <(grupos_por_rol "$rol")
         OMITIDOS=$((OMITIDOS + 1))
+        echo ""
         continue
     fi
 
