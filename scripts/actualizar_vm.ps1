@@ -3,65 +3,98 @@
 # DESCRIPCION: Sincroniza el codigo local a la VM odoo-server
 #              y re-ejecuta deploy.sh sin necesitar internet.
 #
-# USO: .\scripts\actualizar_vm.ps1
-#      o desde la raiz del proyecto:
-#      powershell -ExecutionPolicy Bypass -File scripts\actualizar_vm.ps1
+# USO (desde la raiz del proyecto o desde scripts/):
+#   .\scripts\actualizar_vm.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts\actualizar_vm.ps1
 #
-# EQUIVALENTE A: git pull + sudo bash deploy.sh (sin internet en la VM)
+# CONEXION SSH: usa la clave privada de Vagrant en
+#   .vagrant\machines\odoo-server\vmware_desktop\private_key
 # ============================================================
 
 $ErrorActionPreference = "Stop"
 
-# Directorio raiz del proyecto (donde esta el Vagrantfile)
+# ── Configuracion de conexion SSH ─────────────────────────────
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+$VM_IP       = "192.168.30.10"
+$VM_USER     = "vagrant"
+$SSH_KEY     = Join-Path $ProjectRoot ".vagrant\machines\odoo-server\vmware_desktop\private_key"
+$REMOTE_DIR  = "/opt/erp-odoo"
+
+# Opciones SSH comunes (deshabilita verificacion de host para clave autogenerada)
+$SSH_OPTS    = @("-i", $SSH_KEY, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes")
 
 Write-Host ""
 Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host "  Actualizando odoo-server..."                -ForegroundColor Cyan
+Write-Host "  Actualizando odoo-server ($VM_IP)..."       -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ── 1. Comprobar que la VM esta corriendo ─────────────────────
-Write-Host "[1/3] Comprobando estado de la VM..." -ForegroundColor Yellow
-$VmStatus = & vagrant status odoo-server 2>&1 | Select-String "running"
-if (-not $VmStatus) {
-    Write-Host "  [ERROR] La VM odoo-server no esta corriendo." -ForegroundColor Red
-    Write-Host "          Ejecuta: vagrant up odoo-server" -ForegroundColor Red
+# ── 1. Comprobar que la clave SSH existe ─────────────────────
+Write-Host "[1/4] Comprobando acceso SSH..." -ForegroundColor Yellow
+
+if (-not (Test-Path $SSH_KEY)) {
+    Write-Host "  [ERROR] Clave SSH no encontrada en: $SSH_KEY" -ForegroundColor Red
+    Write-Host "          Asegurate de estar en la carpeta raiz del proyecto" -ForegroundColor Red
     exit 1
 }
-Write-Host "  [OK] VM corriendo." -ForegroundColor Green
 
-# ── 2. Sincronizar codigo por rsync (SSH, sin internet en VM) ─
+# Test de conectividad SSH
+$sshTest = & ssh @SSH_OPTS "$VM_USER@$VM_IP" "echo OK" 2>&1
+if ($sshTest -notmatch "OK") {
+    Write-Host "  [ERROR] No se puede conectar a la VM por SSH." -ForegroundColor Red
+    Write-Host "          Comprueba que la VM esta corriendo: vagrant status" -ForegroundColor Red
+    exit 1
+}
+Write-Host "  [OK] Conexion SSH establecida." -ForegroundColor Green
+
+# ── 2. Sincronizar carpetas de codigo por SCP ─────────────────
+# Se copian solo los directorios de codigo, nunca los datos de Odoo
+# (odoo-data/, addons/, certs/) para no sobreescribir informacion.
 Write-Host ""
-Write-Host "[2/3] Sincronizando codigo (vagrant rsync)..." -ForegroundColor Yellow
-Write-Host "  (Excluye: .git/, odoo-data/, addons/, certs/)" -ForegroundColor Gray
+Write-Host "[2/4] Sincronizando codigo por SCP..." -ForegroundColor Yellow
+Write-Host "  (scripts/, docker/, vagrant/, .github/, .env.example)" -ForegroundColor Gray
+
 Set-Location $ProjectRoot
-& vagrant rsync odoo-server
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [ERROR] Fallo el rsync. Comprueba que la VM este accesible." -ForegroundColor Red
-    exit 1
+
+$DirsToSync = @("scripts", "docker", "vagrant", ".github")
+$FilesToSync = @(".env.example", "Vagrantfile")
+
+foreach ($dir in $DirsToSync) {
+    if (Test-Path $dir) {
+        Write-Host "  -> $dir/" -ForegroundColor Gray
+        & scp @SSH_OPTS -r "$dir" "${VM_USER}@${VM_IP}:${REMOTE_DIR}/" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  [ERROR] Fallo al copiar $dir" -ForegroundColor Red
+            exit 1
+        }
+    }
 }
+
+foreach ($file in $FilesToSync) {
+    if (Test-Path $file) {
+        Write-Host "  -> $file" -ForegroundColor Gray
+        & scp @SSH_OPTS "$file" "${VM_USER}@${VM_IP}:${REMOTE_DIR}/" 2>&1 | Out-Null
+    }
+}
+
 Write-Host "  [OK] Codigo sincronizado." -ForegroundColor Green
 
 # ── 3. Re-ejecutar deploy.sh en la VM ─────────────────────────
 Write-Host ""
-Write-Host "[3/3] Ejecutando deploy.sh en la VM..." -ForegroundColor Yellow
+Write-Host "[3/4] Ejecutando deploy.sh en la VM..." -ForegroundColor Yellow
 Write-Host "  (Puede tardar si hay cambios en contenedores)" -ForegroundColor Gray
 
-# NOTA: vagrant ssh -c siempre devuelve exit code 1 aunque el script
-# interno haya tenido exito. Es un bug conocido de Vagrant.
-# Por eso usamos un health check real a Odoo en lugar de $LASTEXITCODE.
-& vagrant ssh odoo-server -c "sudo bash /opt/erp-odoo/scripts/deploy/deploy.sh" 2>&1
+& ssh @SSH_OPTS "$VM_USER@$VM_IP" "sudo bash $REMOTE_DIR/scripts/deploy/deploy.sh"
 
-# Esperar un momento y comprobar salud de Odoo directamente
+# ── 4. Health check de Odoo ───────────────────────────────────
 Write-Host ""
-Write-Host "  Verificando que Odoo responde..." -ForegroundColor Gray
+Write-Host "[4/4] Verificando que Odoo responde..." -ForegroundColor Yellow
 Start-Sleep -Seconds 5
 
 $OdooOk = $false
 for ($i = 1; $i -le 6; $i++) {
     try {
-        $resp = Invoke-WebRequest -Uri "https://192.168.30.10/web/health" `
+        $resp = Invoke-WebRequest -Uri "https://$VM_IP/web/health" `
             -SkipCertificateCheck -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
         if ($resp.StatusCode -eq 200) { $OdooOk = $true; break }
     } catch { }
@@ -77,7 +110,7 @@ if ($OdooOk) {
     Write-Host "=============================================" -ForegroundColor Green
 } else {
     Write-Host ""
-    Write-Host "  [AVISO] Odoo no responde aun — puede necesitar mas tiempo." -ForegroundColor Yellow
-    Write-Host "          Comprueba en: https://erp.odoo.tfg.com"             -ForegroundColor Yellow
-    Write-Host "          O mira logs: vagrant ssh odoo-server -c 'docker logs odoo-web --tail 20'" -ForegroundColor Gray
+    Write-Host "  [AVISO] Odoo no responde aun." -ForegroundColor Yellow
+    Write-Host "          Comprueba: https://erp.odoo.tfg.com" -ForegroundColor Yellow
+    Write-Host "  Logs:   ssh -i $SSH_KEY $VM_USER@$VM_IP 'docker logs odoo-web --tail 20'" -ForegroundColor Gray
 }
