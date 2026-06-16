@@ -38,7 +38,7 @@ $target  = "$VM_USER@$VM_IP"
 $sshTest = & ssh @sshArgs $target 'echo OK' 2>&1
 if ($sshTest -notmatch 'OK') {
     Write-Host '  [ERROR] No se puede conectar a la VM por SSH.' -ForegroundColor Red
-    Write-Host '          Comprueba que la VM esta corriendo.' -ForegroundColor Red
+    Write-Host '          Comprueba que la VM esta corriendo.'   -ForegroundColor Red
     exit 1
 }
 Write-Host '  [OK] Conexion SSH establecida.' -ForegroundColor Green
@@ -49,6 +49,16 @@ Write-Host '[2/4] Sincronizando codigo por SCP...' -ForegroundColor Yellow
 Write-Host '  (scripts/, docker/, vagrant/, .github/, .env.example)' -ForegroundColor Gray
 
 Set-Location $ProjectRoot
+
+# Asegurar que vagrant es propietario del directorio remoto antes de copiar.
+# Es necesario porque deploy.sh crea/modifica archivos como root, dejando
+# ficheros con root:root que scp no puede sobreescribir como vagrant.
+Write-Host '  Ajustando permisos en la VM...' -ForegroundColor Gray
+& ssh @sshArgs $target "sudo chown -R vagrant:vagrant $REMOTE_DIR" 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host '  [ERROR] No se pudieron ajustar los permisos en la VM.' -ForegroundColor Red
+    exit 1
+}
 
 $DirsToSync  = @('scripts', 'docker', 'vagrant', '.github')
 $FilesToSync = @('.env.example', 'Vagrantfile')
@@ -70,6 +80,10 @@ foreach ($file in $FilesToSync) {
     if (Test-Path $file) {
         Write-Host "  -> $file" -ForegroundColor Gray
         & scp @scpArgs $file "${target}:${REMOTE_DIR}/" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  [ERROR] Fallo al copiar $file" -ForegroundColor Red
+            exit 1
+        }
     }
 }
 
@@ -83,37 +97,22 @@ Write-Host '  (Puede tardar si hay cambios en contenedores)' -ForegroundColor Gr
 $deployCmd = "sudo bash $REMOTE_DIR/scripts/deploy/deploy.sh"
 & ssh @sshArgs $target $deployCmd
 
-# ── 4. Health check de Odoo ───────────────────────────────────
+# ── 4. Resultado ─────────────────────────────────────────────
+# El health check lo realiza deploy.sh internamente desde la propia VM.
+# Desde Windows no hay ruta directa a la red interna (192.168.30.x),
+# por lo que la verificacion remota no es posible.
 Write-Host ''
-Write-Host '[4/4] Verificando que Odoo responde...' -ForegroundColor Yellow
-Start-Sleep -Seconds 5
-
-$OdooOk  = $false
-$HealthUrl = "https://$VM_IP/web/health"
-
-for ($i = 1; $i -le 6; $i++) {
-    try {
-        $resp = Invoke-WebRequest -Uri $HealthUrl `
-            -SkipCertificateCheck -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
-        if ($resp.StatusCode -eq 200) {
-            $OdooOk = $true
-            break
-        }
-    } catch { }
-    Write-Host "  Intento $i/6 - esperando 5s..." -ForegroundColor Gray
-    Start-Sleep -Seconds 5
-}
-
-if ($OdooOk) {
-    Write-Host ''
+if ($LASTEXITCODE -eq 0) {
     Write-Host '=============================================' -ForegroundColor Green
     Write-Host '  [OK] Actualizacion completada.'             -ForegroundColor Green
-    Write-Host '  URL: https://erp.odoo.tfg.com'             -ForegroundColor Green
+    Write-Host '  Accede desde la red interna:'               -ForegroundColor Green
+    Write-Host '  https://erp.odoo.tfg.com'                   -ForegroundColor Green
     Write-Host '=============================================' -ForegroundColor Green
 } else {
-    Write-Host ''
-    Write-Host '  [AVISO] Odoo no responde aun.' -ForegroundColor Yellow
-    Write-Host '          Comprueba: https://erp.odoo.tfg.com' -ForegroundColor Yellow
-    Write-Host '  Para ver logs, conectate a la VM y ejecuta:' -ForegroundColor Gray
-    Write-Host '  docker logs odoo-web --tail 20' -ForegroundColor Gray
+    Write-Host '=============================================' -ForegroundColor Red
+    Write-Host '  [ERROR] deploy.sh termino con errores.'     -ForegroundColor Red
+    Write-Host '  Revisa los logs en la VM:'                  -ForegroundColor Red
+    Write-Host '  docker logs odoo-web --tail 50'             -ForegroundColor Red
+    Write-Host '=============================================' -ForegroundColor Red
+    exit 1
 }

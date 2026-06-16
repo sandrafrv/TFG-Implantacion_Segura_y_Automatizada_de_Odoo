@@ -64,6 +64,14 @@ docker rm -f odoo-web nginx-proxy 2>/dev/null || true
 
 docker compose "${COMPOSE_OPTS[@]}" up -d --force-recreate
 
+# Corregir permisos del directorio de sesiones de Odoo.
+# deploy.sh corre como root, lo que provoca que /var/lib/odoo/.local
+# quede con propietario root:root y Odoo no pueda escribir en él,
+# devolviendo HTTP 500 en /web/health hasta que se corrija.
+echo "  Ajustando permisos de sesiones de Odoo..."
+sleep 2  # Dar tiempo mínimo a que el contenedor esté en pie
+docker exec -u root odoo-web chown -R odoo:odoo /var/lib/odoo/.local 2>/dev/null || true
+
 # --- Inicialización BD (solo si es el primer despliegue) ---
 echo "[3/4] Comprobando base de datos..."
 sleep 5  # Dar tiempo a que Odoo arranque y contacte con la BD externa
@@ -193,6 +201,10 @@ except Exception as e:
         # Reiniciar Odoo para que arranque limpio con la BD ya inicializada
         docker restart odoo-web
         echo "  [OK] Contenedor odoo-web reiniciado."
+
+        # Volver a corregir permisos tras el reinicio
+        sleep 2
+        docker exec -u root odoo-web chown -R odoo:odoo /var/lib/odoo/.local 2>/dev/null || true
     else
         echo "  [OK] BD ya inicializada."
     fi
@@ -240,4 +252,3 @@ done
 echo "[ERROR] Odoo no respondió. Logs:"
 docker compose "${COMPOSE_OPTS[@]}" logs --tail=30
 exit 1
-
