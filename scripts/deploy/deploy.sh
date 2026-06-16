@@ -85,7 +85,7 @@ else
     # entorno del contenedor (que puede no tener PASSWORD si el .env de Docker
     # no se cargó correctamente).
     DB_PASS_CHK=$(grep -E '^POSTGRES_PASSWORD=' "$PROJECT_DIR/.env" \
-        | cut -d= -f2- | tr -d '"')
+        | head -1 | cut -d= -f2- | tr -d '"')
     HAS_DB=$(docker exec \
         -e HOST=192.168.40.10 \
         -e USER=odoo \
@@ -102,11 +102,16 @@ try:
         password=os.environ.get('PASSWORD',''),
         connect_timeout=5)
     cur = c.cursor()
-    cur.execute(\"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='ir_module_module');\")
-    print('t' if cur.fetchone()[0] else 'f')
+    # Comprobar que los modulos principales esten instalados, no solo que
+    # exista la tabla. Asi un re-deploy no vuelve a hacer el --stop-after-init.
+    cur.execute(\"SELECT COUNT(*) FROM information_schema.tables WHERE table_name='ir_module_module';\")
+    if cur.fetchone()[0] == 0:
+        print('f')  # tabla no existe: BD vacia
+    else:
+        cur.execute(\"SELECT COUNT(*) FROM ir_module_module WHERE name='base' AND state='installed';\")
+        print('t' if cur.fetchone()[0] > 0 else 'f')
     c.close()
 except ImportError:
-    # psycopg2 no disponible — intentar via pg_isready no da info del schema, asumir 'f'
     print('f')
 except Exception as e:
     sys.stderr.write(str(e) + '\n')
@@ -114,19 +119,19 @@ except Exception as e:
 " 2>/dev/null || echo "f")
 
     if [ "$HAS_DB" = "f" ]; then
-        echo "  [!] BD vacía — inicializando Odoo (2-5 min)..."
         MASTER_PASS=$(grep -E '^ODOO_MASTER_PASSWORD=' "$PROJECT_DIR/.env" \
-            | cut -d= -f2- | tr -d '"')
+            | head -1 | cut -d= -f2- | tr -d '"')
         DB_PASS=$(grep -E '^POSTGRES_PASSWORD=' "$PROJECT_DIR/.env" \
-            | cut -d= -f2- | tr -d '"')
-        # IMPORTANTE: pasar --workers 0 explícitamente.
-        # Si odoo.conf define workers > 0, Odoo arranca en modo multiworker
-        # y --stop-after-init NO inicializa la BD (el proceso muere sin error
-        # pero sin haber creado el schema). --workers 0 fuerza modo monoproceso.
-        #
-        # Se usa docker exec con -e para inyectar las credenciales directamente,
-        # en lugar de depender del entorno del contenedor ya arrancado.
-        # --no-http evita conflicto de puerto con el proceso odoo-web en ejecución.
+            | head -1 | cut -d= -f2- | tr -d '"')
+        # MODULOS A INSTALAR en el init inicial:
+        # Se instalan todos los modulos de negocio necesarios para que
+        # los grupos (CRM, Ventas, RRHH, Inventario, Compras, Contabilidad)
+        # existan cuando odoo_crear_usuarios.sh asigne los roles.
+        # Hacerlo en una sola pasada es mas eficiente que instalarlos despues.
+        # TIEMPO ESTIMADO: 20-40 minutos (depende de los recursos de la VM).
+        ODOO_MODULES="base,crm,sale_management,account,hr,stock,purchase"
+        echo "  [!] BD vacía — inicializando Odoo con módulos de negocio (15-25 min)..."
+        echo "  [INIT] Módulos: $ODOO_MODULES"
         echo "  [INIT] Ejecutando odoo --stop-after-init (workers=0)..."
         if docker exec \
             -e HOST=192.168.40.10 \
@@ -139,15 +144,15 @@ except Exception as e:
                 --no-http \
                 -w "$MASTER_PASS" \
                 -d odoo_erp \
-                -i base \
+                -i "$ODOO_MODULES" \
                 --stop-after-init \
-                2>&1 | tail -20; then
+                2>&1 | tail -30; then
             echo "  [OK] BD inicializada."
 
             # Cambiar contraseña del admin (por defecto Odoo la pone en "admin")
             # al valor de ODOO_ADMIN_PASSWORD definido en el .env del proyecto.
             ADMIN_PASS_NEW=$(grep -E '^ODOO_ADMIN_PASSWORD=' "$PROJECT_DIR/.env" \
-                | cut -d= -f2- | tr -d '"')
+                | head -1 | cut -d= -f2- | tr -d '"')
             if [ -n "$ADMIN_PASS_NEW" ]; then
                 echo "  [INIT] Cambiando contraseña del usuario admin..."
                 docker exec \
