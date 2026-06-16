@@ -48,21 +48,36 @@ Write-Host ""
 Write-Host "[3/3] Ejecutando deploy.sh en la VM..." -ForegroundColor Yellow
 Write-Host "  (Puede tardar si hay cambios en contenedores)" -ForegroundColor Gray
 
-# Eliminar el flag de usuarios para que se re-ejecute odoo_crear_usuarios.sh
-# si hay cambios en la lista de usuarios o sus grupos
-& vagrant ssh odoo-server -c @"
-  sudo bash /opt/erp-odoo/scripts/deploy/deploy.sh
-"@
+# NOTA: vagrant ssh -c siempre devuelve exit code 1 aunque el script
+# interno haya tenido exito. Es un bug conocido de Vagrant.
+# Por eso usamos un health check real a Odoo en lugar de $LASTEXITCODE.
+& vagrant ssh odoo-server -c "sudo bash /opt/erp-odoo/scripts/deploy/deploy.sh" 2>&1
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host ""
-    Write-Host "  [AVISO] deploy.sh termino con algun error." -ForegroundColor Yellow
-    Write-Host "          Revisa los logs con: vagrant ssh odoo-server" -ForegroundColor Yellow
-    Write-Host "          y ejecuta: docker logs odoo-web --tail 30" -ForegroundColor Yellow
-} else {
+# Esperar un momento y comprobar salud de Odoo directamente
+Write-Host ""
+Write-Host "  Verificando que Odoo responde..." -ForegroundColor Gray
+Start-Sleep -Seconds 5
+
+$OdooOk = $false
+for ($i = 1; $i -le 6; $i++) {
+    try {
+        $resp = Invoke-WebRequest -Uri "https://192.168.30.10/web/health" `
+            -SkipCertificateCheck -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+        if ($resp.StatusCode -eq 200) { $OdooOk = $true; break }
+    } catch { }
+    Write-Host "  Intento $i/6 — esperando 5s..." -ForegroundColor Gray
+    Start-Sleep -Seconds 5
+}
+
+if ($OdooOk) {
     Write-Host ""
     Write-Host "=============================================" -ForegroundColor Green
     Write-Host "  [OK] Actualizacion completada."             -ForegroundColor Green
     Write-Host "  URL: https://erp.odoo.tfg.com"             -ForegroundColor Green
     Write-Host "=============================================" -ForegroundColor Green
+} else {
+    Write-Host ""
+    Write-Host "  [AVISO] Odoo no responde aun — puede necesitar mas tiempo." -ForegroundColor Yellow
+    Write-Host "          Comprueba en: https://erp.odoo.tfg.com"             -ForegroundColor Yellow
+    Write-Host "          O mira logs: vagrant ssh odoo-server -c 'docker logs odoo-web --tail 20'" -ForegroundColor Gray
 }
