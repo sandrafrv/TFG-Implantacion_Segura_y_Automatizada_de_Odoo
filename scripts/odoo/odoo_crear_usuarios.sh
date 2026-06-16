@@ -89,7 +89,11 @@ set +a
 ODOO_URL="https://localhost"
 ODOO_DB="${POSTGRES_DB:-odoo_erp}"
 ADMIN_LOGIN="admin"
-ADMIN_PASS="${ODOO_MASTER_PASSWORD:-cambia_esto}"
+# ODOO_ADMIN_PASSWORD: contraseña del usuario admin de Odoo.
+# deploy.sh la establece post-init al valor del .env del proyecto.
+# Fallback "admin": contraseña por defecto de Odoo en instalación limpia.
+# NOTA: distinta de ODOO_MASTER_PASSWORD (que es para gestión de BDs).
+ADMIN_PASS="${ODOO_ADMIN_PASSWORD:-admin}"
 
 # ── Función: llamada XML-RPC con curl ─────────────────────────
 xmlrpc_call() {

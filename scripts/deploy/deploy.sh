@@ -143,6 +143,43 @@ except Exception as e:
                 --stop-after-init \
                 2>&1 | tail -20; then
             echo "  [OK] BD inicializada."
+
+            # Cambiar contraseña del admin (por defecto Odoo la pone en "admin")
+            # al valor de ODOO_ADMIN_PASSWORD definido en el .env del proyecto.
+            ADMIN_PASS_NEW=$(grep -E '^ODOO_ADMIN_PASSWORD=' "$PROJECT_DIR/.env" \
+                | cut -d= -f2- | tr -d '"')
+            if [ -n "$ADMIN_PASS_NEW" ]; then
+                echo "  [INIT] Cambiando contraseña del usuario admin..."
+                docker exec \
+                    -e HOST=192.168.40.10 \
+                    -e USER=odoo \
+                    -e PASSWORD="$DB_PASS" \
+                    -e ODOO_ADMIN_PASSWORD="$ADMIN_PASS_NEW" \
+                    odoo-web \
+                    python3 -c "
+import os, sys
+try:
+    import odoo
+    odoo.tools.config.parse_config(['-c', '/etc/odoo/odoo.conf', '-d', 'odoo_erp'])
+    new_pass = os.environ.get('ODOO_ADMIN_PASSWORD', '')
+    if not new_pass:
+        print('  [SKIP] ODOO_ADMIN_PASSWORD no definida.')
+        sys.exit(0)
+    with odoo.registry('odoo_erp').cursor() as cr:
+        from odoo.api import Environment
+        env = Environment(cr, odoo.SUPERUSER_ID, {})
+        admin = env['res.users'].search([('login', '=', 'admin')], limit=1)
+        if admin:
+            admin.write({'password': new_pass})
+            cr.commit()
+            print('  [OK] Contrasena admin actualizada.')
+        else:
+            print('  [WARN] Usuario admin no encontrado.')
+except Exception as e:
+    print(f'  [WARN] No se pudo cambiar contrasena admin: {e}', file=sys.stderr)
+    sys.exit(0)
+" 2>&1 || echo "  [AVISO] Cambio de contraseña admin falló (continuando)."
+            fi
         else
             echo "  [AVISO] Inicialización BD falló. Revisa los logs:"
             echo "          docker logs odoo-web --tail 40"

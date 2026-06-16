@@ -221,11 +221,16 @@ echo "  [PERMS] Directorios Odoo asignados a uid 101:101."
 
 # ── PASO 8: .env Odoo (en RAÍZ del proyecto, no en docker/) ─
 # docker compose busca el .env en el directorio de trabajo (/opt/erp-odoo)
+# ODOO_ADMIN_PASSWORD: contraseña del usuario 'admin' de Odoo (distinta
+# de ODOO_MASTER_PASSWORD que es para gestión de BDs).
+# deploy.sh la usa post-init para cambiar la contraseña del admin.
 mkdir -p "${PROJECT_DIR}"
 cat > "${PROJECT_DIR}/.env" << ENVEOF
 POSTGRES_HOST=${POSTGRES_HOST}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+POSTGRES_DB=odoo_erp
 ODOO_MASTER_PASSWORD=${ODOO_MASTER_PASSWORD}
+ODOO_ADMIN_PASSWORD=${ODOO_MASTER_PASSWORD}
 ENVEOF
 chmod 640 "${PROJECT_DIR}/.env"
 
