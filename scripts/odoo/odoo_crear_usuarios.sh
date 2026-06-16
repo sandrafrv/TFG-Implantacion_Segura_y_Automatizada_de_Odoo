@@ -238,6 +238,7 @@ crear_usuario() {
         <member><name>name</name><value><string>${nombre}</string></value></member>
         <member><name>login</name><value><string>${login}</string></value></member>
         <member><name>password</name><value><string>${password_nuevo}</string></value></member>
+        <member><name>sel_groups_1_10_11</name><value><int>${tipo_usuario}</int></value></member>
       </struct></value>
     </data></array></value></param>
     <param><value><struct/></value></param>
@@ -250,7 +251,6 @@ crear_usuario() {
         echo "$respuesta" | grep -oP '(?<=<int>)\d+(?=</int>)' | head -1 || true
     fi
 }
-
 # ── Función: asignar grupos adicionales a un usuario ──────────
 #
 # Odoo usa el comando [(4, id)] para añadir un grupo sin reemplazar
