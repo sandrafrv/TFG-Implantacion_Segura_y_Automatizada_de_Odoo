@@ -327,8 +327,9 @@ grupos_por_rol() {
             echo "base.group_user"
             ;;
         ventas)
+            # Acceso a CRM en Odoo 17 via sales_team (no existen crm.group_crm_*
+            # como XML-IDs separados en esta version)
             echo "base.group_user"
-            echo "crm.group_crm_salesperson"
             echo "sales_team.group_sale_salesman"
             echo "account.group_account_invoice"
             ;;
@@ -346,8 +347,8 @@ grupos_por_rol() {
             echo "stock.group_stock_user"
             ;;
         jefe_ventas)
+            # Acceso manager CRM en Odoo 17 via sales_team
             echo "base.group_user"
-            echo "crm.group_crm_manager"
             echo "sales_team.group_sale_manager"
             echo "account.group_account_invoice"
             ;;
