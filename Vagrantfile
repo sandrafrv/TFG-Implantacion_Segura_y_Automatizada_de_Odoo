@@ -108,6 +108,24 @@ Vagrant.configure("2") do |config|
     deb.vm.box_check_update = false
     deb.vm.hostname         = "odoo-server-tfg"
 
+    # ── Carpeta sincronizada (rsync) ─────────────────────────────
+    # Permite actualizar el codigo en la VM SIN necesitar internet:
+    #   vagrant rsync odoo-server          <- sincroniza una vez
+    #   vagrant rsync-auto odoo-server     <- sincroniza en tiempo real
+    # Util cuando pfSense no reenvía internet y el runner no alcanza GitHub.
+    # Los datos de Odoo (odoo-data/, addons/) se excluyen para no sobreescribir.
+    deb.vm.synced_folder ".", "/opt/erp-odoo",
+      type:           "rsync",
+      rsync__exclude: [
+        ".git/",
+        ".vagrant/",
+        "odoo-data/",
+        "odoo_sessions/",
+        "addons/",
+        "certs/",
+        "*.vmx", "*.vmdk", "*.log"
+      ]
+
     deb.vm.network "private_network",
       ip:      "192.168.30.10",
       netmask: "255.255.255.0"

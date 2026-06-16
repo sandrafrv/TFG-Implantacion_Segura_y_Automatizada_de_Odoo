@@ -144,14 +144,14 @@ jobs:
       - name: Estado final del stack
         working-directory: /opt/erp-odoo
         run: |
-          echo "============================================="
+          echo "====================================================="
           echo " Estado final de los contenedores:"
-          echo "============================================="
+          echo "====================================================="
           docker compose -f docker/docker-compose.yml ps
           echo ""
-          echo "  Health check de Odoo (MACVLAN 192.168.30.21):"
-          curl -sk https://192.168.30.21/web/health 2>/dev/null \
+          echo "  Health check de Odoo:"
+          curl -sk https://localhost/web/health 2>/dev/null \
             && echo "  [OK] Odoo responde correctamente" \
-            || echo "  [AVISO] Odoo aún no responde (puede necesitar más tiempo)"
+            || echo "  [AVISO] Odoo aun no responde (puede necesitar mas tiempo)"
           echo ""
-          echo "[OK] Despliegue completado."
+          echo "[OK] Despliegue completado."
