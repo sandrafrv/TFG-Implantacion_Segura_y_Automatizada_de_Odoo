@@ -112,5 +112,6 @@ if ($OdooOk) {
     Write-Host ""
     Write-Host "  [AVISO] Odoo no responde aun." -ForegroundColor Yellow
     Write-Host "          Comprueba: https://erp.odoo.tfg.com" -ForegroundColor Yellow
-    Write-Host "  Logs:   ssh -i $SSH_KEY $VM_USER@$VM_IP 'docker logs odoo-web --tail 20'" -ForegroundColor Gray
+    $LogCmd = "ssh -i `"$SSH_KEY`" $VM_USER@${VM_IP} docker logs odoo-web --tail 20"
+    Write-Host "  Logs:   $LogCmd" -ForegroundColor Gray
 }
