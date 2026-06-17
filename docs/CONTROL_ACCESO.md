@@ -18,13 +18,18 @@ Internet / WAN
   ├── VLAN 10 (192.168.10.0/24) ── Usuarios del ERP
   ├── VLAN 40 (192.168.40.0/24) ── Admin + DBA + PostgreSQL
   └── VLAN 30 (192.168.30.0/24) ── DMZ
-        ├── .10 → Debian 13 Host  (Docker engine, SSH, Cockpit :9090)
-        ├── .20 → nginx-proxy     (MACVLAN — puerta de entrada HTTPS)
-        └── .21 → odoo-web        (MACVLAN — aplicación Odoo 17)
+        └── .10 → Debian 12 Host  (Docker engine, SSH :22, Cockpit :9090)
+                    ├── odoo-web  (contenedor Docker, puerto :8069 interno)
+                    └── nginx-proxy (contenedor Docker, puertos :80/:443 mapeados)
 
   [VLAN 40]
         └── .10 → VM3 PostgreSQL  (BD nativa, sin acceso desde VLAN 10)
 ```
+
+> [!NOTE]
+> La arquitectura original incluía MACVLAN (IPs `.20` y `.21`). Fue eliminada
+> porque VMware host-only no soporta modo promiscuo. Actualmente nginx y odoo-web
+> son accesibles a través de port mapping en el host `192.168.30.10`.
 
 ### Principio de acceso por VLAN
 
@@ -134,14 +139,19 @@ Script: `scripts/odoo/odoo_crear_usuarios.sh`
 | Rol | XML-IDs de grupos Odoo |
 |-----|----------------------|
 | `becario` | `base.group_user` |
-| `ventas` | `base.group_user`, `crm.group_crm_salesperson`, `sales_team.group_sale_salesman`, `account.group_account_invoice` |
+| `ventas` | `base.group_user`, `sales_team.group_sale_salesman`, `account.group_account_invoice` |
 | `rrhh` | `base.group_user`, `hr.group_hr_user` |
 | `almacen` | `base.group_user`, `stock.group_stock_user`, `purchase.group_purchase_user` |
 | `tecnico` | `base.group_user`, `stock.group_stock_user` |
-| `jefe_ventas` | `base.group_user`, `crm.group_crm_manager`, `sales_team.group_sale_manager` |
+| `jefe_ventas` | `base.group_user`, `sales_team.group_sale_manager`, `account.group_account_invoice` |
 | `jefe_rrhh` | `base.group_user`, `hr.group_hr_manager` |
 | `jefe_almacen` | `base.group_user`, `stock.group_stock_manager`, `purchase.group_purchase_manager` |
 | `api` | `base.group_user` |
+
+> [!NOTE]
+> En Odoo 17, `crm.group_crm_salesperson` y `crm.group_crm_manager` no existen
+> como XML-IDs independientes. El acceso a CRM se gestiona mediante
+> `sales_team.group_sale_salesman` y `sales_team.group_sale_manager`.
 
 ---
 
@@ -181,11 +191,11 @@ bash scripts/odoo/odoo_crear_usuarios.sh
 |-----------|--------|-----------|--------|---------|--------|-------------|
 | 1 | ✅ Pass | TCP | VLAN 40 | `192.168.30.10` | 22 | SSH al servidor Debian |
 | 2 | ✅ Pass | TCP | VLAN 40 | `192.168.30.10` | 9090 | Cockpit (gestión visual) |
-| 3 | ✅ Pass | TCP | VLAN 40 | `192.168.30.20` | 443 | Odoo admin completo |
+| 3 | ✅ Pass | TCP | VLAN 40 | `192.168.30.10` | 443 | Odoo admin completo |
 | 4 | ✅ Pass | TCP | VLAN 40 | `192.168.40.10` | 5432 | Acceso DBA directo a PostgreSQL |
 | 5 | ✅ Pass | TCP | VLAN 30 | `192.168.40.10` | 5432 | Odoo → BD externa |
 | 6 | ❌ Block | TCP | VLAN 10 | `192.168.40.10` | 5432 | Usuarios NO tocan la BD |
-| 7 | ❌ Block | * | VLAN 10 | `192.168.30.21` | 8069 | No acceso directo a Odoo |
+| 7 | ❌ Block | TCP | VLAN 10 | `192.168.30.10` | 8069 | No acceso directo a Odoo |
 | 8 | ❌ Block | * | DMZ | VLAN 10 | * | Anti-pivoting |
 | 9 | ❌ Block | * | WAN | `192.168.40.10` | 5432 | BD nunca expuesta a Internet |
 
@@ -197,14 +207,14 @@ bash scripts/odoo/odoo_crear_usuarios.sh
 Empleado (VLAN 10, 192.168.10.x)
     │
     │  1. Abre https://erp.odoo.tfg.com
-    │     DNS → 192.168.30.20 (pfSense DNS Resolver)
+    │     DNS → 192.168.30.10 (pfSense DNS Resolver)
     │
     ▼
 [pfSense — VLAN 10 → DMZ]
-    │  Regla: VLAN 10 → .20 :443 → PASS
+    │  Regla: VLAN 10 → .10 :443 → PASS
     │
     ▼
-[Nginx — 192.168.30.20:443]        ← CAPA C
+[Nginx — 192.168.30.10:443]        ← CAPA C
     │  Ruta /web/database → 403 (VLAN 10 bloqueada)
     │  Ruta / → proxy_pass a odoo-web:8069
     │
