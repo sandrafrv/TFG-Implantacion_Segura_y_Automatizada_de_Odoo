@@ -74,8 +74,8 @@ Internet (WAN)
 | pfSense gateway DMZ | 30 | 192.168.30.1 | — |
 | pfSense gateway Admin/BD | 40 | 192.168.40.1 | Solo VLAN 40 |
 | **vm-odoo** — host Debian | DMZ | 192.168.30.10 | SSH/Cockpit solo VLAN 40 |
-| **nginx-proxy** | DMZ | 192.168.30.20 | VLAN 10 + 40 + WAN (:443) |
-| **odoo-web** | DMZ | 192.168.30.21 | Solo vía Nginx |
+| **nginx-proxy** | DMZ | 192.168.30.10 | VLAN 10 + 40 + WAN (:443) |
+| **odoo-web** | DMZ | 192.168.30.10 | Solo vía Nginx |
 | **vm-postgres** — PostgreSQL 16 | BD | 192.168.40.10 | Solo :5432 desde VLAN 30 y VLAN 40 |
 
 ---
@@ -245,10 +245,10 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 |:------|:------|
 | Host | `erp.odoo` |
 | Domain | `tfg.com` |
-| IP Address | `192.168.30.20` |
+| IP Address | `192.168.30.10` |
 | Description | `nginx-proxy Odoo ERP — DMZ` |
 
-> ⚠️ La IP debe ser `192.168.30.20` (nginx-proxy), **no** `192.168.30.10`.
+> ⚠️ La IP debe ser `192.168.30.10` (nginx-proxy), **no** `192.168.30.10`.
 
 ---
 
@@ -259,8 +259,8 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 | Nombre | Tipo | Dirección | Descripción |
 |:-------|:-----|:----------|:------------|
 | `Servidor_Debian` | Host | `192.168.30.10` | Servidor Debian DMZ |
-| `Nginx_Proxy` | Host | `192.168.30.20` | Nginx Reverse Proxy |
-| `Odoo_Web` | Host | `192.168.30.21` | Odoo ERP |
+| `Nginx_Proxy` | Host | `192.168.30.10` | Nginx Reverse Proxy |
+| `Odoo_Web` | Host | `192.168.30.10` | Odoo ERP |
 | `PostgreSQL_VM` | Host | `192.168.40.10` | PostgreSQL 16 VLAN 40 |
 | `VLAN_Clientes` | Network | `192.168.10.0/24` | Red VLAN 10 Clientes |
 | `VLAN_Admin` | Network | `192.168.40.0/24` | Red VLAN 40 Admin+BD |
@@ -280,7 +280,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 | Source | any |
 | Destination | WAN address |
 | Destination Port | 80 |
-| Redirect Target IP | `192.168.30.20` |
+| Redirect Target IP | `192.168.30.10` |
 | Redirect Target Port | 80 |
 | Description | `HTTP publico - Nginx Odoo` |
 | Filter Rule Association | Pass |
@@ -292,7 +292,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 | Interface | WAN |
 | Protocol | TCP |
 | Destination Port | 443 |
-| Redirect Target IP | `192.168.30.20` |
+| Redirect Target IP | `192.168.30.10` |
 | Redirect Target Port | 443 |
 | Description | `HTTPS publico - Nginx Odoo` |
 | Filter Rule Association | Pass |
@@ -323,7 +323,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 
 > **¿Por qué forzar DNS?** Clientes Linux con `systemd-resolved` pueden ignorar el DNS del DHCP
 > y consultar a 8.8.8.8. Estas reglas interceptan cualquier consulta DNS y la redirigen a pfSense,
-> garantizando que `erp.odoo.tfg.com` resuelva siempre a `192.168.30.20`.
+> garantizando que `erp.odoo.tfg.com` resuelva siempre a `192.168.30.10`.
 
 ### NAT Outbound — *Firewall → NAT → Outbound*
 
@@ -369,8 +369,8 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 | 3 | **Block** | IPv4 TCP | LAN | `192.168.30.10` | 9090 | Bloquear Cockpit |
 | 4 | **Block** | IPv4 TCP | LAN | `192.168.30.0/24` | 5432 | Bloquear PostgreSQL |
 | 5 | ~~Pass~~ | IPv4 * | LAN | any | * | ~~Default allow~~ **← DESHABILITAR** |
-| 6 | **Pass** | IPv4 TCP | LAN | `192.168.30.20` | 80 | Odoo HTTP vía Nginx |
-| 7 | **Pass** | IPv4 TCP | LAN | `192.168.30.20` | 443 | Odoo HTTPS vía Nginx |
+| 6 | **Pass** | IPv4 TCP | LAN | `192.168.30.10` | 80 | Odoo HTTP vía Nginx |
+| 7 | **Pass** | IPv4 TCP | LAN | `192.168.30.10` | 443 | Odoo HTTPS vía Nginx |
 | 8 | **Pass** | IPv4 * | LAN | any | * | Navegación Internet |
 | 9 | **Block** | IPv4 * | any | any | * | **Deny all ← ÚLTIMO** |
 
@@ -385,7 +385,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 |:-:|:------:|:-----:|:-------|:--------|:------:|:------------|
 | 1 | **Block** | IPv4 * | OPT1 | `192.168.10.0/24` | * | **Anti-pivoting VLAN 10 ← PRIMERO** |
 | 2 | **Block** | IPv4 * | OPT1 | `192.168.10.1` | * | DMZ no accede a pfSense LAN |
-| 3 | **Pass** | IPv4 TCP | `192.168.30.21` | `192.168.40.10` | 5432 | **Odoo → PostgreSQL ← ANTES del bloqueo VLAN40** |
+| 3 | **Pass** | IPv4 TCP | `192.168.30.10` | `192.168.40.10` | 5432 | **Odoo → PostgreSQL ← ANTES del bloqueo VLAN40** |
 | 4 | **Block** | IPv4 * | OPT1 | `192.168.40.0/24` | * | Anti-pivoting VLAN Admin |
 | 5 | **Pass** | IPv4 TCP | OPT1 | any | 80 | Actualizaciones HTTP |
 | 6 | **Pass** | IPv4 TCP | OPT1 | any | 443 | Actualizaciones HTTPS |
@@ -395,7 +395,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 **Detalle de la regla 3 (crítica):**
 1. *Firewall → Rules → OPT1 → + Add*
 2. Action: **Pass**, Protocol: **TCP**
-3. Source → Single host: `192.168.30.21`
+3. Source → Single host: `192.168.30.10`
 4. Destination → Single host: `192.168.40.10`, Port: `5432`
 5. **Save** → colocar en posición 3 → **Apply Changes**
 
@@ -408,7 +408,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 | 1 | **Pass** | IPv4 TCP | OPT2 | This Firewall | 443 | **Panel pfSense — acceso exclusivo** |
 | 2 | **Pass** | IPv4 TCP | OPT2 | `192.168.30.10` | 22 | SSH al servidor Debian |
 | 3 | **Pass** | IPv4 TCP | OPT2 | `192.168.30.10` | 9090 | Cockpit — gestión visual |
-| 4 | **Pass** | IPv4 TCP | OPT2 | `192.168.30.20` | 443 | Nginx/Odoo admin |
+| 4 | **Pass** | IPv4 TCP | OPT2 | `192.168.30.10` | 443 | Nginx/Odoo admin |
 | 5 | **Pass** | IPv4 TCP | OPT2 | `192.168.40.10` | 5432 | Acceso DBA directo a PostgreSQL |
 | 6 | **Pass** | IPv4 TCP | OPT2 | any | 80 | Actualizaciones HTTP |
 | 7 | **Pass** | IPv4 TCP | OPT2 | any | 443 | Actualizaciones HTTPS |
@@ -476,7 +476,7 @@ bash scripts/deploy/generate_pfsense_config.sh
 
 ```bash
 # Desde cliente VLAN 10
-nslookup erp.odoo.tfg.com          # → 192.168.30.20
+nslookup erp.odoo.tfg.com          # → 192.168.30.10
 curl -k -I https://erp.odoo.tfg.com  # → HTTP/2 200
 
 # Desde admin VLAN 40
@@ -492,9 +492,9 @@ nc -zv 192.168.40.10 5432          # Desde VLAN 10 → Timeout ✅
 ```
 ✅ Interfaces: WAN (DHCP) + LAN (10.1/24) + OPT1 (30.1/24) + OPT2 (40.1/24)
 ✅ DHCP: LAN 100–200, OPT2 10–50
-✅ DNS Resolver + Host Override: erp.odoo.tfg.com → 192.168.30.20
+✅ DNS Resolver + Host Override: erp.odoo.tfg.com → 192.168.30.10
 ✅ 6 Aliases creados
-✅ NAT: WAN 80/443 → 192.168.30.20, DNS forzado en LAN y OPT2
+✅ NAT: WAN 80/443 → 192.168.30.10, DNS forzado en LAN y OPT2
 ✅ Reglas: WAN(5) + LAN(9) + OPT1(8) + OPT2(10) = 32 reglas
 ✅ Anti-Lockout desactivado (tras acceso VLAN 40 confirmado)
 ✅ Contraseña admin cambiada
@@ -647,7 +647,7 @@ docker --version && docker compose version
 ## 3.4 Clonar Repositorio y Configurar
 
 ```bash
-git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git \
+git clone https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo.git \
   /opt/erp-odoo
 cd /opt/erp-odoo
 cp .env.example .env
@@ -724,7 +724,7 @@ systemctl enable cockpit.socket && systemctl start cockpit.socket
 ### Asistente de configuración
 
 ```bash
-bash /opt/erp-odoo/scripts/odoo/odoo_setup_wizard.sh
+Los usuarios se crean automáticamente vía deploy.sh. La configuración de la empresa (UI) y la instalación de módulos se realizan manualmente tras el primer inicio:
 ```
 
 Realiza: **Renombrar empresa** → "My Company" → "TechSolutions S.L." | **Instalar módulos** → CRM, Ventas, RRHH, Inventario
@@ -813,7 +813,7 @@ En GitHub: **Settings → Actions → Runners → New self-hosted runner** → L
 mkdir /opt/actions-runner && cd /opt/actions-runner
 curl -O -L https://github.com/actions/runner/releases/download/v2.317.0/actions-runner-linux-x64-2.317.0.tar.gz
 tar xzf ./actions-runner-linux-x64-2.317.0.tar.gz
-./config.sh --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+./config.sh --url https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo \
   --token <TOKEN> --name odoo-runner --labels 'self-hosted,linux,odoo'
 sudo ./svc.sh install runner
 sudo ./svc.sh start
@@ -966,7 +966,7 @@ curl -k -I https://localhost/web/health  # → HTTP/2 200 ✅
 PARTE 1 — Red (pfSense)
   ✅ 4 interfaces activas: WAN + VLAN 10 + VLAN 30 + VLAN 40
   ✅ DHCP: VLAN 10 (.100–.200) + VLAN 40 (.10–.50)
-  ✅ DNS: erp.odoo.tfg.com → 192.168.30.20
+  ✅ DNS: erp.odoo.tfg.com → 192.168.30.10
   ✅ NAT: WAN 80/443 → nginx, DNS forzado en LAN y OPT2
   ✅ 32 reglas firewall (anti-pivoting + permisos mínimos)
   ✅ Panel pfSense: solo VLAN 40, Anti-Lockout desactivado
@@ -1091,7 +1091,7 @@ vagrant box list   # → tfg/pfsense (vmware_desktop, 0)
 
 URL resultante:
 ```
-https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfg.box
+https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfg.box
 ```
 
 ## A.6 Actualizar Vagrantfile
@@ -1195,9 +1195,9 @@ Script persistente en /etc/network/if-up.d/ añade rutas al arrancar pfSense.
 | Recurso | Ubicación |
 |:--------|:----------|
 | Estructura de directorio | `extras/ldap/estructura.ldif` |
-| Script de ACLs | `scripts/ldap/ldap_politica_acceso.sh` |
-| Script de usuarios | `scripts/ldap/ldap_crear_usuarios.sh` |
-| Script de cliente | `scripts/ldap/configurar_cliente_ldap.sh` |
+| Script de ACLs | `extras/ldap/ldap_politica_acceso.sh` |
+| Script de usuarios | `extras/ldap/ldap_crear_usuarios.sh` |
+| Script de cliente | `extras/ldap/configurar_cliente_ldap.sh` |
 | Guía de reactivación | `extras/ldap/README.md` |
 
 ## C.3 Cómo reactivar en el futuro
@@ -1205,7 +1205,7 @@ Script persistente en /etc/network/if-up.d/ añade rutas al arrancar pfSense.
 1. Añadir servicio `ldap` en `docker/docker-compose.yml` con imagen `osixia/openldap:1.5.0`
 2. Montar `extras/ldap/estructura.ldif` como volumen de bootstrap
 3. Configurar Odoo: *Ajustes → Técnico → Autenticación → Servidor LDAP*
-4. (Opcional) Configurar PAM + SSSD con `scripts/ldap/configurar_cliente_ldap.sh`
+4. (Opcional) Configurar PAM + SSSD con `extras/ldap/configurar_cliente_ldap.sh`
 
 Ver `extras/ldap/README.md` para instrucciones completas.
 

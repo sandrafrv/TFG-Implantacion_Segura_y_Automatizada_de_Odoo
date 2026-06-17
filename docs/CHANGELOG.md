@@ -5,6 +5,18 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ---
 
+## [v2.2] - 2026-06-17
+### Changed
+- Refactorización masiva de documentación para limpieza final del TFG.
+- Eliminadas referencias a arquitectura MACVLAN obsoleta en GUIA_COMPLETA.
+- Actualizada INSTALACION_COMPLETA.md con topología de red final (2 VMs + pfSense).
+- Renombrada BD de odooerp a odoo_erp.
+- Actualizadas referencias de Debian 12 a Debian 13 (Trixie).
+- Reubicados scripts LDAP a la carpeta extras/ldap/.
+- Unificado nombre de dominio a erp.odoo.com en toda la documentación.
+- Reubicado memoria_tfg_borrador.md a docs/archive/.
+
+
 ## [v2.1 — 2026-06-09]
 
 ### Eliminado — Limpieza de scripts huérfanos

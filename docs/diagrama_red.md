@@ -35,7 +35,7 @@ graph TD
     end
 
     subgraph DMZ["🟩 VLAN 30 — DMZ"]
-        DEBIAN["🖧 odoo-server · Host Debian 12\n192.168.30.10\nSSH :22 · Cockpit :9090\nNginx expone :80/:443 (port mapping)"]
+        DEBIAN["🖧 odoo-server · Host Debian 13\n192.168.30.10\nSSH :22 · Cockpit :9090\nNginx expone :80/:443 (port mapping)"]
 
         NGINX["🐳 nginx-proxy\nred interna odoo_net\n:80 :443 del host"]
         ODOO["🐳 odoo-web\nred interna odoo_net\n:8069 solo interno"]
@@ -78,7 +78,7 @@ graph TD
 | pfSense — gateway VLAN 10 | VLAN 10 | `192.168.10.1` | 443 (panel) | Solo VLAN 40 |
 | pfSense — gateway VLAN 30 (DMZ) | VLAN 30 | `192.168.30.1` | — | — |
 | pfSense — gateway VLAN 40 (Admin/BD) | VLAN 40 | `192.168.40.1` | 443 (panel) | Solo VLAN 40 |
-| **odoo-server · Host Debian 12** | DMZ (VLAN 30) | `192.168.30.10` | 22, 9090, **80, 443** | SSH/Cockpit: VLAN 40 / HTTPS: todos |
+| **odoo-server · Host Debian 13** | DMZ (VLAN 30) | `192.168.30.10` | 22, 9090, **80, 443** | SSH/Cockpit: VLAN 40 / HTTPS: todos |
 | └─ **nginx-proxy** (contenedor, port mapping) | DMZ (VLAN 30) | — (usa IP del host) | 80, 443 | Via host 192.168.30.10 |
 | └─ **odoo-web** (contenedor, red interna) | DMZ (VLAN 30) | — (solo red `odoo_net`) | 8069, 8072 (interno) | Solo vía nginx-proxy |
 | **db-server · PostgreSQL 16** | Admin/BD (VLAN 40) | `192.168.40.10` | 5432 | Solo VLAN 30 (Odoo) + VLAN 40 (admins) |
@@ -106,7 +106,7 @@ graph TD
   (Clientes)              (Servidor)           (Admin + BD)
  192.168.10.0/24         192.168.30.0/24     192.168.40.0/24
          │                      │                      │
-   PCs empleados       Debian 12 + Docker      Admins + DBAs
+   PCs empleados       Debian 13 + Docker      Admins + DBAs
    Acceso Odoo         Nginx :80/:443          PostgreSQL VM
    solo HTTPS          (port mapping host)            │
          │                    └──── :5432 ─────────────┘
@@ -159,7 +159,7 @@ Empleado (VLAN 10) abre https://192.168.30.10  ← (o https://erp.odoo.tfg.com �
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  odoo-server (Debian 12) — 192.168.30.10                             │
+│  odoo-server (Debian 13) — 192.168.30.10                             │
 │                                                                      │
 │  Puerto 80/443 del host ← Docker port mapping                        │
 │                 │                                                    │
@@ -184,7 +184,7 @@ Empleado (VLAN 10) abre https://192.168.30.10  ← (o https://erp.odoo.tfg.com �
 Cron (cada 4h) en vm-odoo
      │
      ▼ backup_postgres.sh
-     │  pg_dump -h 192.168.40.10 -U odoo odooerp
+     │  pg_dump -h 192.168.40.10 -U odoo odoo_erp
      │  Comprime → odoo_YYYYMMDD_HHMM.sql.gz
      │  Guarda en /opt/odoo/backups/postgres/
      │  Retención: últimos 7 días

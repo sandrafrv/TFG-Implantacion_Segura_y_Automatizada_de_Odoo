@@ -102,7 +102,7 @@ sudo /opt/erp-odoo/scripts/deploy/erp.sh
 docker compose -f /opt/erp-odoo/docker/docker-compose.yml ps
 
 # Backup manual
-bash /opt/erp-odoo/scripts/mantenimiento/backup.sh
+bash /opt/erp-odoo/scripts/mantenimiento/backup_postgres.sh
 
 # Restaurar backup
 bash /opt/erp-odoo/scripts/mantenimiento/restore.sh /opt/erp-odoo/backups/<archivo>.dump

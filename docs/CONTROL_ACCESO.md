@@ -18,7 +18,7 @@ Internet / WAN
   ├── VLAN 10 (192.168.10.0/24) ── Usuarios del ERP
   ├── VLAN 40 (192.168.40.0/24) ── Admin + DBA + PostgreSQL
   └── VLAN 30 (192.168.30.0/24) ── DMZ
-        └── .10 → Debian 12 Host  (Docker engine, SSH :22, Cockpit :9090)
+        └── .10 → Debian 13 Host  (Docker engine, SSH :22, Cockpit :9090)
                     ├── odoo-web  (contenedor Docker, puerto :8069 interno)
                     └── nginx-proxy (contenedor Docker, puertos :80/:443 mapeados)
 
