@@ -298,6 +298,12 @@ if [ -f "${COMPOSE_FILE}" ]; then
   docker ps --filter "name=odoo" \
     --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
 
+  # ── Aplicar MASQUERADE para Docker antes de conectar a BD ───
+  for DOCKER_SUBNET in 172.20.0.0/16 172.18.0.0/16; do
+      iptables -t nat -C POSTROUTING -s "$DOCKER_SUBNET" -o eth1 -j MASQUERADE 2>/dev/null || \
+          iptables -t nat -A POSTROUTING -s "$DOCKER_SUBNET" -o eth1 -j MASQUERADE
+  done
+
   # ── Inicializar BD si PostgreSQL es alcanzable ───────────────
   # Esperar hasta 5 minutos a que PostgreSQL (en db-server) esté disponible.
   # Si pfSense está apagado, el timeout expira sin error y el usuario

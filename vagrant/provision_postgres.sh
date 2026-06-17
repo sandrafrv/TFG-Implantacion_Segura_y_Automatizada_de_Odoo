@@ -183,6 +183,7 @@ if [ "\$IFACE" = "${VLAN_IFACE}" ] || [ "\$IFACE" = "--all" ]; then
 fi
 UPEOF
 chmod +x /etc/network/if-up.d/vlan40-pfsense-gw
+IFACE=eth1 bash /etc/network/if-up.d/vlan40-pfsense-gw
 
 
 echo ""
