@@ -94,8 +94,8 @@ vagrant plugin install vagrant-vmware-desktop
 
 ```bash
 # Estado inicial del repositorio
-mkdir TFG-Implantacion_Segura_y_Automatizada_de_Odoo
-cd TFG-Implantacion_Segura_y_Automatizada_de_Odoo
+mkdir Implantacion_Segura_y_Automatizada_de_Odoo
+cd Implantacion_Segura_y_Automatizada_de_Odoo
 git init
 ```
 
@@ -342,7 +342,7 @@ docker --version && docker compose version
 ### 🔧 Paso 4.3 — Clonar el repositorio
 
 ```bash
-git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git \
+git clone https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo.git \
   /opt/erp-odoo
 cd /opt/erp-odoo
 ```
@@ -486,7 +486,7 @@ Automatizar la validación de código (CI) y el despliegue en producción (CD).
 mkdir /opt/actions-runner && cd /opt/actions-runner
 curl -O -L https://github.com/actions/runner/releases/download/v2.317.0/actions-runner-linux-x64-2.317.0.tar.gz
 tar xzf actions-runner-linux-x64-2.317.0.tar.gz
-./config.sh --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+./config.sh --url https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo \
   --token <TOKEN> --name odoo-runner --labels 'self-hosted,linux,odoo'
 sudo ./svc.sh install runner && sudo ./svc.sh start
 ```
@@ -881,7 +881,7 @@ FASE 8 — Automatización (Vagrant)
 ### 📦 Estructura Final del Repositorio
 
 ```
-TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
+Implantacion_Segura_y_Automatizada_de_Odoo/
 ├── Vagrantfile                    # IaC: Define las 2 VMs Debian
 ├── .env.example                   # Plantilla de variables (sin secretos)
 ├── .gitignore                     # Excluye .env, *.box, ISOs, datos Docker

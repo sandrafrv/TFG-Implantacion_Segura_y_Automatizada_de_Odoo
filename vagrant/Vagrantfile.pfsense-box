@@ -21,7 +21,7 @@
     # La box incluye pfSense preconfigurado con todas las ACLs del TFG.
     # Se descarga una sola vez (~700MB). Vagrant la cachea localmente.
     pf.vm.box     = "tfg/pfsense"
-    pf.vm.box_url = "https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfg.box"
+    pf.vm.box_url = "https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfg.box"
     pf.vm.box_check_update = false
     pf.vm.hostname         = "pfsense-tfg"
 

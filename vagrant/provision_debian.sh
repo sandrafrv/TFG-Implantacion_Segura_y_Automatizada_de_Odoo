@@ -12,7 +12,7 @@ set -euo pipefail
 
 PROJECT_DIR="/opt/erp-odoo"
 GH_REPO_OWNER="sandrafrv"
-GH_REPO_NAME="TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
+GH_REPO_NAME="Implantacion_Segura_y_Automatizada_de_Odoo"
 REPO="https://${GH_PAT}@github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}.git"
 REPO_URL="https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}"
 

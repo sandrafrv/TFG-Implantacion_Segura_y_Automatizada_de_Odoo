@@ -83,7 +83,7 @@ El ciclo completo de vida (aprovisionamiento → despliegue → actualización) 
 ## Estructura del repositorio
 
 ```
-TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
+Implantacion_Segura_y_Automatizada_de_Odoo/
 │
 ├── Vagrantfile                    # Orquestación de VMs (db-server + odoo-server)
 ├── .env.example                   # Plantilla de variables de entorno

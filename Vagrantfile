@@ -34,7 +34,7 @@
 Vagrant.configure("2") do |config|
 
   GH_PAT  = ENV["GH_PAT"] || ""
-  GH_REPO = "sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
+  GH_REPO = "sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo"
 
   # ── db-server definido PRIMERO ──────────────────────────────
   config.vm.define "db-server" do |db|

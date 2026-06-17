@@ -16,7 +16,7 @@ RUNNER_DIR="/home/${RUNNER_USER}/actions-runner"
 RUNNER_VERSION="2.317.0"
 
 GH_REPO_OWNER="sandrafrv"
-GH_REPO_NAME="TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
+GH_REPO_NAME="Implantacion_Segura_y_Automatizada_de_Odoo"
 REPO_URL="https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}"
 
 NAT_IFACE="eth0"

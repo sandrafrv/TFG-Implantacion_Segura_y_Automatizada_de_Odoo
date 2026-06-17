@@ -203,7 +203,7 @@ La integración LDAP añadía complejidad operativa significativa: contenedor ad
 ## Estructura Final del Repositorio
 
 ```
-TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
+Implantacion_Segura_y_Automatizada_de_Odoo/
 ├── Vagrantfile                  # Define las 2 VMs Debian (IaC) — pfSense es VM manual
 ├── .env                         # Variables de entorno (en la RAÍZ, no en docker/)
 ├── .env.example                 # Plantilla sin secretos ni variables LDAP
