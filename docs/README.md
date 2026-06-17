@@ -42,8 +42,8 @@ Ubicadas en [`guias/`](guias/):
 
 | Archivo | Descripción |
 |:--------|:------------|
-| [`memoria_tfg_nuevo.md`](memoria_tfg_nuevo.md) | Memoria oficial del TFG en redacción |
-| [`memoria_tfg_borrador.md`](memoria_tfg_borrador.md) | Borrador anterior de referencia |
+| [`memoria_tfc_nuevo.md`](memoria_tfc_nuevo.md) | Memoria oficial del TFG en redacción |
+| [`memoria_tfc_borrador.md`](memoria_tfc_borrador.md) | Borrador anterior de referencia |
 
 ---
 
@@ -58,8 +58,8 @@ docs/
 ├── HISTORIAL_IMPLEMENTACION.md     ← Historia del desarrollo
 ├── diagrama_red.md                 ← Diagramas de arquitectura
 ├── reglas_pfsense.md               ← Referencia de reglas pfSense
-├── memoria_tfg_nuevo.md            ← Memoria del TFG
-├── memoria_tfg_borrador.md         ← Borrador de la memoria
+├── memoria_tfc_nuevo.md            ← Memoria del TFG
+├── memoria_tfc_borrador.md         ← Borrador de la memoria
 │
 ├── guias/                          ← Guías de instalación
 │   ├── GUIA_COMPLETA.md          (Guía técnica unificada)
@@ -220,7 +220,8 @@ git status
 ```
 screenshots/
 ├── fase_A_vlan/       → Reglas pfSense, nc timeout, curl 200
-├── fase_B_macvlan/    → docker network inspect, IPs .20/.21
+├── fase_B_db_server/  → Conectividad DB, Cockpit DB
+├── fase_C_odoo/       → Arranque Odoo, Docker containers
 ├── fase_D_headless/   → SSH activo, Cockpit, sin GUI
 └── fase_E_cicd/       → Pipeline GitHub Actions ejecutándose
 ```
