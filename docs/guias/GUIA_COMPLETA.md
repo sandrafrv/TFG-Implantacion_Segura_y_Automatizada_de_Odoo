@@ -723,8 +723,7 @@ systemctl enable cockpit.socket && systemctl start cockpit.socket
 
 ### Asistente de configuración
 
-```bash
-```
+Los usuarios se crean automáticamente vía `deploy.sh`. La configuración de la empresa (UI) y la instalación de módulos se realizan manualmente tras el primer inicio:
 
 Realiza: **Renombrar empresa** → "My Company" → "TechSolutions S.L." | **Instalar módulos** → CRM, Ventas, RRHH, Inventario
 
@@ -806,17 +805,20 @@ git push → GitHub CI (ShellCheck + YAML + Docker) → ✅ pasa → CD (deploy.
 
 En GitHub: **Settings → Actions → Runners → New self-hosted runner** → Linux / x64 → copiar **token** (válido 1 hora)
 
-### Instalar en odoo-server
+### Instalar en odoo-server y db-server
 
 ```bash
 mkdir /opt/actions-runner && cd /opt/actions-runner
-curl -O -L https://github.com/actions/runner/releases/download/v2.317.0/actions-runner-linux-x64-2.317.0.tar.gz
-tar xzf ./actions-runner-linux-x64-2.317.0.tar.gz
+curl -O -L https://github.com/actions/runner/releases/download/v2.334.0/actions-runner-linux-x64-2.334.0.tar.gz
+tar xzf ./actions-runner-linux-x64-2.334.0.tar.gz
 ./config.sh --url https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo \
- --token <TOKEN> --name odoo-runner --labels 'self-hosted,linux,odoo'
+ --token <TOKEN> --name <NOMBRE_RUNNER> --labels 'self-hosted,linux,<ETIQUETA>'
 sudo ./svc.sh install runner
 sudo ./svc.sh start
 ```
+
+> **Nota:** Repetir en ambas VMs. Usar `--name odoo-runner` y labels `odoo` para el servidor web, y `--name db-runner` y labels `db` para el servidor de base de datos.
+
 
 ### Permisos del .env
 
