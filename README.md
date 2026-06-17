@@ -1,8 +1,7 @@
-# TFC — Implantación Segura y Automatizada de Odoo 17
+# TFG — Implantación Segura y Automatizada de Odoo 17
 
 > **Proyecto de Fin de Ciclo — ASIR**
 > Implantación de un sistema ERP Odoo 17 Community Edition en una infraestructura virtualizada, segmentada por VLANs, con despliegue automatizado mediante Vagrant, Docker y GitHub Actions.
-
 
 ---
 
