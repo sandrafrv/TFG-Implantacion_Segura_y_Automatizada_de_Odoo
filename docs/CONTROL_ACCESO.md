@@ -1,4 +1,4 @@
-# Control de Acceso por Roles — TFG ASIR 2025/2026
+# Control de Acceso por Roles — ASIR 2025/2026
 
 **TechSolutions S.L.** | Modelo de seguridad en 3 capas — Autenticación nativa Odoo
 
@@ -13,17 +13,17 @@
 
 ```
 Internet / WAN
-      │
-  [pfSense]
-  ├── VLAN 10 (192.168.10.0/24) ── Usuarios del ERP
-  ├── VLAN 40 (192.168.40.0/24) ── Admin + DBA + PostgreSQL
-  └── VLAN 30 (192.168.30.0/24) ── DMZ
-        └── .10 → Debian 13 Host  (Docker engine, SSH :22, Cockpit :9090)
-                    ├── odoo-web  (contenedor Docker, puerto :8069 interno)
-                    └── nginx-proxy (contenedor Docker, puertos :80/:443 mapeados)
+   │
+ [pfSense]
+ ├── VLAN 10 (192.168.10.0/24) ── Usuarios del ERP
+ ├── VLAN 40 (192.168.40.0/24) ── Admin + DBA + PostgreSQL
+ └── VLAN 30 (192.168.30.0/24) ── DMZ
+    └── .10 → Debian 13 Host (Docker engine, SSH :22, Cockpit :9090)
+          ├── odoo-web (contenedor Docker, puerto :8069 interno)
+          └── nginx-proxy (contenedor Docker, puertos :80/:443 mapeados)
 
-  [VLAN 40]
-        └── .10 → VM3 PostgreSQL  (BD nativa, sin acceso desde VLAN 10)
+ [VLAN 40]
+    └── .10 → VM3 PostgreSQL (BD nativa, sin acceso desde VLAN 10)
 ```
 
 > [!NOTE]
@@ -35,7 +35,7 @@ Internet / WAN
 
 | VLAN | Quién | Puede acceder a |
 |------|-------|-----------------|
-| **VLAN 10** | Usuarios/empleados de TechSolutions | Odoo ERP vía nginx `.20` (HTTPS) |
+| **VLAN 10** | Usuarios/empleados de TechSolutions | Odoo ERP vía nginx `192.168.30.10` (HTTPS) |
 | **VLAN 40** | Administradores del sistema, DBAs | SSH :22, Cockpit :9090, PostgreSQL :5432, panel Odoo admin |
 | **WAN** | Internet público | Solo login Odoo (HTTPS 443) |
 
@@ -47,20 +47,20 @@ El modelo aplica **defensa en profundidad**: aunque una capa falle, las otras si
 
 ```
 [Petición HTTPS del usuario]
-           │
-    ┏━━━━━━┳━━━━━━┓
-    ┃  CAPA C: Nginx ┃  ← Primera barrera: filtra rutas por IP/VLAN
-    ┗━━━━━━┻━━━━━━┛
-           │ (solo rutas permitidas pasan)
-    ┏━━━━━━┳━━━━━━┓
-    ┃  CAPA B: Odoo  ┃  ← Segunda barrera: tipo de usuario (Portal/Interno/Admin)
-    ┃  Tipo usuario  ┃
-    ┗━━━━━━┻━━━━━━┛
-           │ (solo tipo correcto accede)
-    ┏━━━━━━┳━━━━━━┓
-    ┃  CAPA A: Odoo  ┃  ← Tercera barrera: grupos = qué módulos y acciones ve
-    ┃  Grupos/Roles  ┃
-    ┗━━━━━━┻━━━━━━┛
+      │
+  ┏━━━━━━┳━━━━━━┓
+  ┃ CAPA C: Nginx ┃ ← Primera barrera: filtra rutas por IP/VLAN
+  ┗━━━━━━┻━━━━━━┛
+      │ (solo rutas permitidas pasan)
+  ┏━━━━━━┳━━━━━━┓
+  ┃ CAPA B: Odoo ┃ ← Segunda barrera: tipo de usuario (Portal/Interno/Admin)
+  ┃ Tipo usuario ┃
+  ┗━━━━━━┻━━━━━━┛
+      │ (solo tipo correcto accede)
+  ┏━━━━━━┳━━━━━━┓
+  ┃ CAPA A: Odoo ┃ ← Tercera barrera: grupos = qué módulos y acciones ve
+  ┃ Grupos/Roles ┃
+  ┗━━━━━━┻━━━━━━┛
 ```
 
 ---
@@ -83,15 +83,15 @@ Archivo: `config_nginx/odoo_proxy.conf`
 
 ```bash
 # Desde VLAN 10 — debe devolver 403 Forbidden
-curl -k https://erp.odoo.tfg.com/web/database/manager
+curl -k https://erp.odoo.com/web/database/manager
 # Resultado esperado: 403 Forbidden
 
 # Desde VLAN 40 — debe cargar el panel
-curl -k https://erp.odoo.tfg.com/web/database/manager
+curl -k https://erp.odoo.com/web/database/manager
 # Resultado esperado: 200 OK (panel de administración de BD)
 
 # Tests: siempre bloqueado
-curl -k https://erp.odoo.tfg.com/web/tests
+curl -k https://erp.odoo.com/web/tests
 # Resultado esperado: 403 Forbidden
 ```
 
@@ -175,10 +175,10 @@ bash scripts/odoo/odoo_crear_usuarios.sh
 > [!TIP]
 > **LDAP (OpenLDAP) fue implementado durante el desarrollo del proyecto pero retirado del despliegue
 > activo por complejidad operativa.** Ver `extras/ldap/README.md` para:
-> - Razón exacta de por qué se retiró
-> - Cómo retomarlo con un contenedor adicional
-> - La estructura de árbol LDAP diseñada (`extras/ldap/estructura.ldif`)
-> - Los scripts de configuración disponibles en `scripts/ldap/` (deprecados)
+> Razón exacta de por qué se retiró
+> Cómo retomarlo con un contenedor adicional
+> La estructura de árbol LDAP diseñada (`extras/ldap/estructura.ldif`)
+> Los scripts de configuración disponibles en `extras/ldap/`
 >
 > La integración permitiría: una sola cuenta por empleado para el PC + Odoo,
 > gestión centralizada de contraseñas y acceso por grupo departamental.
@@ -205,31 +205,31 @@ bash scripts/odoo/odoo_crear_usuarios.sh
 
 ```
 Empleado (VLAN 10, 192.168.10.x)
-    │
-    │  1. Abre https://erp.odoo.tfg.com
-    │     DNS → 192.168.30.10 (pfSense DNS Resolver)
-    │
-    ▼
+  │
+  │ 1. Abre https://erp.odoo.com
+  │   DNS → 192.168.30.10 (pfSense DNS Resolver)
+  │
+  ▼
 [pfSense — VLAN 10 → DMZ]
-    │  Regla: VLAN 10 → .10 :443 → PASS
-    │
-    ▼
-[Nginx — 192.168.30.10:443]        ← CAPA C
-    │  Ruta /web/database → 403 (VLAN 10 bloqueada)
-    │  Ruta / → proxy_pass a odoo-web:8069
-    │
-    ▼
+  │ Regla: VLAN 10 → .10 :443 → PASS
+  │
+  ▼
+[Nginx — 192.168.30.10:443]    ← CAPA C
+  │ Ruta /web/database → 403 (VLAN 10 bloqueada)
+  │ Ruta / → proxy_pass a odoo-web:8069
+  │
+  ▼
 [Odoo 17 — odoo-web:8069]
-    │  2. Login: usuario y contraseña nativos de Odoo
-    │  Odoo consulta res_users en PostgreSQL (192.168.40.10)
-    │
-    ▼
-[Odoo — Sesión iniciada]           ← CAPA B + CAPA A
-    │  Tipo: Interno (10)
-    │  Grupos: según su rol
-    │  Menús visibles: solo los de su departamento
-    │
-    ▼
+  │ 2. Login: usuario y contraseña nativos de Odoo
+  │ Odoo consulta res_users en PostgreSQL (192.168.40.10)
+  │
+  ▼
+[Odoo — Sesión iniciada]      ← CAPA B + CAPA A
+  │ Tipo: Interno (10)
+  │ Grupos: según su rol
+  │ Menús visibles: solo los de su departamento
+  │
+  ▼
 Usuario ve su panel personalizado ✅
 ```
 
@@ -239,15 +239,15 @@ Usuario ve su panel personalizado ✅
 
 | Prueba | Comando/Acción | Resultado esperado |
 |--------|---------------|-------------------|
-| Nginx bloquea panel BD desde VLAN 10 | `curl -k https://erp.odoo.tfg.com/web/database/manager` | `403 Forbidden` |
+| Nginx bloquea panel BD desde VLAN 10 | `curl -k https://erp.odoo.com/web/database/manager` | `403 Forbidden` |
 | Nginx permite panel BD desde VLAN 40 | Mismo curl desde PC en VLAN 40 | `200 OK` |
-| Nginx bloquea `/web/tests` | `curl -k https://erp.odoo.tfg.com/web/tests` | `403 Forbidden` |
+| Nginx bloquea `/web/tests` | `curl -k https://erp.odoo.com/web/tests` | `403 Forbidden` |
 | Becario no ve botón Eliminar | Login con `becario@...` | Sin botón Eliminar en CRM |
 | Becario no ve módulo Ventas | Login con `becario@...` | Solo menú CRM visible |
 | Ventas ve sus módulos | Login con `ventas@...` | CRM + Ventas + Facturas |
 | VLAN 10 no accede a PostgreSQL | `nc -zv 192.168.40.10 5432` desde VLAN 10 | Timeout |
-| Odoo conecta con BD externa | `psql -h 192.168.40.10 -U odoo -d odooerp` desde VM2 | Conexión OK |
+| Odoo conecta con BD externa | `psql -h 192.168.40.10 -U odoo -d odoo_erp` desde VM2 | Conexión OK |
 
 ---
 
-*TFG ASIR 2025/2026 — IES Cañaveral*
+*ASIR 2025/2026 — IES Cañaveral*

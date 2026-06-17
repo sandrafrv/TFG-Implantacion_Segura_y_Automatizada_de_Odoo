@@ -12,7 +12,7 @@
 
 | Archivo | Descripción |
 |:--------|:------------|
-| [`INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md) | **Punto de entrada único.** Describe las 8 fases de instalación desde cero con resumen de cada módulo, orden de arranque y checklist final |
+| [`INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md) | **Punto de entrada único.** Describe las fases de instalación desde cero con resumen de cada módulo, orden de arranque y checklist final |
 
 ### Guías de Instalación
 
@@ -62,11 +62,10 @@ docs/
 ├── memoria_tfc_borrador.md         ← Borrador de la memoria
 │
 ├── guias/                          ← Guías de instalación
-│   ├── GUIA_COMPLETA.md          (Guía técnica unificada)
+│   ├── GUIA_COMPLETA.md            (Guía técnica unificada)
 │   └── GUIA_TRABAJO_PASO_A_PASO.md (Cuaderno de trabajo)
 │
-├── archive/                        ← Documentos históricos de planificación
-└── mas_info/                       ← Investigación técnica y comparativa ERP
+└── archive/                        ← Documentos históricos de planificación
 ```
 
 ---
@@ -128,26 +127,12 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 - [ ] `nc -zv 192.168.30.10 5432` desde VLAN 10 → **timeout** ✅
 - [ ] `nc -zv 192.168.30.10 8069` desde VLAN 10 → **timeout** ✅
 - [ ] `nc -zv 192.168.30.10 22` desde VLAN 10 → **timeout** ✅
-- [ ] `curl -k -I https://erp.odoo.tfg.com` desde VLAN 10 → **200** ✅
+- [ ] `curl -k -I https://erp.odoo.com` desde VLAN 10 → **200** ✅
 - [ ] `ping 192.168.10.x` desde DMZ → **sin respuesta** ✅
 - [ ] Panel pfSense desde VLAN 10 → **no accesible** ✅
 - [ ] Captura → `screenshots/fase_A_vlan/`
 
 ---
-
-### [Docker] Red MACVLAN
-
-**Labels:** `docker`, `red`
-
-**Objetivo:** Asignar IPs físicas de la DMZ a los contenedores para que pfSense aplique reglas por host.
-
-- [ ] `nginx-proxy` → IP `192.168.30.20` en MACVLAN
-- [ ] `odoo-web` → IP `192.168.30.21` en MACVLAN
-- [ ] `odoo_erp` → sin IP MACVLAN (solo red interna)
-- [ ] `docker run --rm --network macvlan_vlan30 alpine wget -qO- https://192.168.30.20` → `<title>Odoo</title>`
-- [ ] Captura de `docker network inspect macvlan_vlan30` → `screenshots/fase_B_macvlan/`
-
-
 
 ### [SecOps] Hardening SSH + Headless
 
@@ -162,8 +147,8 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 - [ ] `systemctl set-default multi-user.target`
 - [ ] Paquetes GNOME + X11 eliminados
 - [ ] Reinicio → arranque en modo texto ✅
-- [ ] Docker + 4 contenedores activos tras reinicio ✅
-- [ ] Odoo accesible `https://erp.odoo.tfg.com` ✅
+- [ ] Docker + contenedores activos tras reinicio ✅
+- [ ] Odoo accesible `https://erp.odoo.com` ✅
 - [ ] Captura → `screenshots/fase_D_headless/`
 
 ---
@@ -188,7 +173,7 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 
 **Labels:** `pfSense`, `seguridad`, `vlan40`
 
-**Objetivo:** Panel pfSense solo accesible desde VLAN 40, autenticado con LDAP.
+**Objetivo:** Panel pfSense solo accesible desde VLAN 40, autenticado con cuenta local pfSense.
 
 - [ ] OPT2 (VLAN 40): IP `192.168.40.1/24`, DHCP `40.10–50`
 - [ ] Regla OPT2: `VLAN40 → This Firewall :443 → PASS`
