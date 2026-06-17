@@ -16,7 +16,7 @@
 | Parte | Contenido |
 |:-----:|:----------|
 | [1](#parte-1--red-y-firewall-pfsense) | Red y Firewall (pfSense) — VM, interfaces, DHCP, DNS, aliases, NAT, ACLs |
-| [2](#parte-2--db-serverql-vlan-40) | VM PostgreSQL — BD aislada en VLAN 40 |
+| [2](#parte-2--vm-postgresql-vlan-40) | VM PostgreSQL — BD aislada en VLAN 40 |
 | [3](#parte-3--servidor-debian--docker--odoo) | Servidor Debian + Docker + Odoo + Nginx |
 | [4](#parte-4--cicd-con-github-actions) | CI/CD con GitHub Actions |
 | [5](#parte-5--hardening) | Hardening — UFW, SSH, headless |
@@ -248,7 +248,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 | IP Address | `192.168.30.10` |
 | Description | `nginx-proxy Odoo ERP — DMZ` |
 
-> ⚠️ La IP debe ser `192.168.30.10` (nginx-proxy), **no** `192.168.30.10`.
+> ⚠️ La IP debe apuntar al host **odoo-server** (`192.168.30.10`), no a ninguna IP de contenedor individual — los contenedores no tienen IP propia en la VLAN (usan port mapping del host).
 
 ---
 
