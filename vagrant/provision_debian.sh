@@ -43,10 +43,20 @@ if [ -z "${GH_RUNNER_TOKEN:-}" ]; then
 fi
 
 #— PASO 0: Configurar red y DNS ———————————————————————————————
+# Desproteger por si ya estaba bloqueado de un provision anterior
+chattr -i /etc/resolv.conf 2>/dev/null || true
 cat > /etc/resolv.conf << 'DNSEOF'
 nameserver 8.8.8.8
 nameserver 1.1.1.1
 DNSEOF
+
+# Evitar que dhclient sobreescriba el DNS con el del servidor DHCP de VMware
+# (192.168.133.2 no reenvía consultas DNS externas → runner sin internet)
+if ! grep -q 'supersede domain-name-servers' /etc/dhcp/dhclient.conf 2>/dev/null; then
+  echo 'supersede domain-name-servers 8.8.8.8, 1.1.1.1;' >> /etc/dhcp/dhclient.conf
+  echo "  [DNS] dhclient.conf: DNS forzado a 8.8.8.8 / 1.1.1.1"
+fi
+
 
 # ── PASO 1: IP estática eth1 SIN gateway ────────────────────
 mkdir -p /etc/network/interfaces.d
@@ -422,6 +432,30 @@ fi
 ROUTE_EOF
 chmod +x /etc/network/if-up.d/vlan30-bd-route
 
+# ── PASO 12b: Servicio systemd para garantizar ruta por defecto via eth0 ──
+# Problema diagnosticado: al arrancar la VM, la ruta por defecto apunta a
+# eth1 (pfSense) en lugar de eth0 (VMware NAT). El runner no puede alcanzar
+# api.github.com y aparece offline. Este servicio lo corrige en cada arranque.
+cat > /etc/systemd/system/fix-default-route.service << 'SYSTEMD_ROUTE_EOF'
+[Unit]
+Description=Fijar ruta por defecto via eth0 (VMware NAT para internet)
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'ip route del default 2>/dev/null || true; ip route add default via 192.168.133.2 dev eth0 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target
+SYSTEMD_ROUTE_EOF
+
+systemctl daemon-reload
+systemctl enable fix-default-route.service
+systemctl start  fix-default-route.service
+echo "  [NET] Servicio fix-default-route instalado (ruta por defecto via eth0 garantizada)."
+
 # ── PASO 13: Cockpit ─────────────────────────────────────────
 apt-get install -y -qq "${APT_OPTS[@]}" cockpit || echo "  [AVISO] Cockpit no instalado."
 systemctl enable cockpit.socket || true
@@ -474,6 +508,13 @@ POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
     && echo "  [CRON] Tareas cron instaladas correctamente." \
     || echo "  [AVISO] install_cron.sh terminó con error. Revisa los logs."
 
+# ── PASO FINAL: Proteger resolv.conf contra sobrescritura por DHCP ────────
+# Se hace al final para no interferir con apt-get ni con otras escrituras
+# del provision. chattr +i hace el archivo inmutable incluso para root.
+chattr +i /etc/resolv.conf 2>/dev/null && \
+  echo "  [DNS] /etc/resolv.conf protegido contra sobrescritura (chattr +i)." || \
+  echo "  [AVISO] No se pudo proteger resolv.conf con chattr."
+
 echo ""
 echo "=========================================="
 echo " [OK] Odoo    → https://${VLAN_IP}"
@@ -483,4 +524,6 @@ echo " [RUNNER] '${RUNNER_NAME}'"
 echo " [CRON] Backup cada 4h, monitor cada 15min, update domingos 03:00"
 echo " [INIT] Si pfSense no estaba activo, odoo-init.service"
 echo "        completará la inicialización en el próximo arranque."
+echo " [NET] Ruta por defecto: eth0 (VMware NAT) — fix-default-route.service"
+echo " [DNS] resolv.conf protegido (8.8.8.8 / 1.1.1.1) — chattr +i"
 echo "=========================================="
