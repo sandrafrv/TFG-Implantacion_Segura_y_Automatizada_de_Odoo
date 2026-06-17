@@ -1,9 +1,9 @@
 /var/log/erp_*.log /var/log/erp-odoo/*.log /var/log/backup_odoo.log {
-    weekly
-    rotate 4
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 0750 root root
+  weekly
+  rotate 4
+  compress
+  delaycompress
+  missingok
+  notifempty
+  create 0750 root root
 }

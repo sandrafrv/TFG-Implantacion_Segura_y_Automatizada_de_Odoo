@@ -2,9 +2,9 @@
 # ============================================================
 # SCRIPT: configure.sh
 # DESCRIPCIÓN: Crea el archivo .env en la raíz del proyecto con las contraseñas
-#              del entorno a partir de la plantilla .env.example.
-#              NOTA: el .env va en /opt/erp-odoo/.env (raíz), NO en docker/.env
-#              (docker compose busca el .env en el directorio de trabajo).
+#       del entorno a partir de la plantilla .env.example.
+#       NOTA: el .env va en /opt/erp-odoo/.env (raíz), NO en docker/.env
+#       (docker compose busca el .env en el directorio de trabajo).
 # USO: bash scripts/deploy/configure.sh
 # ============================================================
 
@@ -19,29 +19,29 @@ ENV_FILE="$PROJECT_DIR/.env"
 mkdir -p "$PROJECT_DIR/docker"
 
 if [ -f "$ENV_FILE" ]; then
-    read -rp "El archivo $ENV_FILE ya existe. ¿Sobreescribir? (y/N): " r
-    [[ "${r,,}" != "y" ]] && { echo "Usando configuración existente."; exit 0; }
+  read -rp "El archivo $ENV_FILE ya existe. ¿Sobreescribir? (y/N): " r
+  [[ "${r,,}" != "y" ]] && { echo "Usando configuración existente."; exit 0; }
 fi
 
 cp "$ENV_TEMPLATE" "$ENV_FILE"
 
 echo "Introduce las contraseñas del entorno:"
-read -rsp "POSTGRES_PASSWORD:      " PG;      echo ""
-read -rsp "ODOO_MASTER_PASSWORD:   " ODOO;    echo ""
-read -rp  "GH_RUNNER_TOKEN_ODOO:   " GH_ODOO; echo ""
-read -rp  "GH_RUNNER_TOKEN_DB:     " GH_DB;   echo ""
+read -rsp "POSTGRES_PASSWORD:   " PG;   echo ""
+read -rsp "ODOO_MASTER_PASSWORD:  " ODOO;  echo ""
+read -rp "GH_RUNNER_TOKEN_ODOO:  " GH_ODOO; echo ""
+read -rp "GH_RUNNER_TOKEN_DB:   " GH_DB;  echo ""
 
 # Función segura para sed (soporta /, & y \ en contraseñas)
 set_var() {
-    local key="$1" val="$2"
-    local escaped; escaped=$(printf '%s' "$val" | sed 's/[\/&]/\\&/g')
-    sed -i "s|^${key}=.*|${key}=${escaped}|" "$ENV_FILE"
+  local key="$1" val="$2"
+  local escaped; escaped=$(printf '%s' "$val" | sed 's/[\/&]/\\&/g')
+  sed -i "s|^${key}=.*|${key}=${escaped}|" "$ENV_FILE"
 }
 
-set_var POSTGRES_PASSWORD      "$PG"
-set_var ODOO_MASTER_PASSWORD   "$ODOO"
-set_var GH_RUNNER_TOKEN_ODOO   "$GH_ODOO"
-set_var GH_RUNNER_TOKEN_DB     "$GH_DB"
+set_var POSTGRES_PASSWORD   "$PG"
+set_var ODOO_MASTER_PASSWORD  "$ODOO"
+set_var GH_RUNNER_TOKEN_ODOO  "$GH_ODOO"
+set_var GH_RUNNER_TOKEN_DB   "$GH_DB"
 
 chmod 600 "$ENV_FILE"
 echo "[OK] $ENV_FILE configurado (permisos 600)."

@@ -1,7 +1,7 @@
-# Documentación Técnica — TFC ASIR 2025/2026
+# Documentación Técnica — ASIR 2025/2026
 
-**Proyecto:** Implantación Segura y Automatizada de Odoo ERP  
-**Autora:** Sandra Fradejas Avedillo  
+**Proyecto:** Implantación Segura y Automatizada de Odoo ERP 
+**Autora:** Sandra Fradejas Avedillo 
 **Centro:** IES Cañaveral · Ciclo ASIR
 
 ---
@@ -38,12 +38,12 @@ Ubicadas en [`guias/`](guias/):
 | [`HISTORIAL_IMPLEMENTACION.md`](HISTORIAL_IMPLEMENTACION.md) | Cómo se construyó el proyecto: decisiones técnicas, problemas encontrados y cómo se resolvieron |
 | [`CHANGELOG.md`](CHANGELOG.md) | Registro de cambios por versión (formato Keep a Changelog) |
 
-### Memoria del TFC
+### Memoria del 
 
 | Archivo | Descripción |
 |:--------|:------------|
-| [`memoria_tfc_nuevo.md`](memoria_tfc_nuevo.md) | Memoria oficial del TFC en redacción |
-| [`memoria_tfc_borrador.md`](memoria_tfc_borrador.md) | Borrador anterior de referencia |
+| [`memoria_nuevo.md`](memoria_nuevo.md) | Memoria oficial del en redacción |
+| [`memoria_borrador.md`](memoria_borrador.md) | Borrador anterior de referencia |
 
 ---
 
@@ -51,22 +51,22 @@ Ubicadas en [`guias/`](guias/):
 
 ```
 docs/
-├── README.md                       ← Este archivo (índice)
-├── INSTALACION_COMPLETA.md         ← Guía maestra (entrada principal)
-├── CHANGELOG.md                    ← Historial de versiones
-├── CONTROL_ACCESO.md               ← Modelo de seguridad
-├── HISTORIAL_IMPLEMENTACION.md     ← Historia del desarrollo
-├── diagrama_red.md                 ← Diagramas de arquitectura
-├── reglas_pfsense.md               ← Referencia de reglas pfSense
-├── memoria_tfc_nuevo.md            ← Memoria del TFC
-├── memoria_tfc_borrador.md         ← Borrador de la memoria
+├── README.md            ← Este archivo (índice)
+├── INSTALACION_COMPLETA.md     ← Guía maestra (entrada principal)
+├── CHANGELOG.md          ← Historial de versiones
+├── CONTROL_ACCESO.md        ← Modelo de seguridad
+├── HISTORIAL_IMPLEMENTACION.md   ← Historia del desarrollo
+├── diagrama_red.md         ← Diagramas de arquitectura
+├── reglas_pfsense.md        ← Referencia de reglas pfSense
+├── memoria_nuevo.md      ← Memoria del 
+├── memoria_borrador.md     ← Borrador de la memoria
 │
-├── guias/                          ← Guías de instalación
-│   ├── GUIA_COMPLETA.md          (Guía técnica unificada)
-│   └── GUIA_TRABAJO_PASO_A_PASO.md (Cuaderno de trabajo)
+├── guias/             ← Guías de instalación
+│  ├── GUIA_COMPLETA.md     (Guía técnica unificada)
+│  └── GUIA_TRABAJO_PASO_A_PASO.md (Cuaderno de trabajo)
 │
-├── archive/                        ← Documentos históricos de planificación
-└── mas_info/                       ← Investigación técnica y comparativa ERP
+├── archive/            ← Documentos históricos de planificación
+└── mas_info/            ← Investigación técnica y comparativa ERP
 ```
 
 ---
@@ -128,7 +128,7 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 - [ ] `nc -zv 192.168.30.10 5432` desde VLAN 10 → **timeout** ✅
 - [ ] `nc -zv 192.168.30.10 8069` desde VLAN 10 → **timeout** ✅
 - [ ] `nc -zv 192.168.30.10 22` desde VLAN 10 → **timeout** ✅
-- [ ] `curl -k -I https://erp.odoo.tfc.com` desde VLAN 10 → **200** ✅
+- [ ] `curl -k -I https://erp.odoo.com` desde VLAN 10 → **200** ✅
 - [ ] `ping 192.168.10.x` desde DMZ → **sin respuesta** ✅
 - [ ] Panel pfSense desde VLAN 10 → **no accesible** ✅
 - [ ] Captura → `screenshots/fase_A_vlan/`
@@ -163,7 +163,7 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 - [ ] Paquetes GNOME + X11 eliminados
 - [ ] Reinicio → arranque en modo texto ✅
 - [ ] Docker + 4 contenedores activos tras reinicio ✅
-- [ ] Odoo accesible `https://erp.odoo.tfc.com` ✅
+- [ ] Odoo accesible `https://erp.odoo.com` ✅
 - [ ] Captura → `screenshots/fase_D_headless/`
 
 ---
@@ -205,12 +205,12 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 git status
 
 # Los siguientes NUNCA deben aparecer en la lista:
-# docker/.env       → Credenciales reales
-# certs/*.key       → Claves privadas SSL
-# certs/*.crt       → Certificados
-# data/             → Datos persistentes
-# ISOs/             → Imágenes de instalación
-# backups/          → Backups de PostgreSQL
+# docker/.env    → Credenciales reales
+# certs/*.key    → Claves privadas SSL
+# certs/*.crt    → Certificados
+# data/       → Datos persistentes
+# ISOs/       → Imágenes de instalación
+# backups/     → Backups de PostgreSQL
 ```
 
 ---
@@ -219,12 +219,12 @@ git status
 
 ```
 screenshots/
-├── fase_A_vlan/       → Reglas pfSense, nc timeout, curl 200
-├── fase_B_macvlan/    → docker network inspect, IPs .20/.21
-├── fase_D_headless/   → SSH activo, Cockpit, sin GUI
-└── fase_E_cicd/       → Pipeline GitHub Actions ejecutándose
+├── fase_A_vlan/    → Reglas pfSense, nc timeout, curl 200
+├── fase_B_macvlan/  → docker network inspect, IPs .20/.21
+├── fase_D_headless/  → SSH activo, Cockpit, sin GUI
+└── fase_E_cicd/    → Pipeline GitHub Actions ejecutándose
 ```
 
 ---
 
-*TFC ASIR 2025/2026 — Sandra Fradejas Avedillo — IES Cañaveral*
+*ASIR 2025/2026 — Sandra Fradejas Avedillo — IES Cañaveral*

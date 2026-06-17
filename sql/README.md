@@ -21,13 +21,13 @@ Esta carpeta contiene los scripts SQL y PL/pgSQL para la **auditoría de operaci
 
 ```sql
 CREATE TABLE asir_audit_log (
-    audit_id    SERIAL PRIMARY KEY,
-    accion      VARCHAR(50),   -- 'CREACION_USUARIO', 'MODIFICACION', etc.
-    tabla       VARCHAR(100),  -- Tabla afectada
-    fila_id     INTEGER,       -- ID del registro afectado
-    usuario_pg  TEXT,          -- Usuario de PostgreSQL que ejecutó la operación
-    fecha_hora  TIMESTAMPTZ DEFAULT now(),
-    row_data    JSONB          -- Snapshot completo del registro en JSON
+  audit_id  SERIAL PRIMARY KEY,
+  accion   VARCHAR(50),  -- 'CREACION_USUARIO', 'MODIFICACION', etc.
+  tabla    VARCHAR(100), -- Tabla afectada
+  fila_id   INTEGER,    -- ID del registro afectado
+  usuario_pg TEXT,     -- Usuario de PostgreSQL que ejecutó la operación
+  fecha_hora TIMESTAMPTZ DEFAULT now(),
+  row_data  JSONB     -- Snapshot completo del registro en JSON
 );
 ```
 
@@ -87,4 +87,4 @@ Este script cubre el módulo de **Gestión de Bases de Datos** del ciclo ASIR, a
 
 ---
 
-*TFC ASIR 2025/2026 — IES Cañaveral*
+*ASIR 2025/2026 — IES Cañaveral*

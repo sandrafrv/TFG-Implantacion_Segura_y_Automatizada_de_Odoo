@@ -3,51 +3,51 @@ name: CI Validator
 # ============================================================
 # GITHUB ACTION: CI Validator
 # DESCRIPCIÓN: Valida la sintaxis de los archivos clave del
-#              proyecto automáticamente en cada push o Pull Request.
+#       proyecto automáticamente en cada push o Pull Request.
 # ============================================================
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+ push:
+  branches: [ "main" ]
+ pull_request:
+  branches: [ "main" ]
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+ FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
 
-  validate:
-    name: Syntax & Code Validation
-    runs-on: ubuntu-latest
+ validate:
+  name: Syntax & Code Validation
+  runs-on: ubuntu-latest
 
-    steps:
+  steps:
 
-      - name: Descargar el código
-        uses: actions/checkout@v4
+   name: Descargar el código
+    uses: actions/checkout@v4
 
-      - name: Validar Sintaxis YAML de Docker
-        run: |
-          sudo apt-get install -y yamllint
-          yamllint -d "{extends: relaxed, rules: {line-length: disable}}" docker/docker-compose.yml
-        continue-on-error: true
+   name: Validar Sintaxis YAML de Docker
+    run: |
+     sudo apt-get install -y yamllint
+     yamllint -d "{extends: relaxed, rules: {line-length: disable}}" docker/docker-compose.yml
+    continue-on-error: true
 
-      - name: Validar Docker Compose estructuralmente
-        run: |
-          docker compose -f docker/docker-compose.yml config -q
+   name: Validar Docker Compose estructuralmente
+    run: |
+     docker compose -f docker/docker-compose.yml config -q
 
-      - name: Instalar ShellCheck
-        run: sudo apt-get install -y shellcheck
+   name: Instalar ShellCheck
+    run: sudo apt-get install -y shellcheck
 
-      - name: Validar Scripts con ShellCheck
-        run: |
-          echo "Analizando todos los scripts de la carpeta scripts/..."
-          shellcheck scripts/*/*.sh
-          echo "Analizando scripts de provisioning Vagrant..."
-          shellcheck vagrant/*.sh
+   name: Validar Scripts con ShellCheck
+    run: |
+     echo "Analizando todos los scripts de la carpeta scripts/..."
+     shellcheck scripts/*/*.sh
+     echo "Analizando scripts de provisioning Vagrant..."
+     shellcheck vagrant/*.sh
 
-      - name: Validar Markdown (Limpieza de sintaxis)
-        uses: DavidAnson/markdownlint-cli2-action@v16
-        with:
-          globs: "**/*.md"
-        continue-on-error: true
+   name: Validar Markdown (Limpieza de sintaxis)
+    uses: DavidAnson/markdownlint-cli2-action@v16
+    with:
+     globs: "**/*.md"
+    continue-on-error: true

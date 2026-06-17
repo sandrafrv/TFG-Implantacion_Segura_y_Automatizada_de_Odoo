@@ -1,6 +1,6 @@
 # Scripts de Administración y Despliegue
 
-**TFC ASIR 2025/2026 — TechSolutions S.L.**
+**ASIR 2025/2026 — TechSolutions S.L.**
 
 > [!IMPORTANT]
 > Todos los scripts están diseñados para ejecutarse **únicamente en el servidor Debian** (`odoo-server`, `192.168.30.10`).

@@ -2,7 +2,7 @@
 
 > **Última actualización:** Junio 2026 — v2.0 (arquitectura con 2 VMs Vagrant, PostgreSQL en VLAN 40, sin LDAP, sin MACVLAN — bridge Docker + port mapping)
 
-Este documento detalla todas las reglas configuradas en pfSense para la arquitectura de red del proyecto TFC.
+Este documento detalla todas las reglas configuradas en pfSense para la arquitectura de red del proyecto .
 La infraestructura cuenta con **cuatro interfaces**: **WAN** (red pública), **LAN/VLAN 10** (clientes 192.168.10.0/24), **OPT1/DMZ/VLAN 30** (zona desmilitarizada 192.168.30.0/24) y **OPT2/VLAN 40** (administración y base de datos 192.168.40.0/24).
 
 > **Nota:** En pfSense, el orden de las reglas importa. Se evalúan de arriba a abajo y se aplica la primera que coincide.
@@ -18,26 +18,26 @@ La infraestructura cuenta con **cuatro interfaces**: **WAN** (red pública), **L
 
 ```
 Internet (WAN)
-      │
-      │  Solo puertos 80/443 abiertos al público
-      │  SSH, Cockpit y panel pfSense → solo desde VLAN 40
-      ▼
-  [ pfSense ]
-      │
-      ├─── VLAN 10 / LAN (192.168.10.0/24) ──► Clientes / Trabajadores
-      │         │  Accede a Odoo vía Nginx (80/443)
-      │         │  Puede navegar por Internet
-      │         │  NO puede acceder a VLAN 40, SSH, Cockpit ni panel pfSense
-      │
-      ├─── VLAN 30 / DMZ (192.168.30.0/24) ──► Servidor Debian + contenedores
-      │         │  Puede salir a Internet (HTTP/HTTPS/DNS)
-      │         │  Puede alcanzar VLAN 40 solo en puerto 5432 (Odoo → PostgreSQL)
-      │         │  NO puede alcanzar VLAN 10 ← anti-pivoting
-      │         │  NO puede acceder al panel de pfSense
-      │
-      └─── VLAN 40 / Admin+BD (192.168.40.0/24) ──► Administración + PostgreSQL
-                │  Acceso total: SSH, Cockpit, pfSense, Odoo admin, psql
-                │  NO puede acceder a VLAN 10 ← segmentación estricta
+   │
+   │ Solo puertos 80/443 abiertos al público
+   │ SSH, Cockpit y panel pfSense → solo desde VLAN 40
+   ▼
+ [ pfSense ]
+   │
+   ├─── VLAN 10 / LAN (192.168.10.0/24) ──► Clientes / Trabajadores
+   │     │ Accede a Odoo vía Nginx (80/443)
+   │     │ Puede navegar por Internet
+   │     │ NO puede acceder a VLAN 40, SSH, Cockpit ni panel pfSense
+   │
+   ├─── VLAN 30 / DMZ (192.168.30.0/24) ──► Servidor Debian + contenedores
+   │     │ Puede salir a Internet (HTTP/HTTPS/DNS)
+   │     │ Puede alcanzar VLAN 40 solo en puerto 5432 (Odoo → PostgreSQL)
+   │     │ NO puede alcanzar VLAN 10 ← anti-pivoting
+   │     │ NO puede acceder al panel de pfSense
+   │
+   └─── VLAN 40 / Admin+BD (192.168.40.0/24) ──► Administración + PostgreSQL
+        │ Acceso total: SSH, Cockpit, pfSense, Odoo admin, psql
+        │ NO puede acceder a VLAN 10 ← segmentación estricta
 ```
 
 ---
@@ -50,13 +50,13 @@ Internet (WAN)
 
 | Pos | Estado | Protocolo | Origen | Destino | Puerto | Descripción |
 |:---:|:---:|:---|:---|:---|:---:|:---|
-| 1 |  Block | * | Redes RFC 1918 | * | * | Block private networks *(automática)* |
-| 2 |  Block | * | Redes Bogon | * | * | Block bogon networks *(automática)* |
-| 3 |  Pass | IPv4 TCP | * | WAN address | 80 | HTTP público → redirige a HTTPS |
-| 4 |  Pass | IPv4 TCP | * | WAN address | 443 | HTTPS público → Odoo |
-| 5 |  Block | IPv4 * | * | * | * | **Bloquear todo lo demás** ← ¡ÚLTIMO! |
+| 1 | Block | * | Redes RFC 1918 | * | * | Block private networks *(automática)* |
+| 2 | Block | * | Redes Bogon | * | * | Block bogon networks *(automática)* |
+| 3 | Pass | IPv4 TCP | * | WAN address | 80 | HTTP público → redirige a HTTPS |
+| 4 | Pass | IPv4 TCP | * | WAN address | 443 | HTTPS público → Odoo |
+| 5 | Block | IPv4 * | * | * | * | **Bloquear todo lo demás** ← ¡ÚLTIMO! |
 
-###  Puntos clave — WAN
+### Puntos clave — WAN
 
 - Las reglas **Block private networks** y **Block bogon networks** se activan en *Interfaces → WAN* y las genera pfSense automáticamente. Protegen contra spoofing.
 - **SSH, Cockpit y panel pfSense no se abren desde WAN**. Toda la administración es interna desde VLAN 40.
@@ -74,17 +74,17 @@ Controla el tráfico desde la red de clientes (192.168.10.0/24). Los clientes so
 
 | # | Acción | Protocolo | Origen | Destino | Puerto | Descripción |
 |:---:|:---:|:---:|:---|:---|:---:|:---|
-| 1 |  Block | * | LAN | `192.168.40.0/24` | * | **Bloquear acceso a VLAN Admin+BD** ← ¡PRIMERO! |
-| 2 |  Block | * | LAN | `192.168.30.10` | 22 | Bloquear SSH al servidor |
-| 3 |  Block | * | LAN | `192.168.30.10` | 9090 | Bloquear Cockpit |
-| 4 |  Block | * | LAN | `192.168.30.0/24` | 5432 | Bloquear PostgreSQL (VLAN 40 ya bloqueada por regla 1) |
+| 1 | Block | * | LAN | `192.168.40.0/24` | * | **Bloquear acceso a VLAN Admin+BD** ← ¡PRIMERO! |
+| 2 | Block | * | LAN | `192.168.30.10` | 22 | Bloquear SSH al servidor |
+| 3 | Block | * | LAN | `192.168.30.10` | 9090 | Bloquear Cockpit |
+| 4 | Block | * | LAN | `192.168.30.0/24` | 5432 | Bloquear PostgreSQL (VLAN 40 ya bloqueada por regla 1) |
 | 5 | ~~Pass~~ | IPv4 * | LAN subnets | * | * | ~~Default allow LAN to any~~ *(desactivada)* |
-| 6 |  Pass | IPv4 TCP | LAN subnets | `192.168.30.10` | 80 | Odoo HTTP vía Nginx (host odoo-server) |
-| 7 |  Pass | IPv4 TCP | LAN subnets | `192.168.30.10` | 443 | Odoo HTTPS vía Nginx (host odoo-server) |
-| 8 |  Pass | IPv4 * | LAN subnets | * | * | Navegación general Internet |
-| 9 |  Block | IPv4 * | * | * | * | **Deny all** ← ¡ÚLTIMO! |
+| 6 | Pass | IPv4 TCP | LAN subnets | `192.168.30.10` | 80 | Odoo HTTP vía Nginx (host odoo-server) |
+| 7 | Pass | IPv4 TCP | LAN subnets | `192.168.30.10` | 443 | Odoo HTTPS vía Nginx (host odoo-server) |
+| 8 | Pass | IPv4 * | LAN subnets | * | * | Navegación general Internet |
+| 9 | Block | IPv4 * | * | * | * | **Deny all** ← ¡ÚLTIMO! |
 
-###  Puntos clave — LAN
+### Puntos clave — LAN
 
 - La **"Default allow LAN to any"** (regla 5) debe estar **desactivada** (en gris). Se sustituye por reglas específicas.
 - La regla Anti-Lockout automática de pfSense debe desactivarse desde *System → Advanced → Admin Access → Disable anti-lockout rule* **solo después** de confirmar acceso desde VLAN 40.
@@ -103,16 +103,16 @@ Controla el tráfico desde el servidor Debian y los contenedores (192.168.30.0/2
 
 | Pos | Acción | Protocolo | Origen | Destino | Puerto | Descripción |
 |:---:|:---:|:---:|:---|:---|:---:|:---|
-| 1 |  Block | IPv4 * | DMZ | `192.168.10.0/24` | * | **DMZ NO puede atacar VLAN 10** ← ¡PRIMERO! |
-| 2 |  Block | IPv4 * | DMZ | `192.168.10.1` | * | **DMZ NO puede acceder a pfSense LAN** |
-| 3 |  Pass | IPv4 TCP | `192.168.30.21` | `192.168.40.10` | 5432 | **Odoo → PostgreSQL externo** ← explícita |
-| 4 |  Block | IPv4 * | DMZ | `192.168.40.0/24` | * | **DMZ NO puede acceder a VLAN Admin** (excepto regla 3) |
-| 5 |  Pass | IPv4 TCP | DMZ | * | 80 | Actualizaciones HTTP |
-| 6 |  Pass | IPv4 TCP | DMZ | * | 443 | Actualizaciones HTTPS |
-| 7 |  Pass | IPv4 UDP | DMZ | * | 53 | DNS resolución de nombres |
-| 8 |  Block | IPv4 * | * | * | * | **Bloquear todo lo demás** ← ¡ÚLTIMO! |
+| 1 | Block | IPv4 * | DMZ | `192.168.10.0/24` | * | **DMZ NO puede atacar VLAN 10** ← ¡PRIMERO! |
+| 2 | Block | IPv4 * | DMZ | `192.168.10.1` | * | **DMZ NO puede acceder a pfSense LAN** |
+| 3 | Pass | IPv4 TCP | `192.168.30.21` | `192.168.40.10` | 5432 | **Odoo → PostgreSQL externo** ← explícita |
+| 4 | Block | IPv4 * | DMZ | `192.168.40.0/24` | * | **DMZ NO puede acceder a VLAN Admin** (excepto regla 3) |
+| 5 | Pass | IPv4 TCP | DMZ | * | 80 | Actualizaciones HTTP |
+| 6 | Pass | IPv4 TCP | DMZ | * | 443 | Actualizaciones HTTPS |
+| 7 | Pass | IPv4 UDP | DMZ | * | 53 | DNS resolución de nombres |
+| 8 | Block | IPv4 * | * | * | * | **Bloquear todo lo demás** ← ¡ÚLTIMO! |
 
-###  Puntos clave — DMZ
+### Puntos clave — DMZ
 
 - La regla 3 (`odoo-web → PostgreSQL`) debe ir **antes** del bloqueo general a VLAN 40 (regla 4).
 - PostgreSQL en VLAN 40 (`192.168.40.10:5432`) solo es accesible desde `192.168.30.10` (odoo-server — el host Debian donde corre el contenedor odoo-web).
@@ -123,22 +123,22 @@ Controla el tráfico desde el servidor Debian y los contenedores (192.168.30.0/2
 
 ```
 Tráfico desde servidor DMZ (192.168.30.x)
-         │
-[Pos. 1] ¿Va hacia VLAN 10 (192.168.10.0/24)?          ──►  BLOQUEADO (anti-pivoting)
-[Pos. 2] ¿Va hacia pfSense LAN (10.1)?                  ──►  BLOQUEADO (protege pfSense)
-[Pos. 3] ¿Es TCP :5432 desde odoo-web a 192.168.40.10?  ──►  PERMITIDO (Odoo → PostgreSQL)
-[Pos. 4] ¿Va hacia VLAN 40 (192.168.40.0/24)?           ──►  BLOQUEADO (anti-pivoting admin)
-         │ No
-[Pos. 5] ¿Es TCP puerto 80?                             ──►  PERMITIDO (actualizaciones)
-[Pos. 6] ¿Es TCP puerto 443?                            ──►  PERMITIDO (actualizaciones)
-[Pos. 7] ¿Es UDP puerto 53?                             ──►  PERMITIDO (DNS)
-         │ No coincide
-[Pos. 8] Cualquier otro tráfico                         ──►  BLOQUEADO (deny-all)
+     │
+[Pos. 1] ¿Va hacia VLAN 10 (192.168.10.0/24)?     ──► BLOQUEADO (anti-pivoting)
+[Pos. 2] ¿Va hacia pfSense LAN (10.1)?         ──► BLOQUEADO (protege pfSense)
+[Pos. 3] ¿Es TCP :5432 desde odoo-web a 192.168.40.10? ──► PERMITIDO (Odoo → PostgreSQL)
+[Pos. 4] ¿Va hacia VLAN 40 (192.168.40.0/24)?      ──► BLOQUEADO (anti-pivoting admin)
+     │ No
+[Pos. 5] ¿Es TCP puerto 80?               ──► PERMITIDO (actualizaciones)
+[Pos. 6] ¿Es TCP puerto 443?              ──► PERMITIDO (actualizaciones)
+[Pos. 7] ¿Es UDP puerto 53?               ──► PERMITIDO (DNS)
+     │ No coincide
+[Pos. 8] Cualquier otro tráfico             ──► BLOQUEADO (deny-all)
 ```
 
 ### Nota técnica — Egress Filtering
 
-Durante el TFC se evaluó restringir la salida de la DMZ a rangos CIDR específicos (GitHub/Azure) mediante pfBlockerNG con ASN. Se descartó por requerir un token externo de IPinfo.io, introduciendo dependencia de terceros. Se mantiene una regla de salida permisiva por **TCP 443** hacia `Any`, bloqueando el resto de protocolos y puertos. Esta decisión está documentada para su defensa en la memoria del TFC.
+Durante el se evaluó restringir la salida de la DMZ a rangos CIDR específicos (GitHub/Azure) mediante pfBlockerNG con ASN. Se descartó por requerir un token externo de IPinfo.io, introduciendo dependencia de terceros. Se mantiene una regla de salida permisiva por **TCP 443** hacia `Any`, bloqueando el resto de protocolos y puertos. Esta decisión está documentada para su defensa en la memoria del .
 
 ---
 
@@ -177,15 +177,15 @@ La VLAN 40 (`192.168.40.0/24`) es la **red exclusiva de administración y base d
 
 | # | Acción | Protocolo | Origen | Destino | Puerto | Descripción |
 |:---:|:---:|:---:|:---|:---|:---:|:---|
-| 1 |  Pass | TCP | VLAN 40 | `This Firewall` | 443 | **Panel pfSense** ← acceso exclusivo |
-| 2 |  Pass | TCP | VLAN 40 | `192.168.30.10` | 22 | SSH al servidor Debian |
-| 3 |  Pass | TCP | VLAN 40 | `192.168.30.10` | 9090 | Cockpit — gestión visual |
-| 4 |  Pass | TCP | VLAN 40 | `192.168.30.10` | 443 | Nginx/Odoo admin completo (host port mapping) |
-| 5 |  Pass | TCP | VLAN 40 | `192.168.40.10` | 5432 | **Acceso DBA directo a PostgreSQL** |
-| 6 |  Pass | TCP | VLAN 40 | * | 80, 443 | Actualizaciones Internet |
-| 7 |  Pass | UDP | VLAN 40 | * | 53 | DNS resolución |
-| 8 |  Block | * | VLAN 40 | `192.168.10.0/24` | * | Anti-pivoting a VLAN 10 |
-| 9 |  Block | * | VLAN 40 | * | * | **Deny all** ← ¡ÚLTIMO! |
+| 1 | Pass | TCP | VLAN 40 | `This Firewall` | 443 | **Panel pfSense** ← acceso exclusivo |
+| 2 | Pass | TCP | VLAN 40 | `192.168.30.10` | 22 | SSH al servidor Debian |
+| 3 | Pass | TCP | VLAN 40 | `192.168.30.10` | 9090 | Cockpit — gestión visual |
+| 4 | Pass | TCP | VLAN 40 | `192.168.30.10` | 443 | Nginx/Odoo admin completo (host port mapping) |
+| 5 | Pass | TCP | VLAN 40 | `192.168.40.10` | 5432 | **Acceso DBA directo a PostgreSQL** |
+| 6 | Pass | TCP | VLAN 40 | * | 80, 443 | Actualizaciones Internet |
+| 7 | Pass | UDP | VLAN 40 | * | 53 | DNS resolución |
+| 8 | Block | * | VLAN 40 | `192.168.10.0/24` | * | Anti-pivoting a VLAN 10 |
+| 9 | Block | * | VLAN 40 | * | * | **Deny all** ← ¡ÚLTIMO! |
 
 > **LDAP eliminado:** Las reglas de acceso a `192.168.30.22:389/636` han sido retiradas.
 > Si se despliega LDAP como componente opcional (ver `extras/ldap/`), añadir antes del Deny all:
@@ -213,7 +213,7 @@ El tráfico público entra por la WAN y se redirige al host `odoo-server` (`192.
 | LAN | TCP/UDP | `192.168.10.0/24` | * | 53 | `192.168.10.1` | Forzar DNS VLAN 10 → pfSense |
 | OPT2 | TCP/UDP | `192.168.40.0/24` | * | 53 | `192.168.40.1` | Forzar DNS VLAN 40 → pfSense |
 
-> **Por qué es necesario:** Los clientes Linux modernos con `systemd-resolved` pueden ignorar el DNS del DHCP y enviar consultas a 8.8.8.8. Esta regla intercepta cualquier consulta DNS desde cada VLAN y la redirige a pfSense, garantizando que `erp.odoo.tfc.com` resuelva siempre a `192.168.30.10`.
+> **Por qué es necesario:** Los clientes Linux modernos con `systemd-resolved` pueden ignorar el DNS del DHCP y enviar consultas a 8.8.8.8. Esta regla intercepta cualquier consulta DNS desde cada VLAN y la redirige a pfSense, garantizando que `erp.odoo.com` resuelva siempre a `192.168.30.10`.
 
 ### NAT Outbound
 
@@ -272,7 +272,7 @@ Con el modo automático pfSense aplica NAT a todas las subnets internas. Si usas
 | Campo | Valor |
 |---|---|
 | Host | `erp.odoo` |
-| Domain | `tfc.com` |
+| Domain | `odoo.com` |
 | IP Address | `192.168.30.10` |
 | Description | `nginx-proxy Odoo ERP — DMZ host odoo-server (port mapping 80/443)` |
 
@@ -284,14 +284,14 @@ Con el modo automático pfSense aplica NAT a todas las subnets internas. Si usas
 
 ```
 Cliente VLAN 10 (systemd-resolved envía consulta a 8.8.8.8:53)
-        │
-        ▼  pfSense intercepta (NAT Port Forward LAN TCP/UDP :53)
-        │
-        ▼  Redirige a 192.168.10.1:53
-        │
+    │
+    ▼ pfSense intercepta (NAT Port Forward LAN TCP/UDP :53)
+    │
+    ▼ Redirige a 192.168.10.1:53
+    │
 [ pfSense DNS Resolver ]
-        │  Host Override → erp.odoo.tfc.com = 192.168.30.10
-        ▼
+    │ Host Override → erp.odoo.com = 192.168.30.10
+    ▼
 Cliente recibe 192.168.30.10 → abre HTTPS → nginx-proxy (port mapping :443) → Odoo
 ```
 
@@ -319,7 +319,7 @@ El panel de pfSense solo debe ser accesible desde la VLAN 40. Se aplica en dos c
 1. Crear en *Firewall → Rules → OPT2* la regla que permite acceso al panel desde VLAN 40 (ya incluida en la tabla de OPT2, regla 1).
 2. Ir a *System → Advanced → Admin Access* y marcar **Disable webConfigurator anti-lockout rule**.
 
->  **Solo deshabilitar la Anti-Lockout después de confirmar acceso desde una IP de la VLAN 40** (`https://192.168.40.1`). De lo contrario quedarás fuera del firewall.
+> **Solo deshabilitar la Anti-Lockout después de confirmar acceso desde una IP de la VLAN 40** (`https://192.168.40.1`). De lo contrario quedarás fuera del firewall.
 
 ### Capa 2 — Autenticación (local pfSense)
 
@@ -327,8 +327,8 @@ El panel pfSense se protege con las cuentas locales de pfSense. No se usa LDAP e
 
 ```
 Sistema → User Manager → Users → admin
-  Contraseña: cambiar la contraseña por defecto (pfsense) en el primer acceso
-  Acceso: solo desde VLAN 40 (garantizado por las reglas de firewall)
+ Contraseña: cambiar la contraseña por defecto (pfsense) en el primer acceso
+ Acceso: solo desde VLAN 40 (garantizado por las reglas de firewall)
 ```
 
 > [!TIP]
@@ -347,7 +347,7 @@ El `server_name` de Nginx debe coincidir con el Host Override DNS.
 grep server_name /opt/erp-odoo/config_nginx/*.conf
 
 # Corregir si es necesario
-sudo sed -i 's/erp.techsolutions.local/erp.odoo.tfc.com/g' /opt/erp-odoo/config_nginx/*.conf
+sudo sed -i 's/erp.techsolutions.local/erp.odoo.com/g' /opt/erp-odoo/config_nginx/*.conf
 
 # Recargar sin cortar servicio
 docker exec nginx-proxy nginx -s reload
@@ -360,17 +360,17 @@ docker exec nginx-proxy nginx -t
 
 ```bash
 # Desde cliente VLAN 10
-nslookup erp.odoo.tfc.com            # Debe devolver 192.168.30.10
-curl -k -I https://erp.odoo.tfc.com  # Debe devolver HTTP/2 200
+nslookup erp.odoo.com      # Debe devolver 192.168.30.10
+curl -k -I https://erp.odoo.com # Debe devolver HTTP/2 200
 
 # Desde admin VLAN 40
-ssh usuario@192.168.30.10            # Debe conectar
-psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'  # PostgreSQL accesible
-# Navegador → https://192.168.40.1      → Panel pfSense accesible
+ssh usuario@192.168.30.10      # Debe conectar
+psql -h 192.168.40.10 -U odoo -d odooerp -c '\l' # PostgreSQL accesible
+# Navegador → https://192.168.40.1   → Panel pfSense accesible
 # Navegador → https://192.168.30.10:9090 → Cockpit accesible
 
 # Desde VLAN 10 (debe fallar)
-nc -zv 192.168.40.10 5432            # → Timeout ✅ (BD no accesible)
+nc -zv 192.168.40.10 5432      # → Timeout ✅ (BD no accesible)
 ```
 
 ---
@@ -381,38 +381,38 @@ nc -zv 192.168.40.10 5432            # → Timeout ✅ (BD no accesible)
 
 ```
 ✅ Interfaces asignadas
-   ├─ WAN  → IP externa (DHCP o estática)
-   ├─ LAN  → 192.168.10.1/24  (VLAN 10 clientes)
-   ├─ OPT1 → 192.168.30.1/24  (VLAN 30 DMZ)
-   └─ OPT2 → 192.168.40.1/24  (VLAN 40 admin+BD)
+  ├─ WAN → IP externa (DHCP o estática)
+  ├─ LAN → 192.168.10.1/24 (VLAN 10 clientes)
+  ├─ OPT1 → 192.168.30.1/24 (VLAN 30 DMZ)
+  └─ OPT2 → 192.168.40.1/24 (VLAN 40 admin+BD)
 
 ✅ DHCP
-   ├─ LAN  → 192.168.10.100–200, DNS 192.168.10.1
-   └─ OPT2 → 192.168.40.10–50,  DNS 192.168.40.1
-   (OPT1/DMZ → IPs estáticas en Debian, sin DHCP)
+  ├─ LAN → 192.168.10.100–200, DNS 192.168.10.1
+  └─ OPT2 → 192.168.40.10–50, DNS 192.168.40.1
+  (OPT1/DMZ → IPs estáticas en Debian, sin DHCP)
 
 ✅ Firewall Rules
-   ├─ WAN  → solo 80/443 público + deny all
-   ├─ LAN  → bloqueos VLAN40+admin primero + Odoo(:443 → host .10)/Internet + deny all
-   ├─ OPT1 → bloqueos anti-pivoting + regla Odoo→PG(:5432) + salida mínima + deny all
-   └─ OPT2 → panel pfSense + SSH/Cockpit/psql + deny all (sin reglas LDAP)
+  ├─ WAN → solo 80/443 público + deny all
+  ├─ LAN → bloqueos VLAN40+admin primero + Odoo(:443 → host .10)/Internet + deny all
+  ├─ OPT1 → bloqueos anti-pivoting + regla Odoo→PG(:5432) + salida mínima + deny all
+  └─ OPT2 → panel pfSense + SSH/Cockpit/psql + deny all (sin reglas LDAP)
 
 ✅ NAT Port Forward
-   ├─ WAN :80  → 192.168.30.10:80   (nginx-proxy port mapping host)
-   ├─ WAN :443 → 192.168.30.10:443  (nginx-proxy port mapping host)
-   ├─ LAN  DNS :53 → 192.168.10.1   (forzar DNS VLAN 10)
-   └─ OPT2 DNS :53 → 192.168.40.1   (forzar DNS VLAN 40)
+  ├─ WAN :80 → 192.168.30.10:80  (nginx-proxy port mapping host)
+  ├─ WAN :443 → 192.168.30.10:443 (nginx-proxy port mapping host)
+  ├─ LAN DNS :53 → 192.168.10.1  (forzar DNS VLAN 10)
+  └─ OPT2 DNS :53 → 192.168.40.1  (forzar DNS VLAN 40)
 
 ✅ NAT Outbound → Automatic
 
 ✅ DNS Resolver
-   ├─ Habilitado en LAN, OPT1, OPT2, Localhost
-   └─ Host Override: erp.odoo.tfc.com → 192.168.30.10 (host odoo-server, Nginx port mapping)
+  ├─ Habilitado en LAN, OPT1, OPT2, Localhost
+  └─ Host Override: erp.odoo.com → 192.168.30.10 (host odoo-server, Nginx port mapping)
 
 ✅ System → Advanced → Admin Access
-   └─ Disable anti-lockout rule (tras confirmar acceso desde VLAN 40)
+  └─ Disable anti-lockout rule (tras confirmar acceso desde VLAN 40)
 
-ℹ️  LDAP: no configurado en este despliegue — ver extras/ldap/ si se necesita
+ℹ️ LDAP: no configurado en este despliegue — ver extras/ldap/ si se necesita
 ```
 
 ---

@@ -1,6 +1,6 @@
 # CI/CD Workflows
 
-Esta carpeta contiene los flujos de trabajo (workflows) de GitHub Actions que automatizan las pruebas, la validación y el despliegue del proyecto `TFC-ASIRB`.
+Esta carpeta contiene los flujos de trabajo (workflows) de GitHub Actions que automatizan las pruebas, la validación y el despliegue del proyecto `-ASIRB`.
 
 ---
 

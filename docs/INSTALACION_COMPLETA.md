@@ -1,6 +1,6 @@
 # Guía Maestra de Instalación desde Cero
 
-**TFC ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
+**ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
 *Sandra Fradejas Avedillo — IES Cañaveral*
 
 > [!IMPORTANT]
@@ -17,17 +17,17 @@
 
 - **VMware Workstation** instalado en el equipo anfitrión (Windows)
 - **Vagrant ≥ 2.3** + plugin `vagrant-vmware-desktop`:
-  ```powershell
-  winget install HashiCorp.Vagrant
-  vagrant plugin install vagrant-vmware-desktop
-  ```
+ ```powershell
+ winget install HashiCorp.Vagrant
+ vagrant plugin install vagrant-vmware-desktop
+ ```
 - Variables de entorno configuradas en PowerShell antes de `vagrant up`:
-  ```powershell
-  $env:GH_PAT="ghp_tutoken"                 # Personal Access Token (scope: repo)
-  $env:GH_RUNNER_TOKEN_ODOO="AXXXXX"         # Runner token para odoo-server
-  $env:GH_RUNNER_TOKEN_DB="AYYYYY"           # Runner token para db-server
-  $env:POSTGRES_PASSWORD="tu_password_seguro"
-  ```
+ ```powershell
+ $env:GH_PAT="ghp_tutoken"         # Personal Access Token (scope: repo)
+ $env:GH_RUNNER_TOKEN_ODOO="AXXXXX"     # Runner token para odoo-server
+ $env:GH_RUNNER_TOKEN_DB="AYYYYY"      # Runner token para db-server
+ $env:POSTGRES_PASSWORD="tu_password_seguro"
+ ```
 - Conexión a Internet en el equipo anfitrión
 - Repositorio clonado localmente
 
@@ -37,24 +37,24 @@
 
 ```
 Internet (WAN)
-     │ NAT 80/443
-     ▼
+   │ NAT 80/443
+   ▼
 [ pfSense — 4 interfaces ]
-     │           │           │
-  VLAN 10     VLAN 30     VLAN 40
-  192.168.10  192.168.30  192.168.40
-  Clientes    DMZ Server  Admin + BD
-     │           │           │
-  PCs           Debian 12   PCs Admin
-                192.168.30.10  SSH/Cockpit/pfSense
-                │
-    ┌──────────────────────────────────┐
-    │ nginx-proxy  :80/:443 (port map)  │  Docker bridge odoo_net
-    │ odoo-web     :8069 (solo interno) │
-    └──────────────────────────────────┘
-                         │ TCP :5432
-                 [ db-server — 192.168.40.10 ]
-                   PostgreSQL 16 — VM nativa
+   │      │      │
+ VLAN 10   VLAN 30   VLAN 40
+ 192.168.10 192.168.30 192.168.40
+ Clientes  DMZ Server Admin + BD
+   │      │      │
+ PCs      Debian 12  PCs Admin
+        192.168.30.10 SSH/Cockpit/pfSense
+        │
+  ┌──────────────────────────────────┐
+  │ nginx-proxy :80/:443 (port map) │ Docker bridge odoo_net
+  │ odoo-web   :8069 (solo interno) │
+  └──────────────────────────────────┘
+             │ TCP :5432
+         [ db-server — 192.168.40.10 ]
+          PostgreSQL 16 — VM nativa
 ```
 
 > ⚠️ **LDAP no forma parte del despliegue principal.** Ver `extras/ldap/` si necesitas retomarlo.
@@ -78,11 +78,11 @@ Internet (WAN)
 ## Opción A — Despliegue Automático con Vagrant (Recomendado)
 
 ```bash
-git clone https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo.git
-cd TFC-Implantacion_Segura_y_Automatizada_de_Odoo
+git clone https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo.git
+cd Implantacion_Segura_y_Automatizada_de_Odoo
 cp .env.example .env
-nano .env              # Rellenar variables obligatorias
-vagrant up             # Levanta las 3 VMs automáticamente
+nano .env       # Rellenar variables obligatorias
+vagrant up       # Levanta las 3 VMs automáticamente
 ```
 
 | VM Vagrant | Rol | IP | Provision script |
@@ -111,7 +111,7 @@ vagrant up             # Levanta las 3 VMs automáticamente
 | 4 | Acceso a la interfaz web desde LAN |
 | 5 | Configuración OPT1 (VLAN 30 — DMZ) y OPT2 (VLAN 40 — Admin/BD) |
 | 6 | DHCP: LAN (.100–.200) y VLAN 40 (.10–.50) |
-| 7 | DNS Resolver: Host Override `erp.odoo.tfc.com → 192.168.30.10` (host odoo-server) |
+| 7 | DNS Resolver: Host Override `erp.odoo.com → 192.168.30.10` (host odoo-server) |
 | 8 | NAT: WAN:80/443 → `192.168.30.10` (Nginx expone puertos del host) |
 | 9 | Reglas firewall: bloqueos anti-pivoting + permisos mínimos |
 | 10 | Desactivar Anti-Lockout tras confirmar acceso VLAN 40 |
@@ -121,8 +121,8 @@ Importar en **Diagnostics → Backup/Restore**.
 
 **Verificación rápida:**
 ```bash
-nslookup erp.odoo.tfc.com   # → 192.168.30.10 desde VLAN 10
-nc -zv 192.168.40.10 5432   # → Timeout (bloqueado) desde VLAN 10
+nslookup erp.odoo.com  # → 192.168.30.10 desde VLAN 10
+nc -zv 192.168.40.10 5432  # → Timeout (bloqueado) desde VLAN 10
 ```
 
 ---
@@ -176,7 +176,7 @@ psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'
 ```bash
 docker compose -f docker/docker-compose.yml ps
 # Resultado esperado: odoo-web (healthy), nginx-proxy (healthy)
-curl -k -I https://erp.odoo.tfc.com   # → HTTP/2 200
+curl -k -I https://erp.odoo.com  # → HTTP/2 200
 ```
 
 ---
@@ -201,8 +201,8 @@ curl -k -I https://erp.odoo.tfc.com   # → HTTP/2 200
 
 **Verificación rápida:**
 ```bash
-systemctl get-default          # → multi-user.target
-sudo ufw status                # → active
+systemctl get-default     # → multi-user.target
+sudo ufw status        # → active
 ```
 
 ---
@@ -210,12 +210,12 @@ sudo ufw status                # → active
 ## Orden de Arranque (tras Reinicio)
 
 ```
-1. Arrancar pfSense VM       → esperar ~1 min (interfaces activas)
-2. Arrancar vm-postgres VM   → PostgreSQL arranca automáticamente
-3. Arrancar vm-odoo VM       → Docker arranca automáticamente
-4. Esperar ~3 min            → Odoo inicializa (primer arranque)
-5. Verificar desde VLAN 10   → https://erp.odoo.tfc.com
-6. Verificar desde VLAN 40   → https://192.168.30.10:9090 (Cockpit)
+1. Arrancar pfSense VM    → esperar ~1 min (interfaces activas)
+2. Arrancar vm-postgres VM  → PostgreSQL arranca automáticamente
+3. Arrancar vm-odoo VM    → Docker arranca automáticamente
+4. Esperar ~3 min      → Odoo inicializa (primer arranque)
+5. Verificar desde VLAN 10  → https://erp.odoo.com
+6. Verificar desde VLAN 40  → https://192.168.30.10:9090 (Cockpit)
 ```
 
 ---
@@ -224,35 +224,35 @@ sudo ufw status                # → active
 
 ```
 FASE 1 — Red
-  ✅ pfSense: 4 interfaces activas (WAN + VLAN 10 + 30 + 40)
-  ✅ DHCP VLAN 10 y VLAN 40
-  ✅ DNS: erp.odoo.tfc.com → 192.168.30.10
-  ✅ NAT: WAN 80/443 → nginx-proxy en host (192.168.30.10)
-  ✅ Reglas: anti-pivoting + permisos mínimos
-  ✅ Panel pfSense: solo VLAN 40
-  ✅ Anti-Lockout desactivado
+ ✅ pfSense: 4 interfaces activas (WAN + VLAN 10 + 30 + 40)
+ ✅ DHCP VLAN 10 y VLAN 40
+ ✅ DNS: erp.odoo.com → 192.168.30.10
+ ✅ NAT: WAN 80/443 → nginx-proxy en host (192.168.30.10)
+ ✅ Reglas: anti-pivoting + permisos mínimos
+ ✅ Panel pfSense: solo VLAN 40
+ ✅ Anti-Lockout desactivado
 
 FASE 2 — PostgreSQL
-  ✅ vm-postgres: IP estática 192.168.40.10
-  ✅ PostgreSQL 16 activo y escuchando en :5432
-  ✅ Usuario y BD odoo creados
-  ✅ pg_hba.conf: acepta conexiones desde 192.168.30.0/24
-  ✅ Conectividad verificada desde vm-odoo
+ ✅ vm-postgres: IP estática 192.168.40.10
+ ✅ PostgreSQL 16 activo y escuchando en :5432
+ ✅ Usuario y BD odoo creados
+ ✅ pg_hba.conf: acepta conexiones desde 192.168.30.0/24
+ ✅ Conectividad verificada desde vm-odoo
 
 FASE 3 — Servidor Odoo
-  ✅ odoo-server: IP estática 192.168.30.10
-  ✅ Docker + Cockpit activos
-  ✅ Bridge odoo_net: nginx-proxy (:80/:443 port mapping) + odoo-web (interno)
-  ✅ 2 contenedores healthy (odoo-web + nginx-proxy)
-  ✅ Odoo: empresa + módulos + usuarios con roles
-  ✅ Auditoría SQL aplicada (audit_triggers.sql)
-  ✅ Cron: backup_postgres.sh + monitor.sh
+ ✅ odoo-server: IP estática 192.168.30.10
+ ✅ Docker + Cockpit activos
+ ✅ Bridge odoo_net: nginx-proxy (:80/:443 port mapping) + odoo-web (interno)
+ ✅ 2 contenedores healthy (odoo-web + nginx-proxy)
+ ✅ Odoo: empresa + módulos + usuarios con roles
+ ✅ Auditoría SQL aplicada (audit_triggers.sql)
+ ✅ Cron: backup_postgres.sh + monitor.sh
 
 FASE 4 — Seguridad
-  ✅ CI/CD: runner activo + pipeline funcional
-  ✅ UFW: deny-all + 22/80/443/9090
-  ✅ SSH: solo clave pública, sin root
-  ✅ Debian headless: multi-user.target
+ ✅ CI/CD: runner activo + pipeline funcional
+ ✅ UFW: deny-all + 22/80/443/9090
+ ✅ SSH: solo clave pública, sin root
+ ✅ Debian headless: multi-user.target
 ```
 
 ---
@@ -274,4 +274,4 @@ FASE 4 — Seguridad
 
 ---
 
-*TFC ASIR 2025/2026 — IES Cañaveral*
+*ASIR 2025/2026 — IES Cañaveral*

@@ -1,7 +1,7 @@
-# Memoria del TFC: Implantación Segura y Automatizada de Odoo
+# Memoria del : Implantación Segura y Automatizada de Odoo
 
 > [!WARNING]
-> **OBSOLETO:** Este es un borrador antiguo. No refleja la arquitectura actual de 3 VMs ni la eliminación de LDAP. Por favor, consulta `memoria_tfc_nuevo.md` para la versión actualizada.
+> **OBSOLETO:** Este es un borrador antiguo. No refleja la arquitectura actual de 3 VMs ni la eliminación de LDAP. Por favor, consulta `memoria_nuevo.md` para la versión actualizada.
 
 *(Este documento es la plantilla definitiva basada en los requisitos exactos de tu instituto. Debes usar esto como base para redactar tu memoria en Word/PDF).*
 
@@ -163,7 +163,7 @@ A nivel metodológico, la inversión de tiempo en planificar la infraestructura 
 ## 13.- Bibliografía/Webgrafía
 *(Recuerda mantener el formato APA)*. Ejemplos:
 - Docker Inc., (2024), "Docker Documentation", https://docs.docker.com/
-- Netgate, (2024), "pfSense Documentation - VLAN Configuration", https://docs.netgate.com/pfsense/en/latest/vlan/configuration.html
+- Netgate, (2024), "pfSense Documentation VLAN Configuration", https://docs.netgate.com/pfsense/en/latest/vlan/configuration.html
 - Odoo S.A., (2024), "Odoo 17 Developer Documentation", https://www.odoo.com/documentation/17.0/
 
 ---

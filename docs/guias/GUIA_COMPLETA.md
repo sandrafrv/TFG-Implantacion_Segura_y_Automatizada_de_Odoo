@@ -1,6 +1,6 @@
 # Guía Técnica Completa — Instalación y Configuración
 
-**TFC ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
+**ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
 *Sandra Fradejas Avedillo — IES Cañaveral*
 
 > [!IMPORTANT]
@@ -34,9 +34,9 @@
 - Variables de entorno para Vagrant:
 
 ```powershell
-$env:GH_PAT="ghp_tutoken"                   # Personal Access Token (scope: repo)
-$env:GH_RUNNER_TOKEN_ODOO="AXXXXX"           # Runner token para odoo-server
-$env:GH_RUNNER_TOKEN_DB="AYYYYY"             # Runner token para db-server
+$env:GH_PAT="ghp_tutoken"          # Personal Access Token (scope: repo)
+$env:GH_RUNNER_TOKEN_ODOO="AXXXXX"      # Runner token para odoo-server
+$env:GH_RUNNER_TOKEN_DB="AYYYYY"       # Runner token para db-server
 $env:POSTGRES_PASSWORD="tu_password_seguro"
 ```
 
@@ -46,24 +46,24 @@ $env:POSTGRES_PASSWORD="tu_password_seguro"
 
 ```
 Internet (WAN)
-     │ NAT 80/443
-     ▼
+   │ NAT 80/443
+   ▼
 [ pfSense — 4 interfaces ]
-     │           │           │
-  VLAN 10     VLAN 30     VLAN 40
-  192.168.10  192.168.30  192.168.40
-  Clientes    DMZ Server  Admin + BD
-     │           │           │
-  PCs           Debian 13   PCs Admin
-                192.168.30.10
-                │
-    ┌───────────┴──────────────────────┐
-    │ nginx-proxy  → :80 :443         │  Docker en vm-odoo
-    │ odoo-web     → :8069            │
-    └──────────────────────────────────┘
-                         │ TCP :5432
-                 [ vm-postgres — 192.168.40.10 ]
-                   PostgreSQL 16 — VM nativa
+   │      │      │
+ VLAN 10   VLAN 30   VLAN 40
+ 192.168.10 192.168.30 192.168.40
+ Clientes  DMZ Server Admin + BD
+   │      │      │
+ PCs      Debian 13  PCs Admin
+        192.168.30.10
+        │
+  ┌───────────┴──────────────────────┐
+  │ nginx-proxy → :80 :443     │ Docker en vm-odoo
+  │ odoo-web   → :8069      │
+  └──────────────────────────────────┘
+             │ TCP :5432
+         [ vm-postgres — 192.168.40.10 ]
+          PostgreSQL 16 — VM nativa
 ```
 
 ### Tabla de Direccionamiento
@@ -74,8 +74,8 @@ Internet (WAN)
 | pfSense gateway DMZ | 30 | 192.168.30.1 | — |
 | pfSense gateway Admin/BD | 40 | 192.168.40.1 | Solo VLAN 40 |
 | **vm-odoo** — host Debian | DMZ | 192.168.30.10 | SSH/Cockpit solo VLAN 40 |
-| **nginx-proxy** | DMZ | 192.168.30.20 | VLAN 10 + 40 + WAN (:443) |
-| **odoo-web** | DMZ | 192.168.30.21 | Solo vía Nginx |
+| **nginx-proxy** | DMZ | 192.168.30.10 | VLAN 10 + 40 + WAN (:443) |
+| **odoo-web** | DMZ | 192.168.30.10 | Solo vía Nginx |
 | **vm-postgres** — PostgreSQL 16 | BD | 192.168.40.10 | Solo :5432 desde VLAN 30 y VLAN 40 |
 
 ---
@@ -101,7 +101,7 @@ Internet (WAN)
 | Compatibility | Workstation 17.x |
 | ISO | `netgate-installer-v1.1.1-RELEASE-amd64.iso` |
 | Guest OS | Other → **FreeBSD 14 64-bit** |
-| VM Name | `TFC-pfSense` |
+| VM Name | `pfSense` |
 | Processors | 1 CPU, 1 Core |
 | RAM | **1024 MB** |
 | Disco | **8 GB**, Single file |
@@ -136,10 +136,10 @@ Opción **1 (Assign Interfaces)**:
 
 ```
 Should VLANs be set up now? → n
-Enter the WAN interface name:      em0
-Enter the LAN interface name:      em1
-Enter the Optional 1 interface:    em2
-Enter the Optional 2 interface:    em3
+Enter the WAN interface name:   em0
+Enter the LAN interface name:   em1
+Enter the Optional 1 interface:  em2
+Enter the Optional 2 interface:  em3
 Do you want to proceed? → y
 ```
 
@@ -157,12 +157,12 @@ Opción **2 (Set Interface IP Addresses)**:
 ## 1.4 Acceso al Panel Web
 
 ```
-URL:      https://192.168.10.1 (inicial) ó https://192.168.40.1 (tras mover admin)
-Usuario:  admin
-Password: pfsense  (cambiar en el primer login)
+URL:   https://192.168.10.1 (inicial) ó https://192.168.40.1 (tras mover admin)
+Usuario: admin
+Password: pfsense (cambiar en el primer login)
 ```
 
-Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madrid`.
+Asistente inicial: hostname `pfsense`, dominio `odoo.com`, timezone `Europe/Madrid`.
 
 ---
 
@@ -244,11 +244,11 @@ Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madri
 | Campo | Valor |
 |:------|:------|
 | Host | `erp.odoo` |
-| Domain | `tfc.com` |
-| IP Address | `192.168.30.20` |
+| Domain | `odoo.com` |
+| IP Address | `192.168.30.10` |
 | Description | `nginx-proxy Odoo ERP — DMZ` |
 
-> ⚠️ La IP debe ser `192.168.30.20` (nginx-proxy), **no** `192.168.30.10`.
+> ⚠️ La IP debe ser `192.168.30.10` (nginx-proxy), **no** `192.168.30.10`.
 
 ---
 
@@ -259,8 +259,8 @@ Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madri
 | Nombre | Tipo | Dirección | Descripción |
 |:-------|:-----|:----------|:------------|
 | `Servidor_Debian` | Host | `192.168.30.10` | Servidor Debian DMZ |
-| `Nginx_Proxy` | Host | `192.168.30.20` | Nginx Reverse Proxy |
-| `Odoo_Web` | Host | `192.168.30.21` | Odoo ERP |
+| `Nginx_Proxy` | Host | `192.168.30.10` | Nginx Reverse Proxy |
+| `Odoo_Web` | Host | `192.168.30.10` | Odoo ERP |
 | `PostgreSQL_VM` | Host | `192.168.40.10` | PostgreSQL 16 VLAN 40 |
 | `VLAN_Clientes` | Network | `192.168.10.0/24` | Red VLAN 10 Clientes |
 | `VLAN_Admin` | Network | `192.168.40.0/24` | Red VLAN 40 Admin+BD |
@@ -280,9 +280,9 @@ Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madri
 | Source | any |
 | Destination | WAN address |
 | Destination Port | 80 |
-| Redirect Target IP | `192.168.30.20` |
+| Redirect Target IP | `192.168.30.10` |
 | Redirect Target Port | 80 |
-| Description | `HTTP publico - Nginx Odoo` |
+| Description | `HTTP publico Nginx Odoo` |
 | Filter Rule Association | Pass |
 
 ### Regla 2 — HTTPS público → Nginx
@@ -292,9 +292,9 @@ Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madri
 | Interface | WAN |
 | Protocol | TCP |
 | Destination Port | 443 |
-| Redirect Target IP | `192.168.30.20` |
+| Redirect Target IP | `192.168.30.10` |
 | Redirect Target Port | 443 |
-| Description | `HTTPS publico - Nginx Odoo` |
+| Description | `HTTPS publico Nginx Odoo` |
 | Filter Rule Association | Pass |
 
 ### Regla 3 — Forzar DNS VLAN 10
@@ -323,7 +323,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madri
 
 > **¿Por qué forzar DNS?** Clientes Linux con `systemd-resolved` pueden ignorar el DNS del DHCP
 > y consultar a 8.8.8.8. Estas reglas interceptan cualquier consulta DNS y la redirigen a pfSense,
-> garantizando que `erp.odoo.tfc.com` resuelva siempre a `192.168.30.20`.
+> garantizando que `erp.odoo.com` resuelva siempre a `192.168.30.10`.
 
 ### NAT Outbound — *Firewall → NAT → Outbound*
 
@@ -369,8 +369,8 @@ Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madri
 | 3 | **Block** | IPv4 TCP | LAN | `192.168.30.10` | 9090 | Bloquear Cockpit |
 | 4 | **Block** | IPv4 TCP | LAN | `192.168.30.0/24` | 5432 | Bloquear PostgreSQL |
 | 5 | ~~Pass~~ | IPv4 * | LAN | any | * | ~~Default allow~~ **← DESHABILITAR** |
-| 6 | **Pass** | IPv4 TCP | LAN | `192.168.30.20` | 80 | Odoo HTTP vía Nginx |
-| 7 | **Pass** | IPv4 TCP | LAN | `192.168.30.20` | 443 | Odoo HTTPS vía Nginx |
+| 6 | **Pass** | IPv4 TCP | LAN | `192.168.30.10` | 80 | Odoo HTTP vía Nginx |
+| 7 | **Pass** | IPv4 TCP | LAN | `192.168.30.10` | 443 | Odoo HTTPS vía Nginx |
 | 8 | **Pass** | IPv4 * | LAN | any | * | Navegación Internet |
 | 9 | **Block** | IPv4 * | any | any | * | **Deny all ← ÚLTIMO** |
 
@@ -385,7 +385,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madri
 |:-:|:------:|:-----:|:-------|:--------|:------:|:------------|
 | 1 | **Block** | IPv4 * | OPT1 | `192.168.10.0/24` | * | **Anti-pivoting VLAN 10 ← PRIMERO** |
 | 2 | **Block** | IPv4 * | OPT1 | `192.168.10.1` | * | DMZ no accede a pfSense LAN |
-| 3 | **Pass** | IPv4 TCP | `192.168.30.21` | `192.168.40.10` | 5432 | **Odoo → PostgreSQL ← ANTES del bloqueo VLAN40** |
+| 3 | **Pass** | IPv4 TCP | `192.168.30.10` | `192.168.40.10` | 5432 | **Odoo → PostgreSQL ← ANTES del bloqueo VLAN40** |
 | 4 | **Block** | IPv4 * | OPT1 | `192.168.40.0/24` | * | Anti-pivoting VLAN Admin |
 | 5 | **Pass** | IPv4 TCP | OPT1 | any | 80 | Actualizaciones HTTP |
 | 6 | **Pass** | IPv4 TCP | OPT1 | any | 443 | Actualizaciones HTTPS |
@@ -395,7 +395,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madri
 **Detalle de la regla 3 (crítica):**
 1. *Firewall → Rules → OPT1 → + Add*
 2. Action: **Pass**, Protocol: **TCP**
-3. Source → Single host: `192.168.30.21`
+3. Source → Single host: `192.168.30.10`
 4. Destination → Single host: `192.168.40.10`, Port: `5432`
 5. **Save** → colocar en posición 3 → **Apply Changes**
 
@@ -408,7 +408,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madri
 | 1 | **Pass** | IPv4 TCP | OPT2 | This Firewall | 443 | **Panel pfSense — acceso exclusivo** |
 | 2 | **Pass** | IPv4 TCP | OPT2 | `192.168.30.10` | 22 | SSH al servidor Debian |
 | 3 | **Pass** | IPv4 TCP | OPT2 | `192.168.30.10` | 9090 | Cockpit — gestión visual |
-| 4 | **Pass** | IPv4 TCP | OPT2 | `192.168.30.20` | 443 | Nginx/Odoo admin |
+| 4 | **Pass** | IPv4 TCP | OPT2 | `192.168.30.10` | 443 | Nginx/Odoo admin |
 | 5 | **Pass** | IPv4 TCP | OPT2 | `192.168.40.10` | 5432 | Acceso DBA directo a PostgreSQL |
 | 6 | **Pass** | IPv4 TCP | OPT2 | any | 80 | Actualizaciones HTTP |
 | 7 | **Pass** | IPv4 TCP | OPT2 | any | 443 | Actualizaciones HTTPS |
@@ -476,25 +476,25 @@ bash scripts/deploy/generate_pfsense_config.sh
 
 ```bash
 # Desde cliente VLAN 10
-nslookup erp.odoo.tfc.com          # → 192.168.30.20
-curl -k -I https://erp.odoo.tfc.com  # → HTTP/2 200
+nslookup erp.odoo.com     # → 192.168.30.10
+curl -k -I https://erp.odoo.com # → HTTP/2 200
 
 # Desde admin VLAN 40
-curl -k https://192.168.40.1       # → Panel pfSense ✅
-ssh usuario@192.168.30.10          # → SSH al servidor ✅
-psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'  # → PostgreSQL ✅
+curl -k https://192.168.40.1    # → Panel pfSense ✅
+ssh usuario@192.168.30.10     # → SSH al servidor ✅
+psql -h 192.168.40.10 -U odoo -d odooerp -c '\l' # → PostgreSQL ✅
 
 # Estas deben FALLAR (confirma segmentación):
-curl -k https://192.168.10.1       # Desde VLAN 10 → Sin respuesta ✅
-nc -zv 192.168.40.10 5432          # Desde VLAN 10 → Timeout ✅
+curl -k https://192.168.10.1    # Desde VLAN 10 → Sin respuesta ✅
+nc -zv 192.168.40.10 5432     # Desde VLAN 10 → Timeout ✅
 ```
 
 ```
 ✅ Interfaces: WAN (DHCP) + LAN (10.1/24) + OPT1 (30.1/24) + OPT2 (40.1/24)
 ✅ DHCP: LAN 100–200, OPT2 10–50
-✅ DNS Resolver + Host Override: erp.odoo.tfc.com → 192.168.30.20
+✅ DNS Resolver + Host Override: erp.odoo.com → 192.168.30.10
 ✅ 6 Aliases creados
-✅ NAT: WAN 80/443 → 192.168.30.20, DNS forzado en LAN y OPT2
+✅ NAT: WAN 80/443 → 192.168.30.10, DNS forzado en LAN y OPT2
 ✅ Reglas: WAN(5) + LAN(9) + OPT1(8) + OPT2(10) = 32 reglas
 ✅ Anti-Lockout desactivado (tras acceso VLAN 40 confirmado)
 ✅ Contraseña admin cambiada
@@ -509,7 +509,7 @@ nc -zv 192.168.40.10 5432          # Desde VLAN 10 → Timeout ✅
 
 | Campo | Valor |
 |:------|:------|
-| Nombre | `TFC-DB-Server` |
+| Nombre | `DB-Server` |
 | Box Vagrant | `bento/debian-12` |
 | RAM | **2048 MB** |
 | CPU | **1 core** |
@@ -522,11 +522,11 @@ nc -zv 192.168.40.10 5432          # Desde VLAN 10 → Timeout ✅
 ```bash
 # Clave GPG y repositorio
 curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-  | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+ | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
 
 echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] \
 https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
-  > /etc/apt/sources.list.d/pgdg.list
+ > /etc/apt/sources.list.d/pgdg.list
 
 apt update && apt install -y postgresql-16 postgresql-client-16
 systemctl enable postgresql && systemctl start postgresql
@@ -549,7 +549,7 @@ EOF
 listen_addresses = '*'
 
 # /etc/postgresql/16/main/pg_hba.conf — añadir al final:
-host  all  odoo  192.168.30.0/24  md5
+host all odoo 192.168.30.0/24 md5
 ```
 
 ```bash
@@ -570,11 +570,11 @@ systemctl enable cockpit.socket && systemctl start cockpit.socket
 
 ```bash
 # Desde vm-odoo (192.168.30.10) → debe funcionar
-nc -zv 192.168.40.10 5432                    # → Connection succeeded ✅
-psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l'  # → Lista BDs ✅
+nc -zv 192.168.40.10 5432          # → Connection succeeded ✅
+psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l' # → Lista BDs ✅
 
 # Desde VLAN 10 (clientes) → debe FALLAR
-nc -zv 192.168.40.10 5432                    # → Timeout ✅ (bloqueado)
+nc -zv 192.168.40.10 5432          # → Timeout ✅ (bloqueado)
 ```
 
 ---
@@ -589,7 +589,7 @@ nc -zv 192.168.40.10 5432                    # → Timeout ✅ (bloqueado)
 
 | Campo | Valor |
 |:------|:------|
-| Nombre | `TFC-Odoo-Server` |
+| Nombre | `Odoo-Server` |
 | Box Vagrant | `bento/debian-12` |
 | RAM | **4096 MB** |
 | CPU | **2 cores** |
@@ -606,18 +606,18 @@ sudo nano /etc/network/interfaces
 ```
 auto ens18
 iface ens18 inet static
-    address 192.168.30.10
-    netmask 255.255.255.0
-    gateway 192.168.30.1
-    dns-nameservers 192.168.30.1
+  address 192.168.30.10
+  netmask 255.255.255.0
+  gateway 192.168.30.1
+  dns-nameservers 192.168.30.1
 ```
 
 > El nombre de la interfaz puede variar. Compruébalo con `ip link show`.
 
 ```bash
 sudo systemctl restart networking
-ip addr show   # Debe mostrar: inet 192.168.30.10/24
-ping -c 3 192.168.30.1   # Gateway pfSense responde
+ip addr show  # Debe mostrar: inet 192.168.30.10/24
+ping -c 3 192.168.30.1  # Gateway pfSense responde
 ```
 
 ## 3.3 Instalar Docker CE
@@ -627,14 +627,14 @@ apt install -y ca-certificates curl gnupg
 install -m 0755 -d /etc/apt/keyrings
 
 curl -fsSL https://download.docker.com/linux/debian/gpg \
-  | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+ | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 chmod a+r /etc/apt/keyrings/docker.gpg
 
 # Para Debian 13 (Trixie) usar bookworm como fallback
 echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/debian bookworm stable" \
-  > /etc/apt/sources.list.d/docker.list
+ "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+ https://download.docker.com/linux/debian bookworm stable" \
+ > /etc/apt/sources.list.d/docker.list
 
 apt update
 apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
@@ -647,11 +647,11 @@ docker --version && docker compose version
 ## 3.4 Clonar Repositorio y Configurar
 
 ```bash
-git clone https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo.git \
-  /opt/erp-odoo
+git clone https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo.git \
+ /opt/erp-odoo
 cd /opt/erp-odoo
 cp .env.example .env
-nano .env   # Rellenar con contraseñas reales
+nano .env  # Rellenar con contraseñas reales
 chmod 600 .env
 ```
 
@@ -671,15 +671,15 @@ ODOO_MASTER_PASSWORD=<contraseña_maestra_odoo>
 ```bash
 mkdir -p /opt/erp-odoo/certs
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout /opt/erp-odoo/certs/server.key \
-  -out    /opt/erp-odoo/certs/server.crt \
-  -subj "/C=ES/ST=Madrid/L=Madrid/O=TFC/OU=ASIR/CN=odoo.tfc"
+ -keyout /opt/erp-odoo/certs/server.key \
+ -out  /opt/erp-odoo/certs/server.crt \
+ -subj "/C=ES/ST=Madrid/L=Madrid/O=/OU=ASIR/CN=odoo.com"
 ```
 
 ## 3.6 Verificar Conectividad con PostgreSQL
 
 ```bash
-nc -zv 192.168.40.10 5432   # → Connection succeeded ✅
+nc -zv 192.168.40.10 5432  # → Connection succeeded ✅
 psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l'
 ```
 
@@ -706,9 +706,9 @@ docker compose -f docker/docker-compose.yml ps
 Resultado esperado (**2 contenedores**):
 
 ```
-NAME          IMAGE          STATUS
-odoo-web      odoo:17        Up (healthy)
-nginx-proxy   nginx:alpine   Up (healthy)
+NAME     IMAGE     STATUS
+odoo-web   odoo:17    Up (healthy)
+nginx-proxy  nginx:alpine  Up (healthy)
 ```
 
 ## 3.8 Instalar Cockpit
@@ -724,7 +724,6 @@ systemctl enable cockpit.socket && systemctl start cockpit.socket
 ### Asistente de configuración
 
 ```bash
-bash /opt/erp-odoo/scripts/odoo/odoo_setup_wizard.sh
 ```
 
 Realiza: **Renombrar empresa** → "My Company" → "TechSolutions S.L." | **Instalar módulos** → CRM, Ventas, RRHH, Inventario
@@ -737,16 +736,16 @@ bash /opt/erp-odoo/scripts/odoo/odoo_crear_usuarios.sh
 
 | Usuario | Rol | Módulos |
 |:--------|:----|:--------|
-| `becario@erp.odoo.tfc.com` | Becario | Solo CRM (lectura) |
-| `ventas@erp.odoo.tfc.com` | Ventas | CRM + Ventas + Facturas |
-| `rrhh@erp.odoo.tfc.com` | RRHH | RRHH + Empleados |
-| `almacen@erp.odoo.tfc.com` | Almacén | Inventario + Compras |
-| `tecnico@erp.odoo.tfc.com` | Técnico | Inventario + Soporte |
-| `jefe.ventas@erp.odoo.tfc.com` | Jefe Ventas | Ventas completo + aprobaciones |
-| `jefe.rrhh@erp.odoo.tfc.com` | Jefe RRHH | RRHH completo + aprobaciones |
-| `jefe.almacen@erp.odoo.tfc.com` | Jefe Almacén | Almacén completo + aprobaciones |
-| `api.user@erp.odoo.tfc.com` | API | Solo XML-RPC |
-| `dba@erp.odoo.tfc.com` | DBA | Sin UI (solo BD) |
+| `becario@erp.odoo.com` | Becario | Solo CRM (lectura) |
+| `ventas@erp.odoo.com` | Ventas | CRM + Ventas + Facturas |
+| `rrhh@erp.odoo.com` | RRHH | RRHH + Empleados |
+| `almacen@erp.odoo.com` | Almacén | Inventario + Compras |
+| `tecnico@erp.odoo.com` | Técnico | Inventario + Soporte |
+| `jefe.ventas@erp.odoo.com` | Jefe Ventas | Ventas completo + aprobaciones |
+| `jefe.rrhh@erp.odoo.com` | Jefe RRHH | RRHH completo + aprobaciones |
+| `jefe.almacen@erp.odoo.com` | Jefe Almacén | Almacén completo + aprobaciones |
+| `api.user@erp.odoo.com` | API | Solo XML-RPC |
+| `dba@erp.odoo.com` | DBA | Sin UI (solo BD) |
 
 > [!WARNING]
 > Las contraseñas se generan aleatoriamente y se muestran **una sola vez**. Guardarlas inmediatamente.
@@ -755,11 +754,11 @@ bash /opt/erp-odoo/scripts/odoo/odoo_crear_usuarios.sh
 
 ```bash
 psql -h 192.168.40.10 -U odoo -d odoo_erp \
-    < /opt/erp-odoo/sql/audit_triggers.sql
+  < /opt/erp-odoo/sql/audit_triggers.sql
 
 # Verificar
 psql -h 192.168.40.10 -U odoo -d odoo_erp \
-    -c "SELECT * FROM v_audit_resumen;"
+  -c "SELECT * FROM v_audit_resumen;"
 ```
 
 Crea: tabla `asir_audit_log` (JSONB), trigger `trg_audit_new_odoo_user` en `res_users`, vista `v_audit_resumen`.
@@ -813,8 +812,8 @@ En GitHub: **Settings → Actions → Runners → New self-hosted runner** → L
 mkdir /opt/actions-runner && cd /opt/actions-runner
 curl -O -L https://github.com/actions/runner/releases/download/v2.317.0/actions-runner-linux-x64-2.317.0.tar.gz
 tar xzf ./actions-runner-linux-x64-2.317.0.tar.gz
-./config.sh --url https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo \
-  --token <TOKEN> --name odoo-runner --labels 'self-hosted,linux,odoo'
+./config.sh --url https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo \
+ --token <TOKEN> --name odoo-runner --labels 'self-hosted,linux,odoo'
 sudo ./svc.sh install runner
 sudo ./svc.sh start
 ```
@@ -830,8 +829,8 @@ sudo chmod 640 /opt/erp-odoo/.env
 
 ```bash
 # /etc/sudoers.d/runner-deploy
-runner ALL=(root) NOPASSWD: /usr/bin/chown -R runner /opt/erp-odoo
-runner ALL=(root) NOPASSWD: /usr/bin/chown -R 101:101 /opt/erp-odoo/odoo-data /opt/erp-odoo/odoo_sessions /opt/erp-odoo/addons
+server ALL=(root) NOPASSWD: /usr/bin/chown -R server /opt/erp-odoo
+server ALL=(root) NOPASSWD: /usr/bin/chown -R 101:101 /opt/erp-odoo/odoo-data /opt/erp-odoo/odoo_sessions /opt/erp-odoo/addons
 ```
 
 ## 4.3 Lo que Hace el CD en el Servidor
@@ -845,10 +844,10 @@ docker pull odoo:17 && docker pull nginx:alpine
 
 # 3. deploy.sh:
 bash scripts/deploy/deploy.sh
-#   ├── Verifica PostgreSQL externo (nc -zv 192.168.40.10 5432)
-#   ├── docker compose down --remove-orphans
-#   ├── docker compose up -d --force-recreate
-#   └── Healthcheck: curl -sk https://localhost/web/health
+#  ├── Verifica PostgreSQL externo (nc -zv 192.168.40.10 5432)
+#  ├── docker compose down --remove-orphans
+#  ├── docker compose up -d --force-recreate
+#  └── Healthcheck: curl -sk https://localhost/web/health
 
 # 4. Verificación final: contenedores running
 ```
@@ -856,7 +855,7 @@ bash scripts/deploy/deploy.sh
 ## 4.4 Verificar
 
 ```bash
-sudo systemctl is-active actions.runner.*   # → active ✅
+sudo systemctl is-active actions.runner.*  # → active ✅
 # En GitHub → Settings → Actions → Runners → estado: Idle ✅
 
 # Probar pipeline:
@@ -888,10 +887,10 @@ git push origin main
 sudo apt install ufw -y
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-sudo ufw allow 22/tcp    # SSH
-sudo ufw allow 80/tcp    # HTTP (redirige a 443)
-sudo ufw allow 443/tcp   # HTTPS Nginx
-sudo ufw allow 9090/tcp  # Cockpit
+sudo ufw allow 22/tcp  # SSH
+sudo ufw allow 80/tcp  # HTTP (redirige a 443)
+sudo ufw allow 443/tcp  # HTTPS Nginx
+sudo ufw allow 9090/tcp # Cockpit
 sudo ufw enable
 sudo ufw status verbose
 ```
@@ -901,9 +900,9 @@ sudo ufw status verbose
 **Primero: copiar clave pública desde VLAN 40:**
 
 ```bash
-ssh-keygen -t ed25519 -C "admin-tfc" -f ~/.ssh/tfc_admin
-ssh-copy-id -i ~/.ssh/tfc_admin.pub servidor@192.168.30.10
-ssh -i ~/.ssh/tfc_admin servidor@192.168.30.10   # Verificar ✅
+ssh-keygen -t ed25519 -C "admin-" -f ~/.ssh/admin_key
+ssh-copy-id -i ~/.ssh/admin_key.pub servidor@192.168.30.10
+ssh -i ~/.ssh/admin_key servidor@192.168.30.10  # Verificar ✅
 ```
 
 **Solo después de verificar que la clave funciona:**
@@ -926,7 +925,7 @@ MaxAuthTries 3
 ```bash
 sudo systemctl restart sshd
 # ⚠️ Verificar desde OTRA ventana antes de cerrar la actual:
-ssh -i ~/.ssh/tfc_admin servidor@192.168.30.10   # ✅
+ssh -i ~/.ssh/admin_key servidor@192.168.30.10  # ✅
 ```
 
 > [!CAUTION]
@@ -945,17 +944,17 @@ sudo apt autoremove --purge -y && sudo apt clean
 
 ```bash
 sudo reboot
-ssh -i ~/.ssh/tfc_admin servidor@192.168.30.10
+ssh -i ~/.ssh/admin_key servidor@192.168.30.10
 
-systemctl get-default               # → multi-user.target ✅
-sudo ufw status                     # → Status: active ✅
-systemctl is-active docker          # → active ✅
-systemctl is-active cockpit.socket  # → active ✅
+systemctl get-default        # → multi-user.target ✅
+sudo ufw status           # → Status: active ✅
+systemctl is-active docker     # → active ✅
+systemctl is-active cockpit.socket # → active ✅
 docker compose -f /opt/erp-odoo/docker/docker-compose.yml ps
-# odoo-web    → Up (healthy) ✅
+# odoo-web  → Up (healthy) ✅
 # nginx-proxy → Up (healthy) ✅
-nc -zv 192.168.40.10 5432           # → succeeded ✅
-curl -k -I https://localhost/web/health  # → HTTP/2 200 ✅
+nc -zv 192.168.40.10 5432      # → succeeded ✅
+curl -k -I https://localhost/web/health # → HTTP/2 200 ✅
 ```
 
 ---
@@ -964,34 +963,34 @@ curl -k -I https://localhost/web/health  # → HTTP/2 200 ✅
 
 ```
 PARTE 1 — Red (pfSense)
-  ✅ 4 interfaces activas: WAN + VLAN 10 + VLAN 30 + VLAN 40
-  ✅ DHCP: VLAN 10 (.100–.200) + VLAN 40 (.10–.50)
-  ✅ DNS: erp.odoo.tfc.com → 192.168.30.20
-  ✅ NAT: WAN 80/443 → nginx, DNS forzado en LAN y OPT2
-  ✅ 32 reglas firewall (anti-pivoting + permisos mínimos)
-  ✅ Panel pfSense: solo VLAN 40, Anti-Lockout desactivado
+ ✅ 4 interfaces activas: WAN + VLAN 10 + VLAN 30 + VLAN 40
+ ✅ DHCP: VLAN 10 (.100–.200) + VLAN 40 (.10–.50)
+ ✅ DNS: erp.odoo.com → 192.168.30.10
+ ✅ NAT: WAN 80/443 → nginx, DNS forzado en LAN y OPT2
+ ✅ 32 reglas firewall (anti-pivoting + permisos mínimos)
+ ✅ Panel pfSense: solo VLAN 40, Anti-Lockout desactivado
 
 PARTE 2 — PostgreSQL
-  ✅ vm-postgres: 192.168.40.10, PostgreSQL 16 nativo
-  ✅ Base de datos odoo_erp, usuario odoo
-  ✅ pg_hba.conf: solo desde 192.168.30.0/24
-  ✅ Cockpit en :9090
+ ✅ vm-postgres: 192.168.40.10, PostgreSQL 16 nativo
+ ✅ Base de datos odoo_erp, usuario odoo
+ ✅ pg_hba.conf: solo desde 192.168.30.0/24
+ ✅ Cockpit en :9090
 
 PARTE 3 — Servidor Odoo
-  ✅ vm-odoo: 192.168.30.10, Docker + Cockpit
-  ✅ 2 contenedores healthy: odoo-web + nginx-proxy
-  ✅ Empresa: TechSolutions S.L. + 10 usuarios con roles
-  ✅ Auditoría SQL + Cron (backup cada 4h)
+ ✅ vm-odoo: 192.168.30.10, Docker + Cockpit
+ ✅ 2 contenedores healthy: odoo-web + nginx-proxy
+ ✅ Empresa: TechSolutions S.L. + 10 usuarios con roles
+ ✅ Auditoría SQL + Cron (backup cada 4h)
 
 PARTE 4 — CI/CD
-  ✅ Runners activos: odoo-runner + db-runner
-  ✅ CI: ShellCheck + YAML + Docker validate
-  ✅ CD: Despliegue automático post-CI
+ ✅ Runners activos: odoo-runner + db-runner
+ ✅ CI: ShellCheck + YAML + Docker validate
+ ✅ CD: Despliegue automático post-CI
 
 PARTE 5 — Hardening
-  ✅ UFW: deny-all + 22/80/443/9090
-  ✅ SSH: solo clave pública, sin root
-  ✅ Debian headless: multi-user.target
+ ✅ UFW: deny-all + 22/80/443/9090
+ ✅ SSH: solo clave pública, sin root
+ ✅ Debian headless: multi-user.target
 ```
 
 ---
@@ -999,12 +998,12 @@ PARTE 5 — Hardening
 ## Orden de Arranque (tras reinicio)
 
 ```
-1. Arrancar pfSense VM       → esperar ~1 min
-2. Arrancar vm-postgres      → PostgreSQL arranca automáticamente
-3. Arrancar vm-odoo          → Docker arranca automáticamente
-4. Esperar ~3 min            → Odoo inicializa
-5. Verificar desde VLAN 10   → https://erp.odoo.tfc.com
-6. Verificar desde VLAN 40   → https://192.168.30.10:9090 (Cockpit)
+1. Arrancar pfSense VM    → esperar ~1 min
+2. Arrancar vm-postgres   → PostgreSQL arranca automáticamente
+3. Arrancar vm-odoo     → Docker arranca automáticamente
+4. Esperar ~3 min      → Odoo inicializa
+5. Verificar desde VLAN 10  → https://erp.odoo.com
+6. Verificar desde VLAN 40  → https://192.168.30.10:9090 (Cockpit)
 ```
 
 ---
@@ -1071,35 +1070,35 @@ ssh -o StrictHostKeyChecking=no vagrant@192.168.40.1
 2. Empaquetar:
 
 ```powershell
-cd "C:\Users\sandra\Desktop\Ante proyecto\TFC-ASIRB"
-vagrant package --base "TFC-pfSense-base" --output "config/pfsense-tfc.box" \
-  --vagrantfile "vagrant/Vagrantfile.pfsense-box"
+cd "C:\Users\sandra\Desktop\Ante proyecto\-ASIRB"
+vagrant package --base "pfSense-base" --output "config/pfsense.box" \
+ --vagrantfile "vagrant/Vagrantfile.pfsense-box"
 ```
 
 3. Verificar:
 
 ```powershell
-vagrant box add --name "tfc/pfsense" config/pfsense-tfc.box --force
-vagrant box list   # → tfc/pfsense (vmware_desktop, 0)
+vagrant box add --name "pfsense-box" config/pfsense.box --force
+vagrant box list  # → pfsense-box (vmware_desktop, 0)
 ```
 
 ## A.5 Subir a GitHub Releases
 
 1. **Releases → Draft a new release** → Tag: `v1.0-pfsense-box`
-2. Arrastrar `config/pfsense-tfc.box` como binario adjunto
+2. Arrastrar `config/pfsense.box` como binario adjunto
 3. **Publish release**
 
 URL resultante:
 ```
-https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfc.box
+https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense.box
 ```
 
 ## A.6 Actualizar Vagrantfile
 
 ```ruby
 # Tu box privada con SSH:
-pf.vm.box = "tfc/pfsense"
-pf.vm.box_url = "https://github.com/.../releases/download/v1.0-pfsense-box/pfsense-tfc.box"
+pf.vm.box = "pfsense-box"
+pf.vm.box_url = "https://github.com/.../releases/download/v1.0-pfsense-box/pfsense.box"
 pf.vm.communicator = "ssh"
 pf.ssh.username = "vagrant"
 pf.ssh.password = "vagrant"
@@ -1127,8 +1126,8 @@ pf.ssh.password = "vagrant"
 ## B.3 MACVLAN con parent incorrecto
 
 ```diff
-- -o "parent=${VLAN_IFACE}.30"    # busca eth1.30 (no existe)
-+ -o "parent=${VLAN_IFACE}"       # usa eth1 directamente
+- -o "parent=${VLAN_IFACE}.30"  # busca eth1.30 (no existe)
++ -o "parent=${VLAN_IFACE}"    # usa eth1 directamente
 ```
 
 > **Nota:** MACVLAN fue finalmente descartado. VMware no soporta promiscuous mode.
@@ -1144,9 +1143,9 @@ pf.ssh.password = "vagrant"
 
 ```diff
 - deb.vm.network "private_network", ip: "192.168.30.10",
--   gateway: "192.168.30.1"          # ← IGNORADO
+-  gateway: "192.168.30.1"     # ← IGNORADO
 + deb.vm.network "private_network", ip: "192.168.30.10",
-+   auto_config: false               # provision script gestiona la red
++  auto_config: false        # provision script gestiona la red
 ```
 
 ## B.6 Custom en lugar de LAN Segment
@@ -1160,7 +1159,7 @@ PVNID_VLAN40 = "52 54 AB 40 00 00 00 00-00 00 00 00 00 00 00 40"
 
 # Aplicar en provider block:
 v.vmx["ethernet1.connectionType"] = "pvn"
-v.vmx["ethernet1.pvnID"]          = PVNID_VLAN30
+v.vmx["ethernet1.pvnID"]     = PVNID_VLAN30
 ```
 
 ## B.7 Estrategia actual de red
@@ -1169,7 +1168,7 @@ El provisioning funciona **con o sin pfSense encendido**:
 
 ```
 eth0 (NAT VMware) → Internet directo para descargas
-eth1 (VLAN)       → IP estática SIN gateway
+eth1 (VLAN)    → IP estática SIN gateway
 
 Si pfSense responde → se añade ruta a la otra VLAN
 Si pfSense NO responde → el provisioning continúa normal
@@ -1195,9 +1194,9 @@ Script persistente en /etc/network/if-up.d/ añade rutas al arrancar pfSense.
 | Recurso | Ubicación |
 |:--------|:----------|
 | Estructura de directorio | `extras/ldap/estructura.ldif` |
-| Script de ACLs | `scripts/ldap/ldap_politica_acceso.sh` |
-| Script de usuarios | `scripts/ldap/ldap_crear_usuarios.sh` |
-| Script de cliente | `scripts/ldap/configurar_cliente_ldap.sh` |
+| Script de ACLs | `extras/ldap/ldap_politica_acceso.sh` |
+| Script de usuarios | `extras/ldap/ldap_crear_usuarios.sh` |
+| Script de cliente | `extras/ldap/configurar_cliente_ldap.sh` |
 | Guía de reactivación | `extras/ldap/README.md` |
 
 ## C.3 Cómo reactivar en el futuro
@@ -1205,7 +1204,7 @@ Script persistente en /etc/network/if-up.d/ añade rutas al arrancar pfSense.
 1. Añadir servicio `ldap` en `docker/docker-compose.yml` con imagen `osixia/openldap:1.5.0`
 2. Montar `extras/ldap/estructura.ldif` como volumen de bootstrap
 3. Configurar Odoo: *Ajustes → Técnico → Autenticación → Servidor LDAP*
-4. (Opcional) Configurar PAM + SSSD con `scripts/ldap/configurar_cliente_ldap.sh`
+4. (Opcional) Configurar PAM + SSSD con `extras/ldap/configurar_cliente_ldap.sh`
 
 Ver `extras/ldap/README.md` para instrucciones completas.
 
@@ -1225,5 +1224,5 @@ Ver `extras/ldap/README.md` para instrucciones completas.
 
 ---
 
-*TFC ASIR 2025/2026 — IES Cañaveral*
+*ASIR 2025/2026 — IES Cañaveral*
 *Sandra Fradejas Avedillo*

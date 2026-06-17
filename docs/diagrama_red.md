@@ -1,6 +1,6 @@
 # Diagrama de Red — Arquitectura Completa
 
-**TFC ASIR 2025/2026 — TechSolutions S.L.**
+**ASIR 2025/2026 — TechSolutions S.L.**
 
 > ⚠️ Este diagrama refleja la arquitectura **actual** (Junio 2026):
 > PostgreSQL corre en una **VM externa** (`db-server`, `192.168.40.10`, VLAN 40).
@@ -13,55 +13,55 @@
 
 ```mermaid
 graph TD
-    WAN["☁️ Internet / WAN"]
-    GITHUB["☁️ GitHub\n(Repositorio + CI/CD)"]
+  WAN["☁️ Internet / WAN"]
+  GITHUB["☁️ GitHub\n(Repositorio + CI/CD)"]
 
-    WAN -->|"NAT 80/443"| PFSENSE
-    GITHUB -->|"Self-hosted runner SSH"| DEBIAN
+  WAN -->|"NAT 80/443"| PFSENSE
+  GITHUB -->|"Self-hosted runner SSH"| DEBIAN
 
-    PFSENSE(["🔷 pfSense\nFirewall · DHCP · DNS · Router · NAT\nIP WAN: dinámica"])
+  PFSENSE(["🔷 pfSense\nFirewall · DHCP · DNS · Router · NAT\nIP WAN: dinámica"])
 
-    PFSENSE -->|"VLAN 10 · 192.168.10.1/24"| VLAN10
-    PFSENSE -->|"VLAN 30 · 192.168.30.1/24"| DMZ
-    PFSENSE -->|"VLAN 40 · 192.168.40.1/24"| VLAN40
+  PFSENSE -->|"VLAN 10 · 192.168.10.1/24"| VLAN10
+  PFSENSE -->|"VLAN 30 · 192.168.30.1/24"| DMZ
+  PFSENSE -->|"VLAN 40 · 192.168.40.1/24"| VLAN40
 
-    subgraph VLAN10["🟧 VLAN 10 — Clientes / Empleados"]
-        CLIENT["🖥️ PC Empleado\n192.168.10.x\nAcceso solo por HTTPS a Nginx"]
-    end
+  subgraph VLAN10["🟧 VLAN 10 — Clientes / Empleados"]
+    CLIENT["🖥️ PC Empleado\n192.168.10.x\nAcceso solo por HTTPS a Nginx"]
+  end
 
-    subgraph VLAN40["🟥 VLAN 40 — Administración & Base de Datos"]
-        POSTGRES["🗄️ db-server\nPostgreSQL 16 — nativo\n192.168.40.10\n:5432"]
-        ADMIN["👤 Admin / DBA\n192.168.40.x\nSSH · Cockpit · pfSense · psql"]
-    end
+  subgraph VLAN40["🟥 VLAN 40 — Administración & Base de Datos"]
+    POSTGRES["🗄️ db-server\nPostgreSQL 16 — nativo\n192.168.40.10\n:5432"]
+    ADMIN["👤 Admin / DBA\n192.168.40.x\nSSH · Cockpit · pfSense · psql"]
+  end
 
-    subgraph DMZ["🟩 VLAN 30 — DMZ"]
-        DEBIAN["🖧 odoo-server · Host Debian 12\n192.168.30.10\nSSH :22 · Cockpit :9090\nNginx expone :80/:443 (port mapping)"]
+  subgraph DMZ["🟩 VLAN 30 — DMZ"]
+    DEBIAN["🖧 odoo-server · Host Debian 12\n192.168.30.10\nSSH :22 · Cockpit :9090\nNginx expone :80/:443 (port mapping)"]
 
-        NGINX["🐳 nginx-proxy\nred interna odoo_net\n:80 :443 del host"]
-        ODOO["🐳 odoo-web\nred interna odoo_net\n:8069 solo interno"]
+    NGINX["🐳 nginx-proxy\nred interna odoo_net\n:80 :443 del host"]
+    ODOO["🐳 odoo-web\nred interna odoo_net\n:8069 solo interno"]
 
-        NGINX -->|"reverse proxy :8069"| ODOO
-    end
+    NGINX -->|"reverse proxy :8069"| ODOO
+  end
 
-    DEBIAN -->|"port mapping 80/443"| NGINX
-    ODOO -->|"TCP :5432 — VLAN30→VLAN40"| POSTGRES
-    CLIENT -->|"HTTPS :443"| DEBIAN
-    ADMIN -->|"SSH :22"| DEBIAN
-    ADMIN -->|"Cockpit :9090"| DEBIAN
-    ADMIN -->|"psql :5432"| POSTGRES
+  DEBIAN -->|"port mapping 80/443"| NGINX
+  ODOO -->|"TCP :5432 — VLAN30→VLAN40"| POSTGRES
+  CLIENT -->|"HTTPS :443"| DEBIAN
+  ADMIN -->|"SSH :22"| DEBIAN
+  ADMIN -->|"Cockpit :9090"| DEBIAN
+  ADMIN -->|"psql :5432"| POSTGRES
 
-    classDef firewall fill:#BBDEFB,stroke:#1565C0,color:#000
-    classDef vlan10 fill:#FFE0B2,stroke:#E65100,color:#000
-    classDef vlan40 fill:#FFCDD2,stroke:#B71C1C,color:#000
-    classDef dmzhost fill:#E8F5E9,stroke:#2E7D32,color:#000
-    classDef container fill:#CE93D8,stroke:#6A1B9A,color:#000
-    classDef db fill:#FFCDD2,stroke:#B71C1C,color:#000
+  classDef firewall fill:#BBDEFB,stroke:#1565C0,color:#000
+  classDef vlan10 fill:#FFE0B2,stroke:#E65100,color:#000
+  classDef vlan40 fill:#FFCDD2,stroke:#B71C1C,color:#000
+  classDef dmzhost fill:#E8F5E9,stroke:#2E7D32,color:#000
+  classDef container fill:#CE93D8,stroke:#6A1B9A,color:#000
+  classDef db fill:#FFCDD2,stroke:#B71C1C,color:#000
 
-    class PFSENSE firewall
-    class CLIENT vlan10
-    class ADMIN,POSTGRES vlan40
-    class DEBIAN dmzhost
-    class NGINX,ODOO container
+  class PFSENSE firewall
+  class CLIENT vlan10
+  class ADMIN,POSTGRES vlan40
+  class DEBIAN dmzhost
+  class NGINX,ODOO container
 ```
 
 > **Cambio clave respecto a la arquitectura anterior:**
@@ -94,23 +94,23 @@ graph TD
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│  INTERNET (WAN)                                                       │
-│  Solo puertos 80/443 abiertos — NAT → 192.168.30.10 (host odoo)      │
+│ INTERNET (WAN)                            │
+│ Solo puertos 80/443 abiertos — NAT → 192.168.30.10 (host odoo)   │
 └────────────────────────────────┬──────────────────────────────────────┘
-                                │
-                           [ pfSense ]
-                                │
-         ┌─────────────────────┼──────────────────────┐
-         │                      │                      │
-    VLAN 10                VLAN 30 (DMZ)          VLAN 40
-  (Clientes)              (Servidor)           (Admin + BD)
- 192.168.10.0/24         192.168.30.0/24     192.168.40.0/24
-         │                      │                      │
-   PCs empleados       Debian 12 + Docker      Admins + DBAs
-   Acceso Odoo         Nginx :80/:443          PostgreSQL VM
-   solo HTTPS          (port mapping host)            │
-         │                    └──── :5432 ─────────────┘
-         └─────── HTTPS :443 ──┤   (Odoo → PostgreSQL externo)
+                │
+              [ pfSense ]
+                │
+     ┌─────────────────────┼──────────────────────┐
+     │           │           │
+  VLAN 10        VLAN 30 (DMZ)     VLAN 40
+ (Clientes)       (Servidor)      (Admin + BD)
+ 192.168.10.0/24     192.168.30.0/24   192.168.40.0/24
+     │           │           │
+  PCs empleados    Debian 12 + Docker   Admins + DBAs
+  Acceso Odoo     Nginx :80/:443     PostgreSQL VM
+  solo HTTPS     (port mapping host)      │
+     │          └──── :5432 ─────────────┘
+     └─────── HTTPS :443 ──┤  (Odoo → PostgreSQL externo)
 ```
 
 ### Principio de anti-pivoting
@@ -131,26 +131,26 @@ graph TD
 ## Flujo de Acceso de un Empleado
 
 ```
-Empleado (VLAN 10) abre https://192.168.30.10  ← (o https://erp.odoo.tfc.com → DNS resuelve a 192.168.30.10)
-          │
-          ▼  pfSense: VLAN10 → DMZ :443 → PASS ✅
-          │
-     [ nginx-proxy — port mapping :443 en 192.168.30.10 ]
-          │  Termina SSL/TLS
-          │  proxy_pass → odoo-web:8069 (red interna odoo_net)
-          │
-     [ odoo-web — 172.19.0.x:8069 (red Docker interna) ]
-          │  Autenticación interna de Odoo
-          │  Consulta BD remota → 192.168.40.10:5432
-          │
-     [ db-server — 192.168.40.10:5432 ]
-          │  PostgreSQL 16 nativo
-          │  Responde consulta SQL
-          │
-     [ Odoo — Sesión iniciada ✅ ]
-          │  Grupos y módulos según rol del usuario
-          ▼
-     Panel personalizado
+Empleado (VLAN 10) abre https://192.168.30.10 ← (o https://erp.odoo.com → DNS resuelve a 192.168.30.10)
+     │
+     ▼ pfSense: VLAN10 → DMZ :443 → PASS ✅
+     │
+   [ nginx-proxy — port mapping :443 en 192.168.30.10 ]
+     │ Termina SSL/TLS
+     │ proxy_pass → odoo-web:8069 (red interna odoo_net)
+     │
+   [ odoo-web — 172.19.0.x:8069 (red Docker interna) ]
+     │ Autenticación interna de Odoo
+     │ Consulta BD remota → 192.168.40.10:5432
+     │
+   [ db-server — 192.168.40.10:5432 ]
+     │ PostgreSQL 16 nativo
+     │ Responde consulta SQL
+     │
+   [ Odoo — Sesión iniciada ✅ ]
+     │ Grupos y módulos según rol del usuario
+     ▼
+   Panel personalizado
 ```
 
 ---
@@ -159,17 +159,17 @@ Empleado (VLAN 10) abre https://192.168.30.10  ← (o https://erp.odoo.tfc.com �
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  odoo-server (Debian 12) — 192.168.30.10                             │
-│                                                                      │
-│  Puerto 80/443 del host ← Docker port mapping                        │
-│                 │                                                    │
-│  Red Docker: odoo_net (bridge — 172.19.0.0/16)                       │
-│                                                                      │
-│  nginx-proxy (172.19.0.x) ────────► odoo-web (172.19.0.x)          │
-│  [puerto 80/443 mapeado al host]          │                          │
-│                                           ▼ TCP :5432               │
-│                              [ db-server — 192.168.40.10 ]           │
-│                                (FUERA de Docker, VLAN 40)            │
+│ odoo-server (Debian 12) — 192.168.30.10               │
+│                                   │
+│ Puerto 80/443 del host ← Docker port mapping            │
+│         │                          │
+│ Red Docker: odoo_net (bridge — 172.19.0.0/16)            │
+│                                   │
+│ nginx-proxy (172.19.0.x) ────────► odoo-web (172.19.0.x)     │
+│ [puerto 80/443 mapeado al host]     │             │
+│                      ▼ TCP :5432        │
+│               [ db-server — 192.168.40.10 ]      │
+│                (FUERA de Docker, VLAN 40)      │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -182,13 +182,13 @@ Empleado (VLAN 10) abre https://192.168.30.10  ← (o https://erp.odoo.tfc.com �
 
 ```
 Cron (cada 4h) en vm-odoo
-     │
-     ▼ backup_postgres.sh
-     │  pg_dump -h 192.168.40.10 -U odoo odooerp
-     │  Comprime → odoo_YYYYMMDD_HHMM.sql.gz
-     │  Guarda en /opt/odoo/backups/postgres/
-     │  Retención: últimos 7 días
-     ▼
+   │
+   ▼ backup_postgres.sh
+   │ pg_dump -h 192.168.40.10 -U odoo odooerp
+   │ Comprime → odoo_YYYYMMDD_HHMM.sql.gz
+   │ Guarda en /opt/odoo/backups/postgres/
+   │ Retención: últimos 7 días
+   ▼
 /var/log/backup_odoo.log (rotado por logrotate)
 ```
 

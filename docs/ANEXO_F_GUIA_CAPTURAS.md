@@ -1,6 +1,6 @@
 # Anexo F — Guía de Reproducción de Capturas del Sistema
 
-**TFC ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
+**ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
 *Sandra Fradejas Avedillo — IES Cañaveral*
 
 > [!IMPORTANT]
@@ -48,11 +48,11 @@ winget install HashiCorp.Vagrant
 vagrant plugin install vagrant-vmware-desktop
 
 # 2. VMware Workstation (instalación manual desde vmware.com)
-#    Versión mínima: VMware Workstation 17
+#  Versión mínima: VMware Workstation 17
 
 # 3. Verificar instalación
-vagrant --version       # → Vagrant 2.x.x
-vmware-netcfg           # → debe abrir la utilidad de red de VMware
+vagrant --version    # → Vagrant 2.x.x
+vmware-netcfg      # → debe abrir la utilidad de red de VMware
 ```
 
 ### Variables de entorno obligatorias
@@ -66,18 +66,18 @@ vmware-netcfg           # → debe abrir la utilidad de red de VMware
 # GitHub → Settings → Actions → Runners → New self-hosted runner
 # (genera uno para odoo-server y otro para db-server; caducan en 1 hora)
 
-$env:GH_PAT               = "ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"   # scope: repo  ← reemplaza con tu token real
-$env:GH_RUNNER_TOKEN_ODOO = "BH2TGEUHFZ6YKIGZA6LVQS3KEK7TI"          # token para odoo-server
-$env:GH_RUNNER_TOKEN_DB   = "BH2TGEVYZV5MB2JOJVXVD7TKEK7UI"          # token para db-server
-$env:POSTGRES_PASSWORD    = "tu_password_seguro_bd"
+$env:GH_PAT        = "ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"  # scope: repo ← reemplaza con tu token real
+$env:GH_RUNNER_TOKEN_ODOO = "BH2TGEUHFZ6YKIGZA6LVQS3KEK7TI"     # token para odoo-server
+$env:GH_RUNNER_TOKEN_DB  = "BH2TGEVYZV5MB2JOJVXVD7TKEK7UI"     # token para db-server
+$env:POSTGRES_PASSWORD  = "tu_password_seguro_bd"
 $env:ODOO_MASTER_PASSWORD = "tu_password_maestro_odoo"
 ```
 
 ### Estado inicial requerido
 
 - pfSense VM **ya configurada** con las 4 interfaces (WAN / LAN 192.168.10.1 / DMZ 192.168.30.1 / ADMIN 192.168.40.1)
-  y el archivo `config.xml` importado desde `scripts/deploy/generate_pfsense_config.sh`
-  (ver [`docs/INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md) — FASE 1).
+ y el archivo `config.xml` importado desde `scripts/deploy/generate_pfsense_config.sh`
+ (ver [`docs/INSTALACION_COMPLETA.md`](INSTALACION_COMPLETA.md) — FASE 1).
 - Repositorio clonado en el host Windows.
 - Redes VMware configuradas: `vmnet2` (DMZ 192.168.30.x) y `vmnet3` (ADMIN 192.168.40.x).
 
@@ -91,9 +91,9 @@ $env:ODOO_MASTER_PASSWORD = "tu_password_maestro_odoo"
 1. Abrir VMware Workstation → iniciar la VM pfSense
 2. Esperar ~60 segundos hasta que las interfaces estén activas
 3. Ir a GitHub → Repositorio → Settings → Actions → Runners → New self-hosted runner
-   - Seleccionar: Linux / x64
-   - Copiar el token que aparece en la sección "Configure" (empieza por A...)
-   - Repetir para el segundo runner (uno por VM)
+  Seleccionar: Linux / x64
+  Copiar el token que aparece en la sección "Configure" (empieza por A...)
+  Repetir para el segundo runner (uno por VM)
 4. Pegar los tokens en las variables $env: de la sesión PowerShell
 ```
 
@@ -101,7 +101,7 @@ $env:ODOO_MASTER_PASSWORD = "tu_password_maestro_odoo"
 
 ```powershell
 # Navegar al directorio del repositorio
-cd "C:\Users\sandra\Desktop\Ante proyecto\TFC-ASIRB"
+cd "C:\Users\sandra\Desktop\Ante proyecto\-ASIRB"
 
 # Levantar primero db-server (SIEMPRE primero)
 vagrant up db-server
@@ -134,9 +134,9 @@ los scripts de provisioning se ejecutaron sin errores en ambas VMs.
 ```
 
 4. **Capturar:** hacer scroll hasta ver las últimas 30–40 líneas de salida donde
-   aparezca el resumen de ambas VMs (`db-server` y `odoo-server`) sin líneas de error.
+  aparezca el resumen de ambas VMs (`db-server` y `odoo-server`) sin líneas de error.
 5. Asegurarse de que la ventana de PowerShell muestra el directorio del proyecto
-   (`TFC-ASIRB`) en el prompt.
+  (`-ASIRB`) en el prompt.
 
 > **Nombre del fichero sugerido:** `F11_vagrant_up_finalizado.png`
 
@@ -164,7 +164,7 @@ ssh -i .vagrant\machines\odoo-server\vmware_desktop\private_key vagrant@192.168.
 >
 > ```bash
 > sudo su
-> # Ahora el prompt cambia a root@odoo-server-tfc:/home/vagrant#
+> # Ahora el prompt cambia a root@odoo-server:/home/vagrant#
 > cd /opt/erp-odoo
 > ```
 
@@ -191,15 +191,15 @@ docker compose -p erp-odoo --env-file .env -f docker/docker-compose.yml ps
 **Salida esperada:**
 
 ```
-NAME          IMAGE          COMMAND                  SERVICE   CREATED          STATUS                             PORTS
-nginx-proxy   nginx:alpine   "/docker-entrypoint.…"   nginx     17 minutes ago   Up 17 minutes (healthy)            0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
-odoo-web      odoo:17        "/entrypoint.sh odoo"    odoo      9 minutes ago    Up 19 seconds (health: starting)   8069/tcp, 8071-8072/tcp
+NAME     IMAGE     COMMAND         SERVICE  CREATED     STATUS               PORTS
+nginx-proxy  nginx:alpine  "/docker-entrypoint.…"  nginx   17 minutes ago  Up 17 minutes (healthy)      0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
+odoo-web   odoo:17    "/entrypoint.sh odoo"  odoo   9 minutes ago  Up 19 seconds (health: starting)  8069/tcp, 8071-8072/tcp
 ```
 
 Una vez que Odoo termine de iniciar (~2 min), el estado de `odoo-web` cambia a `(healthy)`.
 
 4. **Capturar:** la terminal SSH mostrando el comando completo con `-p erp-odoo` y su
-   salida con ambos contenedores en estado `Up` y `(healthy)`.
+  salida con ambos contenedores en estado `Up` y `(healthy)`.
 
 > [!TIP]
 > Si el comando sin flags devuelve una tabla vacía pero `docker ps` sí muestra los
@@ -227,7 +227,7 @@ docker exec odoo-web pg_isready -h 192.168.40.10 -p 5432 -U odoo
 # Leerla del .env y pasarla con PGPASSWORD:
 PGPASS=$(grep -E '^POSTGRES_PASSWORD=' /opt/erp-odoo/.env | cut -d= -f2- | tr -d '"')
 docker exec -e PGPASSWORD="$PGPASS" odoo-web \
-    psql -h 192.168.40.10 -U odoo -d odoo_erp -c "\conninfo"
+  psql -h 192.168.40.10 -U odoo -d odoo_erp -c "\conninfo"
 ```
 
 > [!NOTE]
@@ -243,33 +243,33 @@ docker exec -e PGPASSWORD="$PGPASS" odoo-web \
 **Salida esperada (Opción A — pg_isready):**
 
 ```
-perl: warning: Setting locale failed.        ← ignorar, es normal
+perl: warning: Setting locale failed.    ← ignorar, es normal
 perl: warning: Please check that your locale settings...
 perl: warning: Falling back to the standard locale ("C").
-192.168.40.10:5432 - accepting connections   ✅
+192.168.40.10:5432 accepting connections  ✅
 ```
 
 **Salida esperada (Opción B — psql `\conninfo`):**
 
 ```
-            Connection Information
-      Parameter       |         Value
+      Connection Information
+   Parameter    |     Value
 ----------------------+------------------------
- Database             | odoo_erp
- Client User          | odoo
- Host                 | 192.168.40.10
- Server Port          | 5432
- Protocol Version     | 3.0
- Password Used        | true
+ Database       | odoo_erp
+ Client User     | odoo
+ Host         | 192.168.40.10
+ Server Port     | 5432
+ Protocol Version   | 3.0
+ Password Used    | true
  GSSAPI Authenticated | false
- Backend PID          | 27109
- SSL Connection       | true
- SSL Library          | OpenSSL
- SSL Protocol         | TLSv1.3
- SSL Key Bits         | 256
- SSL Cipher           | TLS_AES_256_GCM_SHA384
- SSL Compression      | false
- Superuser            | off
+ Backend PID     | 27109
+ SSL Connection    | true
+ SSL Library     | OpenSSL
+ SSL Protocol     | TLSv1.3
+ SSL Key Bits     | 256
+ SSL Cipher      | TLS_AES_256_GCM_SHA384
+ SSL Compression   | false
+ Superuser      | off
 (18 rows)
 ```
 
@@ -281,10 +281,10 @@ perl: warning: Falling back to the standard locale ("C").
 4. **Capturar:** el terminal mostrando el comando y la salida completa.
 
 > [!TIP]
-> **Usar la Opción B para la captura del TFC** — la tabla `\conninfo` muestra
+> **Usar la Opción B para la captura del ** — la tabla `\conninfo` muestra
 > `SSL Connection: true` y `SSL Protocol: TLSv1.3`, evidenciando que la comunicación
 > Odoo → PostgreSQL está **cifrada en tránsito**, lo cual es especialmente relevante
-> para un TFC de seguridad. Mucho más informativo que un simple `accepting connections`.
+> para un de seguridad. Mucho más informativo que un simple `accepting connections`.
 
 > **Nombre del fichero sugerido:** `F13_conectividad_odoo_postgresql.png`
 
@@ -320,7 +320,7 @@ docker exec odoo-web curl -s http://localhost:8069/web/health
 ```
 
 > [!TIP]
-> **Usar la Opción A para la captura del TFC** — ejecutar el curl desde `nginx-proxy`
+> **Usar la Opción A para la captura del ** — ejecutar el curl desde `nginx-proxy`
 > hacia `odoo-web:8069` demuestra visualmente que los dos contenedores se comunican
 > por la red interna `odoo_net` usando el nombre de servicio Docker como hostname,
 > que es exactamente el mecanismo que usa el proxy inverso.
@@ -359,7 +359,7 @@ curl.exe -k https://192.168.30.10/web/login | Select-String "Odoo"
 ```
 
 4. **Capturar:** la ventana de PowerShell del host mostrando el comando y la respuesta
-   con `HTTP/2 200` y las cabeceras indicando que es el login de Odoo.
+  con `HTTP/2 200` y las cabeceras indicando que es el login de Odoo.
 
 > **Nombre del fichero sugerido:** `F15_acceso_https_host_windows.png`
 
@@ -385,8 +385,8 @@ curl.exe -k https://192.168.30.10/web/login | Select-String "Odoo"
 1. Abrir el navegador (Chrome, Firefox o Edge) en el host Windows.
 2. Escribir en la barra de direcciones: `https://192.168.30.10`
 3. El navegador mostrará automáticamente la advertencia de seguridad:
-   - **Chrome/Edge:** "Tu conexión no es privada" / `NET::ERR_CERT_AUTHORITY_INVALID`
-   - **Firefox:** "Advertencia: Riesgo potencial de seguridad a continuación"
+  **Chrome/Edge:** "Tu conexión no es privada" / `NET::ERR_CERT_AUTHORITY_INVALID`
+  **Firefox:** "Advertencia: Riesgo potencial de seguridad a continuación"
 4. **NO hacer clic** en "Continuar" todavía (capturar la advertencia completa).
 5. Asegurarse de que la URL `https://192.168.30.10` sea visible en la barra de direcciones.
 
@@ -405,13 +405,13 @@ activo en la barra de direcciones.
 ### Cómo obtener la captura
 
 1. Desde la pantalla de advertencia (F.1), hacer clic en:
-   - **Chrome/Edge:** "Configuración avanzada" → "Continuar a 192.168.30.10 (sitio no seguro)"
-   - **Firefox:** "Aceptar el riesgo y continuar"
+  **Chrome/Edge:** "Configuración avanzada" → "Continuar a 192.168.30.10 (sitio no seguro)"
+  **Firefox:** "Aceptar el riesgo y continuar"
 2. El navegador cargará la página de login de Odoo.
 3. Verificar que la barra de direcciones muestra `https://192.168.30.10` con el
-   icono de advertencia/candado (en Chrome aparece el candado con triángulo de advertencia).
+  icono de advertencia/candado (en Chrome aparece el candado con triángulo de advertencia).
 4. La página debe mostrar el formulario de login con los campos **Email** y **Password**
-   y el logo de Odoo.
+  y el logo de Odoo.
 
 **Capturar:** la pantalla completa del navegador con la página de login visible
 y la URL `https://192.168.30.10` en la barra de direcciones.
@@ -428,8 +428,8 @@ con el usuario administrador.
 ### Cómo obtener la captura
 
 1. En la pantalla de login (F.2), introducir las credenciales del administrador:
-   - **Email:** `admin` (o el email configurado durante el aprovisionamiento)
-   - **Password:** la contraseña del administrador de Odoo
+  **Email:** `admin` (o el email configurado durante el aprovisionamiento)
+  **Password:** la contraseña del administrador de Odoo
 2. Hacer clic en **"Log in"**.
 3. Esperar a que cargue el dashboard (puede tardar unos segundos en el primer acceso).
 4. El dashboard mostrará los módulos instalados y el menú de navegación superior.
@@ -447,12 +447,12 @@ incluyendo el menú superior y los módulos disponibles, con la URL
 > [!IMPORTANT]
 > El panel de pfSense solo es accesible desde la VLAN 40 (192.168.40.x).
 > Para estas capturas se puede usar:
-> - Un PC físico en la red VLAN 40.
-> - La VM `db-server` (está en 192.168.40.10 en VMnet3): `vagrant ssh db-server`
->   y luego usar un browser en esa VM (si tiene interfaz gráfica).
-> - **Más práctico:** desde el host Windows si VMware tiene `vmnet3` configurado
->   y el host tiene una IP en ese rango. Verificar con `ipconfig` si hay un
->   adaptador VMware con IP `192.168.40.x`.
+> Un PC físico en la red VLAN 40.
+> La VM `db-server` (está en 192.168.40.10 en VMnet3): `vagrant ssh db-server`
+>  y luego usar un browser en esa VM (si tiene interfaz gráfica).
+> **Más práctico:** desde el host Windows si VMware tiene `vmnet3` configurado
+>  y el host tiene una IP en ese rango. Verificar con `ipconfig` si hay un
+>  adaptador VMware con IP `192.168.40.x`.
 >
 > Acceder al panel desde: `https://192.168.40.1`
 > Credenciales por defecto: `admin` / `pfsense` (cambiar en primer acceso)
@@ -469,11 +469,11 @@ de las interfaces WAN, LAN, DMZ y ADMIN.
 1. Abrir el navegador y navegar a `https://192.168.40.1` (desde la VLAN 40).
 2. Aceptar la advertencia de certificado autofirmado (igual que en F.1).
 3. Introducir credenciales de pfSense:
-   - **Username:** `admin`
-   - **Password:** `pfsense` (o la contraseña configurada)
+  **Username:** `admin`
+  **Password:** `pfsense` (o la contraseña configurada)
 4. El dashboard de pfSense se cargará mostrando:
-   - El widget **"Interfaces"** con el estado de WAN, LAN, OPT1 (DMZ) y OPT2 (ADMIN).
-   - Información del sistema (versión de pfSense, uptime, etc.).
+  El widget **"Interfaces"** con el estado de WAN, LAN, OPT1 (DMZ) y OPT2 (ADMIN).
+  Información del sistema (versión de pfSense, uptime, etc.).
 
 **Capturar:** el dashboard de pfSense completo con el widget de interfaces visible
 mostrando las 4 interfaces activas.
@@ -494,14 +494,14 @@ mostrando las 4 interfaces activas.
 
 1. En el panel de pfSense, ir a: **Firewall → Rules → OPT1**
 2. La lista de reglas debe mostrar (en orden):
-   - Block: DMZ → VLAN 10 (anti-pivoting)
-   - Block: DMZ → pfSense LAN (anti-pivoting)
-   - Pass: TCP `192.168.30.10` → `192.168.40.10:5432` (Odoo → PostgreSQL)
-   - Block: DMZ → VLAN 40
-   - Pass: TCP DMZ → \*:80 (actualizaciones)
-   - Pass: TCP DMZ → \*:443 (actualizaciones)
-   - Pass: UDP DMZ → \*:53 (DNS)
-   - Block: todo lo demás (deny-all)
+  Block: DMZ → VLAN 10 (anti-pivoting)
+  Block: DMZ → pfSense LAN (anti-pivoting)
+  Pass: TCP `192.168.30.10` → `192.168.40.10:5432` (Odoo → PostgreSQL)
+  Block: DMZ → VLAN 40
+  Pass: TCP DMZ → \*:80 (actualizaciones)
+  Pass: TCP DMZ → \*:443 (actualizaciones)
+  Pass: UDP DMZ → \*:53 (DNS)
+  Block: todo lo demás (deny-all)
 
 **Capturar:** la página completa de reglas de la interfaz OPT1 mostrando todas
 las reglas con sus acciones (bloqueo/paso), protocolos, origen y destino.
@@ -522,15 +522,15 @@ las reglas con sus acciones (bloqueo/paso), protocolos, origen y destino.
 
 1. En el panel de pfSense, ir a: **Firewall → Rules → OPT2**
 2. La lista de reglas debe mostrar (en orden):
-   - Pass: TCP VLAN40 → `This Firewall:443` (panel pfSense)
-   - Pass: TCP VLAN40 → `192.168.30.10:22` (SSH)
-   - Pass: TCP VLAN40 → `192.168.30.10:9090` (Cockpit)
-   - Pass: TCP VLAN40 → `192.168.30.10:443` (Odoo admin)
-   - Pass: TCP VLAN40 → `192.168.40.10:5432` (PostgreSQL directo)
-   - Pass: TCP VLAN40 → \*:80/443 (Internet)
-   - Pass: UDP VLAN40 → \*:53 (DNS)
-   - Block: VLAN40 → VLAN 10 (anti-pivoting)
-   - Block: todo lo demás (deny-all)
+  Pass: TCP VLAN40 → `This Firewall:443` (panel pfSense)
+  Pass: TCP VLAN40 → `192.168.30.10:22` (SSH)
+  Pass: TCP VLAN40 → `192.168.30.10:9090` (Cockpit)
+  Pass: TCP VLAN40 → `192.168.30.10:443` (Odoo admin)
+  Pass: TCP VLAN40 → `192.168.40.10:5432` (PostgreSQL directo)
+  Pass: TCP VLAN40 → \*:80/443 (Internet)
+  Pass: UDP VLAN40 → \*:53 (DNS)
+  Block: VLAN40 → VLAN 10 (anti-pivoting)
+  Block: todo lo demás (deny-all)
 
 **Capturar:** la página completa de reglas de la interfaz OPT2.
 
@@ -541,21 +541,21 @@ las reglas con sus acciones (bloqueo/paso), protocolos, origen y destino.
 ## F.7 — Configuración DNS Resolver
 
 **¿Qué muestra?** El registro A en el DNS Resolver de pfSense que resuelve
-`erp.odoo.tfc.com` a la IP `192.168.30.10`.
+`erp.odoo.com` a la IP `192.168.30.10`.
 
 ### Cómo obtener la captura
 
 1. En el panel de pfSense, ir a: **Services → DNS Resolver → Host Overrides**
-   (o en algunas versiones: **Services → DNS Resolver** → desplazarse hasta
-   la sección "Host Overrides" al final de la página).
+  (o en algunas versiones: **Services → DNS Resolver** → desplazarse hasta
+  la sección "Host Overrides" al final de la página).
 2. Debe aparecer una entrada con:
-   - **Host:** `erp.odoo`
-   - **Domain:** `tfc.com`
-   - **IP Address:** `192.168.30.10`
-   - **Description:** texto descriptivo del proyecto
+  **Host:** `erp.odoo`
+  **Domain:** `odoo.com`
+  **IP Address:** `192.168.30.10`
+  **Description:** texto descriptivo del proyecto
 
 **Capturar:** la sección "Host Overrides" del DNS Resolver mostrando la entrada
-configurada para `erp.odoo.tfc.com`.
+configurada para `erp.odoo.com`.
 
 > **Nombre del fichero sugerido:** `F07_pfsense_dns_resolver.png`
 
@@ -580,10 +580,10 @@ finalizados con éxito.
 
 **Opción A — Usar un run ya existente:**
 
-1. Ir a `https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo/actions`
+1. Ir a `https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo/actions`
 2. Localizar el último run exitoso que muestre los dos workflows:
-   - `CI Validator` (con check verde ✅)
-   - `CD Deploy` (con check verde ✅)
+  `CI Validator` (con check verde ✅)
+  `CD Deploy` (con check verde ✅)
 3. La vista general mostrará ambos workflows encadenados.
 
 **Opción B — Disparar un nuevo run:**
@@ -614,10 +614,10 @@ de validación completados sin errores.
 1. En la página de Actions de GitHub, hacer clic en el run del workflow `CI Validator`.
 2. Dentro del run, hacer clic en el job que contiene los steps.
 3. Expandir todos los pasos para ver:
-   - ✅ `yamllint` — validación de sintaxis YAML
-   - ✅ `docker compose config -q` — validación de docker-compose.yml
-   - ✅ Instalación de ShellCheck
-   - ✅ Validación de scripts Bash con ShellCheck
+  ✅ `yamllint` — validación de sintaxis YAML
+  ✅ `docker compose config -q` — validación de docker-compose.yml
+  ✅ Instalación de ShellCheck
+  ✅ Validación de scripts Bash con ShellCheck
 4. Verificar que ningún paso muestra errores (todos en verde).
 
 **Capturar:** la vista del job con los cuatro pasos expandidos mostrando
@@ -641,11 +641,11 @@ self-hosted de `odoo-server`.
 1. En la página de Actions, hacer clic en el run del workflow `CD Deploy`.
 2. Dentro del run, hacer clic en el job que se ejecuta en el runner `odoo-runner`.
 3. Verificar que aparecen los pasos:
-   - ✅ `git config --global --add safe.directory` (directorio seguro)
-   - ✅ `git reset --hard` (sincronización limpia del repo)
-   - ✅ `docker pull` (actualización de imágenes)
-   - ✅ Ejecución de `deploy.sh`
-   - ✅ `docker compose ps` (verificación de contenedores)
+  ✅ `git config --global --add safe.directory` (directorio seguro)
+  ✅ `git reset --hard` (sincronización limpia del repo)
+  ✅ `docker pull` (actualización de imágenes)
+  ✅ Ejecución de `deploy.sh`
+  ✅ `docker compose ps` (verificación de contenedores)
 4. En la esquina superior del job debe indicar: **Runs on: odoo-runner** (self-hosted).
 
 **Capturar:** el job de CD con los steps expandidos y el label `self-hosted` visible.
@@ -704,7 +704,7 @@ ls -lh /backups/postgres/
 [2026-06-05 13:XX:XX] OK: Backup -> odoo_20260605_13XX.sql.gz (2.1M)
 [2026-06-05 13:XX:XX] Limpieza de copias >7 dias completada.
 
--rw-r--r-- 1 root root 2.1M Jun  5 13:XX odoo_20260605_13XX.sql.gz
+-rw-r--r-- 1 root root 2.1M Jun 5 13:XX odoo_20260605_13XX.sql.gz
 ```
 
 **Capturar:** el terminal mostrando tanto la salida del script de backup
@@ -777,7 +777,7 @@ de las VMs y el desregistro de los runners de GitHub Actions.
 
 ```powershell
 # En el host Windows:
-cd "C:\Users\sandra\Desktop\Ante proyecto\TFC-ASIRB"
+cd "C:\Users\sandra\Desktop\Ante proyecto\-ASIRB"
 
 # Destruir ambas VMs de forma forzada
 vagrant destroy -f
@@ -811,8 +811,8 @@ que el entorno se reconstruye íntegramente desde cero.
 
 ```powershell
 # Asegurarse de que los tokens están actualizados
-$env:GH_RUNNER_TOKEN_ODOO = "ANEW_TOKEN_ODOO"  # token nuevo de GitHub
-$env:GH_RUNNER_TOKEN_DB   = "ANEW_TOKEN_DB"    # token nuevo de GitHub
+$env:GH_RUNNER_TOKEN_ODOO = "ANEW_TOKEN_ODOO" # token nuevo de GitHub
+$env:GH_RUNNER_TOKEN_DB  = "ANEW_TOKEN_DB"  # token nuevo de GitHub
 
 # Re-aprovisionar en orden
 vagrant up db-server
@@ -859,9 +859,9 @@ docker compose -p erp-odoo --env-file .env -f docker/docker-compose.yml ps
 **Salida esperada** (idéntica a F.12):
 
 ```
-NAME          IMAGE          COMMAND                  SERVICE   CREATED       STATUS                  PORTS
-nginx-proxy   nginx:alpine   "/docker-entrypoint.…"   nginx     X min ago     Up X min (healthy)      0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
-odoo-web      odoo:17        "/entrypoint.sh odoo"    odoo      X min ago     Up X min (healthy)      8069/tcp, 8071-8072/tcp
+NAME     IMAGE     COMMAND         SERVICE  CREATED    STATUS         PORTS
+nginx-proxy  nginx:alpine  "/docker-entrypoint.…"  nginx   X min ago   Up X min (healthy)   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+odoo-web   odoo:17    "/entrypoint.sh odoo"  odoo   X min ago   Up X min (healthy)   8069/tcp, 8071-8072/tcp
 ```
 
 **Capturar:** el terminal mostrando el comando completo con `-p erp-odoo` y los
@@ -903,39 +903,39 @@ Marcar cada captura cuando esté obtenida y guardada:
 
 ```
 BLOQUE 1 — Aprovisionamiento inicial
-  [ ] F.11 — vagrant up finalizado (ambas VMs sin errores)
+ [ ] F.11 — vagrant up finalizado (ambas VMs sin errores)
 
 BLOQUE 2 — Estado del entorno
-  [ ] F.12 — docker compose -p erp-odoo --env-file .env ps (contenedores healthy)
-  [ ] F.13 — Conectividad Odoo → PostgreSQL (pg_isready / psql)
-  [ ] F.14 — Proxy Nginx → Odoo (curl localhost:8069, respuesta 200/303)
-  [ ] F.15 — Acceso HTTPS desde host Windows (curl -k -I https://192.168.30.10)
+ [ ] F.12 — docker compose -p erp-odoo --env-file .env ps (contenedores healthy)
+ [ ] F.13 — Conectividad Odoo → PostgreSQL (pg_isready / psql)
+ [ ] F.14 — Proxy Nginx → Odoo (curl localhost:8069, respuesta 200/303)
+ [ ] F.15 — Acceso HTTPS desde host Windows (curl -k -I https://192.168.30.10)
 
 BLOQUE 3 — Navegador (Odoo)
-  [ ] F.01 — Advertencia de certificado autofirmado
-  [ ] F.02 — Pantalla de login de Odoo (https://192.168.30.10 con candado)
-  [ ] F.03 — Dashboard de Odoo tras autenticación
+ [ ] F.01 — Advertencia de certificado autofirmado
+ [ ] F.02 — Pantalla de login de Odoo (https://192.168.30.10 con candado)
+ [ ] F.03 — Dashboard de Odoo tras autenticación
 
 BLOQUE 4 — Panel pfSense (desde VLAN 40)
-  [ ] F.04 — Dashboard principal de pfSense
-  [ ] F.05 — Reglas firewall interfaz DMZ (OPT1)
-  [ ] F.06 — Reglas firewall interfaz ADMIN (OPT2)
-  [ ] F.07 — DNS Resolver — Host Override erp.odoo.tfc.com → 192.168.30.10
+ [ ] F.04 — Dashboard principal de pfSense
+ [ ] F.05 — Reglas firewall interfaz DMZ (OPT1)
+ [ ] F.06 — Reglas firewall interfaz ADMIN (OPT2)
+ [ ] F.07 — DNS Resolver — Host Override erp.odoo.com → 192.168.30.10
 
 BLOQUE 5 — GitHub Actions
-  [ ] F.08 — Vista general pipeline CI/CD (ambos workflows en verde)
-  [ ] F.09 — Detalle workflow CI (4 pasos: yamllint, docker config, ShellCheck)
-  [ ] F.10 — Detalle workflow CD (self-hosted runner, deploy.sh, docker ps)
+ [ ] F.08 — Vista general pipeline CI/CD (ambos workflows en verde)
+ [ ] F.09 — Detalle workflow CI (4 pasos: yamllint, docker config, ShellCheck)
+ [ ] F.10 — Detalle workflow CD (self-hosted runner, deploy.sh, docker ps)
 
 BLOQUE 6 — Backup (dentro de odoo-server vía SSH)
-  [ ] F.16 — Ejecución de backup_postgres.sh + listado /backups/postgres/
-  [ ] F.17 — zcat dump | head (cabecera -- PostgreSQL database dump)
+ [ ] F.16 — Ejecución de backup_postgres.sh + listado /backups/postgres/
+ [ ] F.17 — zcat dump | head (cabecera -- PostgreSQL database dump)
 
 BLOQUE 7 — Ciclo de regresión (destruir + reaprovisionar)
-  [ ] F.18 — vagrant destroy -f (runners desregistrados + VMs destruidas)
-  [ ] F.19 — vagrant up reprovisionamiento (salida final sin errores)
-  [ ] F.20 — docker compose -p erp-odoo --env-file .env ps (healthy)
-  [ ] F.21 — Odoo accesible en navegador tras reprovisión
+ [ ] F.18 — vagrant destroy -f (runners desregistrados + VMs destruidas)
+ [ ] F.19 — vagrant up reprovisionamiento (salida final sin errores)
+ [ ] F.20 — docker compose -p erp-odoo --env-file .env ps (healthy)
+ [ ] F.21 — Odoo accesible en navegador tras reprovisión
 ```
 
 ---
@@ -969,12 +969,12 @@ Sesión de ~3 horas:
 - **Zoom del navegador:** 100% para las capturas de Odoo y pfSense (Ctrl+0 para resetear).
 - **Terminal:** usar una fuente monoespaciada de tamaño 14px mínimo para legibilidad.
 - **Tiempo:** incluir la fecha/hora en el terminal (`echo $(date)` antes de cada comando)
-  para demostrar que las capturas se hicieron en la misma sesión.
+ para demostrar que las capturas se hicieron en la misma sesión.
 - **Barra de URL:** siempre visible en capturas del navegador.
-- **Nombre de VM:** si el prompt de la terminal SSH muestra `vagrant@odoo-server-tfc:~$`,
-  dejarlo visible — identifica claramente en qué máquina se ejecuta el comando.
+- **Nombre de VM:** si el prompt de la terminal SSH muestra `vagrant@odoo-server:~$`,
+ dejarlo visible — identifica claramente en qué máquina se ejecuta el comando.
 
 ---
 
-*TFC ASIR 2025/2026 — IES Cañaveral*
+*ASIR 2025/2026 — IES Cañaveral*
 *Guía de reproducción para el Anexo F — Capturas del sistema en funcionamiento*

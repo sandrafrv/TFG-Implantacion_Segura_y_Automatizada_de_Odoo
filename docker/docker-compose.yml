@@ -1,92 +1,92 @@
 # ====================================================================
-# STACK DOCKER: ERP Odoo TFC ASIR
+# STACK DOCKER: ERP Odoo ASIR
 # DESCRIPCIÓN: Este archivo define los 2 servicios (contenedores) que
-#              forman el sistema ERP:
-#                1. odoo-web    → Odoo 17 CE
-#                2. nginx-proxy → Nginx Alpine  (expone :80 y :443 del host)
+#       forman el sistema ERP:
+#        1. odoo-web  → Odoo 17 CE
+#        2. nginx-proxy → Nginx Alpine (expone :80 y :443 del host)
 #
-#              La base de datos PostgreSQL 16 reside en una VM separada
-#              (VLAN 40 — 192.168.40.10) gestionada por pfSense.
+#       La base de datos PostgreSQL 16 reside en una VM separada
+#       (VLAN 40 — 192.168.40.10) gestionada por pfSense.
 #
 # Acceso externo:
-#   https://192.168.30.10  → nginx-proxy (puerto 443 del host odoo-server)
-#   nginx reenvía a odoo-web:8069 internamente por odoo_net (bridge)
+#  https://192.168.30.10 → nginx-proxy (puerto 443 del host odoo-server)
+#  nginx reenvía a odoo-web:8069 internamente por odoo_net (bridge)
 #
 # NOTA: MACVLAN eliminado. VMware host-only (VMnet2/3) no permite
-#       promiscuous mode → los contenedores MACVLAN no son alcanzables
-#       desde el host ni desde otros equipos de la misma red.
-#       El enrutamiento inter-VLAN lo realiza pfSense entre VMnet1/2/3.
+#    promiscuous mode → los contenedores MACVLAN no son alcanzables
+#    desde el host ni desde otros equipos de la misma red.
+#    El enrutamiento inter-VLAN lo realiza pfSense entre VMnet1/2/3.
 #
 # USO: Ejecutar desde /opt/erp-odoo con:
-#      docker compose -p erp-odoo --env-file .env -f docker/docker-compose.yml up -d
+#   docker compose -p erp-odoo --env-file .env -f docker/docker-compose.yml up -d
 # ====================================================================
 
 services:
 
-  # ------------------------------------------------------------------
-  # SERVICIO 1: Aplicación Web Odoo
-  # El ERP propiamente dicho. Se conecta a PostgreSQL en VLAN 40,
-  # pero nunca está expuesto directamente al exterior.
-  # Comunicación con nginx-proxy por la red interna odoo_net.
-  # ------------------------------------------------------------------
-  odoo:
-    image: odoo:17
-    container_name: odoo-web
-    restart: always
+ # ------------------------------------------------------------------
+ # SERVICIO 1: Aplicación Web Odoo
+ # El ERP propiamente dicho. Se conecta a PostgreSQL en VLAN 40,
+ # pero nunca está expuesto directamente al exterior.
+ # Comunicación con nginx-proxy por la red interna odoo_net.
+ # ------------------------------------------------------------------
+ odoo:
+  image: odoo:17
+  container_name: odoo-web
+  restart: always
 
-    environment:
-      - HOST=192.168.40.10  # IP de la VM PostgreSQL nativo (VLAN 40)
-      - USER=odoo
-      - PASSWORD=${POSTGRES_PASSWORD}
+  environment:
+   HOST=192.168.40.10 # IP de la VM PostgreSQL nativo (VLAN 40)
+   USER=odoo
+   PASSWORD=${POSTGRES_PASSWORD}
 
-    user: "101:101"
+  user: "101:101"
 
-    volumes:
-      - ../addons:/mnt/extra-addons
-      - ../odoo-data:/var/lib/odoo
-      - ./odoo.conf:/etc/odoo/odoo.conf
-      - ../odoo_sessions:/tmp/odoo
+  volumes:
+   ../addons:/mnt/extra-addons
+   ../odoo-data:/var/lib/odoo
+   ./odoo.conf:/etc/odoo/odoo.conf
+   ../odoo_sessions:/tmp/odoo
 
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8069/web/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 6
-      start_period: 90s
+  healthcheck:
+   test: [ "CMD", "curl", "-f", "http://localhost:8069/web/health" ]
+   interval: 30s
+   timeout: 10s
+   retries: 6
+   start_period: 90s
 
-    networks:
-      - odoo_net
+  networks:
+   odoo_net
 
-  # ------------------------------------------------------------------
-  # SERVICIO 2: Proxy Inverso Nginx
-  # Es la única puerta de entrada desde el exterior. Recibe las
-  # peticiones HTTPS del usuario, las descifra y las reenvía a Odoo.
-  # Expone los puertos 80 y 443 del host (192.168.30.10).
-  # ------------------------------------------------------------------
-  nginx:
-    image: nginx:alpine
-    container_name: nginx-proxy
-    restart: always
+ # ------------------------------------------------------------------
+ # SERVICIO 2: Proxy Inverso Nginx
+ # Es la única puerta de entrada desde el exterior. Recibe las
+ # peticiones HTTPS del usuario, las descifra y las reenvía a Odoo.
+ # Expone los puertos 80 y 443 del host (192.168.30.10).
+ # ------------------------------------------------------------------
+ nginx:
+  image: nginx:alpine
+  container_name: nginx-proxy
+  restart: always
 
-    depends_on:
-      - odoo
+  depends_on:
+   odoo
 
-    ports:
-      - "80:80"
-      - "443:443"
+  ports:
+   "80:80"
+   "443:443"
 
-    volumes:
-      - ../config_nginx:/etc/nginx/conf.d
-      - ../certs:/etc/ssl/certs_local
+  volumes:
+   ../config_nginx:/etc/nginx/conf.d
+   ../certs:/etc/ssl/certs_local
 
-    healthcheck:
-      test: [ "CMD-SHELL", "nginx -t" ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+  healthcheck:
+   test: [ "CMD-SHELL", "nginx -t" ]
+   interval: 30s
+   timeout: 5s
+   retries: 3
 
-    networks:
-      - odoo_net
+  networks:
+   odoo_net
 
 # ====================================================================
 # REDES DOCKER
@@ -100,10 +100,10 @@ services:
 # como origen y pg_hba.conf lo rechaza con "no pg_hba.conf entry".
 # ====================================================================
 networks:
-  odoo_net:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.20.0.0/16
-          gateway: 172.20.0.1
+ odoo_net:
+  driver: bridge
+  ipam:
+   driver: default
+   config:
+    subnet: 172.20.0.0/16
+     gateway: 172.20.0.1

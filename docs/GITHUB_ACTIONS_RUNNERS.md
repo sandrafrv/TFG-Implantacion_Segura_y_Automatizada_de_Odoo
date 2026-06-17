@@ -13,21 +13,21 @@ Al usar runners auto-hospedados, las máquinas virtuales `vm-odoo` y `vm-postgre
 El proyecto despliega automáticamente dos runners a través de los scripts de Vagrant:
 
 ### 1. Odoo Runner (`odoo-runner`)
-- **Ubicación:** `vm-odoo` (Debian 13, IP `192.168.30.10`, VLAN 30 - DMZ)
+- **Ubicación:** `vm-odoo` (Debian 13, IP `192.168.30.10`, VLAN 30 DMZ)
 - **Instalación:** `vagrant/provision_debian.sh`
 - **Etiquetas GitHub:** `self-hosted`, `linux`, `odoo`
 - **Rol:** 
-  - Recibir actualizaciones del repositorio.
-  - Reconstruir o reiniciar el stack Docker (`odoo-web` y `nginx-proxy`).
-  - Ejecutar tests de conectividad y despliegue sobre el entorno web.
+ Recibir actualizaciones del repositorio.
+ Reconstruir o reiniciar el stack Docker (`odoo-web` y `nginx-proxy`).
+ Ejecutar tests de conectividad y despliegue sobre el entorno web.
 
 ### 2. Database Runner (`db-runner`)
-- **Ubicación:** `vm-postgres` (Debian 13, IP `192.168.40.10`, VLAN 40 - Administración)
+- **Ubicación:** `vm-postgres` (Debian 13, IP `192.168.40.10`, VLAN 40 Administración)
 - **Instalación:** `vagrant/provision_postgres.sh`
 - **Etiquetas GitHub:** `self-hosted`, `linux`, `db`
 - **Rol:** 
-  - Aplicar cambios estructurales a la base de datos (triggers, vistas, nuevos esquemas).
-  - Mantener scripts de auditoría SQL sincronizados con el repositorio.
+ Aplicar cambios estructurales a la base de datos (triggers, vistas, nuevos esquemas).
+ Mantener scripts de auditoría SQL sincronizados con el repositorio.
 
 ---
 

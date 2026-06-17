@@ -18,15 +18,15 @@ Esta carpeta contiene los scripts de aprovisionamiento de las **3 VMs** que form
 
 ```bash
 # Desde la raíz del repositorio
-vagrant up                    # Levantar las 3 VMs
-vagrant up vm-odoo            # Levantar solo vm-odoo
-vagrant provision vm-odoo     # Re-ejecutar el aprovisionamiento de vm-odoo
-vagrant ssh vm-odoo           # Conectarse a la VM de Odoo
-vagrant ssh vm-postgres       # Conectarse a la VM de PostgreSQL
-vagrant ssh vm-pfsense        # Conectarse a la VM de pfSense
-vagrant halt                  # Apagar todas las VMs
-vagrant destroy -f            # Destruir todas las VMs
-vagrant status                # Estado de todas las VMs
+vagrant up          # Levantar las 3 VMs
+vagrant up vm-odoo      # Levantar solo vm-odoo
+vagrant provision vm-odoo   # Re-ejecutar el aprovisionamiento de vm-odoo
+vagrant ssh vm-odoo      # Conectarse a la VM de Odoo
+vagrant ssh vm-postgres    # Conectarse a la VM de PostgreSQL
+vagrant ssh vm-pfsense    # Conectarse a la VM de pfSense
+vagrant halt         # Apagar todas las VMs
+vagrant destroy -f      # Destruir todas las VMs
+vagrant status        # Estado de todas las VMs
 ```
 
 ---
@@ -118,4 +118,4 @@ vagrant up vm-odoo --debug 2>&1 | tee vagrant_debug.log
 
 ---
 
-*TFC ASIR 2025/2026 — IES Cañaveral*
+*ASIR 2025/2026 — IES Cañaveral*

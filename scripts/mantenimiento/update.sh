@@ -2,8 +2,8 @@
 # ============================================================
 # SCRIPT: update.sh
 # DESCRIPCIÓN: Actualiza las imágenes Docker y recrea solo los
-#              contenedores que hayan cambiado. Los volúmenes
-#              (datos) se conservan intactos.
+#       contenedores que hayan cambiado. Los volúmenes
+#       (datos) se conservan intactos.
 # USO: bash scripts/mantenimiento/update.sh
 # NOTA: Requiere que .env exista en /opt/erp-odoo/.env (raíz).
 # ============================================================
@@ -22,8 +22,8 @@ docker info &>/dev/null || { echo "[ERROR] Docker no está activo."; exit 1; }
 # Advertir si hay poco espacio
 ESPACIO=$(df -BG /opt | awk 'NR==2 {gsub("G","",$4); print $4}')
 if [ "$ESPACIO" -lt 2 ]; then
-    echo "[WARNING] Poco espacio (${ESPACIO}GB). ¿Continuar? (s/N)"
-    read -r r; [[ "${r,,}" != "s" ]] && exit 1
+  echo "[WARNING] Poco espacio (${ESPACIO}GB). ¿Continuar? (s/N)"
+  read -r r; [[ "${r,,}" != "s" ]] && exit 1
 fi
 
 cd "$PROJECT_DIR"

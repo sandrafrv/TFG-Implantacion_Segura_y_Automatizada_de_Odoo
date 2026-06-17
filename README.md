@@ -1,6 +1,6 @@
-# TFG — Implantación Segura y Automatizada de Odoo 17
+# — Implantación Segura y Automatizada de Odoo 17
 
-> **Proyecto de Fin de Ciclo — ASIR**
+> **Proyecto — ASIR**
 > Implantación de un sistema ERP Odoo 17 Community Edition en una infraestructura virtualizada, segmentada por VLANs, con despliegue automatizado mediante Vagrant, Docker y GitHub Actions.
 
 ---
@@ -40,34 +40,34 @@ El ciclo completo de vida (aprovisionamiento → despliegue → actualización) 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     VMware Workstation Pro                      │
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────────────────────────────┐   │
-│  │   Host       │    │          pfSense (Firewall)          │   │
-│  │  Windows     │    │   WAN: 192.168.133.x (vmnet8/NAT)    │   │
-│  │              │◄──►│   LAN: 192.168.10.1  (vmnet1)        │   │
-│  └──────────────┘    │   DMZ: 192.168.30.1  (vmnet2)        │   │
-│                      │  ADMIN: 192.168.40.1  (vmnet3)       │   │
-│                      └──────────────────────────────────────┘   │
-│                             │           │           │           │
-│                         vmnet1       vmnet2       vmnet3        │
-│                          LAN          DMZ         ADMIN         │
-│                       10.0/24       30.0/24      40.0/24        │
-│                                        │            │           │
-│                               ┌────────┴──┐  ┌─────┴───────┐    │
-│                               │odoo-server│  │  db-server  │    │
-│                               │192.168.   │  │192.168.     │    │
-│                               │  30.10    │  │  40.10      │    │
-│                               │           │  │             │    │
-│                               │ ┌───────┐ │  │ PostgreSQL  │    │
-│                               │ │Nginx  │ │  │    :5432    │    │
-│                               │ │:80/443│ │  │             │    │
-│                               │ └───┬───┘ │  └─────────────┘    │
-│                               │ ┌───┴───┐ │                     │
-│                               │ │ Odoo  │ │                     │
-│                               │ │ :8069 │ │                     │
-│                               │ └───────┘ │                     │
-│                               └───────────┘                     │
+│           VMware Workstation Pro           │
+│                                 │
+│ ┌──────────────┐  ┌──────────────────────────────────────┐  │
+│ │  Host    │  │     pfSense (Firewall)     │  │
+│ │ Windows   │  │  WAN: 192.168.133.x (vmnet8/NAT)  │  │
+│ │       │◄──►│  LAN: 192.168.10.1 (vmnet1)    │  │
+│ └──────────────┘  │  DMZ: 192.168.30.1 (vmnet2)    │  │
+│           │ ADMIN: 192.168.40.1 (vmnet3)    │  │
+│           └──────────────────────────────────────┘  │
+│               │      │      │      │
+│             vmnet1    vmnet2    vmnet3    │
+│             LAN     DMZ     ADMIN     │
+│            10.0/24    30.0/24   40.0/24    │
+│                    │      │      │
+│                ┌────────┴──┐ ┌─────┴───────┐  │
+│                │odoo-server│ │ db-server │  │
+│                │192.168.  │ │192.168.   │  │
+│                │ 30.10  │ │ 40.10   │  │
+│                │      │ │       │  │
+│                │ ┌───────┐ │ │ PostgreSQL │  │
+│                │ │Nginx │ │ │  :5432  │  │
+│                │ │:80/443│ │ │       │  │
+│                │ └───┬───┘ │ └─────────────┘  │
+│                │ ┌───┴───┐ │           │
+│                │ │ Odoo │ │           │
+│                │ │ :8069 │ │           │
+│                │ └───────┘ │           │
+│                └───────────┘           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -85,54 +85,54 @@ El ciclo completo de vida (aprovisionamiento → despliegue → actualización) 
 ## Estructura del repositorio
 
 ```
-TFC-Implantacion_Segura_y_Automatizada_de_Odoo/
+Implantacion_Segura_y_Automatizada_de_Odoo/
 │
-├── Vagrantfile                    # Orquestación de VMs (db-server + odoo-server)
-├── .env.example                   # Plantilla de variables de entorno
+├── Vagrantfile          # Orquestación de VMs (db-server + odoo-server)
+├── .env.example          # Plantilla de variables de entorno
 ├── .gitignore
 ├── .gitattributes
 ├── LICENSE
 ├── README.md
-├── SECURITY.md                    # Política de seguridad
+├── SECURITY.md          # Política de seguridad
 │
 ├── .github/
-│   └── workflows/
-│       ├── ci.yml                 # Pipeline CI (validación)
-│       ├── deploy.yml             # Pipeline CD (despliegue automático)
-│       └── README.md
+│  └── workflows/
+│    ├── ci.yml         # Pipeline CI (validación)
+│    ├── deploy.yml       # Pipeline CD (despliegue automático)
+│    └── README.md
 │
 ├── docker/
-│   ├── docker-compose.yml         # Stack: odoo-web + nginx-proxy
-│   └── odoo.conf                  # Configuración de Odoo 17
+│  ├── docker-compose.yml     # Stack: odoo-web + nginx-proxy
+│  └── odoo.conf         # Configuración de Odoo 17
 │
 ├── vagrant/
-│   ├── provision_debian.sh        # Provisioning de odoo-server
-│   ├── provision_postgres.sh      # Provisioning de db-server
-│   ├── disable_nat_gateway.sh     # Configura pfSense como único gateway
-│   └── README.md
+│  ├── provision_debian.sh    # Provisioning de odoo-server
+│  ├── provision_postgres.sh   # Provisioning de db-server
+│  ├── disable_nat_gateway.sh   # Configura pfSense como único gateway
+│  └── README.md
 │
 ├── config_nginx/
-│   └── odoo_proxy.conf            # Configuración Nginx (proxy inverso HTTPS)
+│  └── odoo_proxy.conf      # Configuración Nginx (proxy inverso HTTPS)
 │
 ├── scripts/
-│   ├── README.md                  # Índice y guía de uso de scripts
-│   ├── deploy/                    # Scripts de despliegue y ciclo de vida
-│   │   ├── deploy.sh              # Despliega y verifica el stack Docker
-│   │   ├── erp.sh                 # Menú interactivo de administración
-│   │   ├── configure.sh           # Configurador interactivo del .env
-│   │   ├── install_cron.sh        # Instala tareas cron de mantenimiento
-│   │   └── generate_pfsense_config.sh  # Genera config.xml para pfSense
-│   ├── mantenimiento/             # Backups, monitor y actualizaciones
-│   │   ├── backup_postgres.sh     # pg_dump remoto con retención 7 días
-│   │   ├── restore.sh             # Restauración desde backup .sql.gz
-│   │   ├── monitor.sh             # Chequeo de salud con auto-reinicio
-│   │   └── update.sh              # Actualización de imágenes Docker
-│   └── odoo/                      # Gestión de la instancia Odoo
-│       └── odoo_crear_usuarios.sh # Crea usuarios y roles vía XML-RPC
+│  ├── README.md         # Índice y guía de uso de scripts
+│  ├── deploy/          # Scripts de despliegue y ciclo de vida
+│  │  ├── deploy.sh       # Despliega y verifica el stack Docker
+│  │  ├── erp.sh         # Menú interactivo de administración
+│  │  ├── configure.sh      # Configurador interactivo del .env
+│  │  ├── install_cron.sh    # Instala tareas cron de mantenimiento
+│  │  └── generate_pfsense_config.sh # Genera config.xml para pfSense
+│  ├── mantenimiento/       # Backups, monitor y actualizaciones
+│  │  ├── backup_postgres.sh   # pg_dump remoto con retención 7 días
+│  │  ├── restore.sh       # Restauración desde backup .sql.gz
+│  │  ├── monitor.sh       # Chequeo de salud con auto-reinicio
+│  │  └── update.sh       # Actualización de imágenes Docker
+│  └── odoo/           # Gestión de la instancia Odoo
+│    └── odoo_crear_usuarios.sh # Crea usuarios y roles vía XML-RPC
 │
-├── config/                        # Configuraciones adicionales (logrotate)
-├── sql/                           # Scripts SQL de auditoría PostgreSQL
-└── docs/                          # Documentación del proyecto
+├── config/            # Configuraciones adicionales (logrotate)
+├── sql/              # Scripts SQL de auditoría PostgreSQL
+└── docs/             # Documentación del proyecto
 ```
 
 ---
@@ -188,7 +188,7 @@ cp .env.example .env
 
 ```
 1. Encender pfSense manualmente en VMware
-2. vagrant up db-server        ← SIEMPRE primero
+2. vagrant up db-server    ← SIEMPRE primero
 3. vagrant up odoo-server
 ```
 
@@ -268,9 +268,9 @@ El contenedor `odoo-web` se conecta directamente a esta IP:
 
 ```yaml
 environment:
-  - HOST=192.168.40.10
-  - USER=odoo
-  - PASSWORD=${POSTGRES_PASSWORD}
+ HOST=192.168.40.10
+ USER=odoo
+ PASSWORD=${POSTGRES_PASSWORD}
 ```
 
 El script `vagrant/provision_postgres.sh` se encarga de:
@@ -295,14 +295,14 @@ La configuración se encuentra en `config_nginx/odoo_proxy.conf` y cubre:
 ### Acceso a Odoo
 
 ```
-https://192.168.30.10        → Odoo desde la red (IP directa)
-https://erp.odoo.tfc.com     → Odoo desde LAN/Admin (requiere DNS en pfSense)
+https://192.168.30.10    → Odoo desde la red (IP directa)
+https://erp.odoo.com   → Odoo desde LAN/Admin (requiere DNS en pfSense)
 ```
 
-Para que el dominio `erp.odoo.tfc.com` resuelva correctamente, el DNS Resolver (Unbound) de pfSense debe tener configurada la entrada:
+Para que el dominio `erp.odoo.com` resuelva correctamente, el DNS Resolver (Unbound) de pfSense debe tener configurada la entrada:
 
 ```
-erp.odoo.tfc.com → 192.168.30.10
+erp.odoo.com → 192.168.30.10
 ```
 
 ---
@@ -333,7 +333,7 @@ Se activa automáticamente cuando el workflow CI finaliza con éxito en la rama 
 
 > **⚠️ Nota para evaluación:** Los runners self-hosted se ejecutan en las máquinas virtuales locales de esta infraestructura. Si las VMs no están encendidas, los workflows de GitHub Actions se quedarán en estado "Pending" o los runners aparecerán como "Offline".
 
-Cada VM tiene instalado un GitHub Actions runner que permite ejecutar los pipelines directamente sobre la infraestructura del TFC.
+Cada VM tiene instalado un GitHub Actions runner que permite ejecutar los pipelines directamente sobre la infraestructura del .
 
 | Runner | VM | IP | Label |
 |---|---|---|---|
@@ -346,27 +346,27 @@ Si las VMs se han levantado sin Vagrant o los tokens han caducado:
 
 ```bash
 # 1. Generar token nuevo en GitHub:
-#    Settings → Actions → Runners → New self-hosted runner
+#  Settings → Actions → Runners → New self-hosted runner
 
 # 2. En odoo-server (192.168.30.10):
 cd /opt/actions-runner
 ./config.sh \
-  --url https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo \
-  --token <TOKEN_NUEVO> \
-  --name odoo-runner \
-  --labels self-hosted,linux,odoo \
-  --unattended
+ --url https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo \
+ --token <TOKEN_NUEVO> \
+ --name odoo-runner \
+ --labels self-hosted,linux,odoo \
+ --unattended
 sudo ./svc.sh install
 sudo ./svc.sh start
 
 # 3. En db-server (192.168.40.10):
 cd /opt/actions-runner
 ./config.sh \
-  --url https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo \
-  --token <TOKEN_NUEVO> \
-  --name db-runner \
-  --labels self-hosted,linux,db \
-  --unattended
+ --url https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo \
+ --token <TOKEN_NUEVO> \
+ --name db-runner \
+ --labels self-hosted,linux,db \
+ --unattended
 sudo ./svc.sh install
 sudo ./svc.sh start
 ```
@@ -430,7 +430,7 @@ Configurar en **GitHub → Repositorio → Settings → Secrets and variables �
 
 ## Autoría y Licencia
 
-**Autora:** Sandra ([@sandrafrv](https://github.com/sandrafrv))  
-**Proyecto:** Trabajo de Fin de Ciclo (ASIR)
+**Autora:** Sandra ([@sandrafrv](https://github.com/sandrafrv)) 
+**Proyecto:** Proyecto (ASIR)
 
 Este proyecto está bajo la licencia **GPL-3.0** (GNU General Public License v3.0). Consulta el archivo [`LICENSE`](LICENSE) para más detalles.

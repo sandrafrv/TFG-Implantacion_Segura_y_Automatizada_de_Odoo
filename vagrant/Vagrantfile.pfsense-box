@@ -3,87 +3,87 @@
 # Copiar/sustituir el bloque "pfsense" en el Vagrantfile principal
 #
 # PRE-REQUISITOS:
-#   1. Seguir docs/guias/CREAR_BOX_PFSENSE.md para crear la box
-#   2. Subir la box a GitHub Releases y actualizar box_url abajo
-#   3. (Opcional) Tenerla en local: vagrant box add --name tfc/pfsense config/pfsense-tfc.box
+#  1. Seguir docs/guias/CREAR_BOX_PFSENSE.md para crear la box
+#  2. Subir la box a GitHub Releases y actualizar box_url abajo
+#  3. (Opcional) Tenerla en local: vagrant box add --name pfsense-box config/pfsense.box
 # ============================================================
 #
 # BLOQUE A SUSTITUIR EN Vagrantfile:
 #
-#   config.vm.define "pfsense" do |pf|
-#     ...
-#   end
+#  config.vm.define "pfsense" do |pf|
+#   ...
+#  end
 #
 # ============================================================
 
-  config.vm.define "pfsense" do |pf|
-    # ── Box propia desde GitHub Releases ──────────────────────
-    # La box incluye pfSense preconfigurado con todas las ACLs del TFC.
-    # Se descarga una sola vez (~700MB). Vagrant la cachea localmente.
-    pf.vm.box     = "tfc/pfsense"
-    pf.vm.box_url = "https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfc.box"
-    pf.vm.box_check_update = false
-    pf.vm.hostname         = "pfsense-tfc"
+ config.vm.define "pfsense" do |pf|
+  # ── Box propia desde GitHub Releases ──────────────────────
+  # La box incluye pfSense preconfigurado con todas las ACLs del .
+  # Se descarga una sola vez (~700MB). Vagrant la cachea localmente.
+  pf.vm.box   = "pfsense-box"
+  pf.vm.box_url = "https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense.box"
+  pf.vm.box_check_update = false
+  pf.vm.hostname     = "pfsense"
 
-    # ── Comunicación SSH (habilitada en la box propia) ────────
-    # pfSense (FreeBSD) usa /bin/sh, no bash
-    pf.vm.communicator = "ssh"
-    pf.ssh.username    = "vagrant"
-    pf.ssh.password    = "vagrant"
-    pf.ssh.shell       = "sh"
-    pf.ssh.insert_key  = true
-    # ⚠️ CRÍTICO VMware: el adaptador 0 es WAN (NAT). Nuestras ACLs bloquean
-    # SSH desde WAN. Apuntamos a OPT2 (VLAN40 host-only), alcanzable desde
-    # el host Windows gracias al adaptador virtual VMnet3.
-    pf.ssh.host        = "192.168.40.1"
-    pf.ssh.port        = 22
+  # ── Comunicación SSH (habilitada en la box propia) ────────
+  # pfSense (FreeBSD) usa /bin/sh, no bash
+  pf.vm.communicator = "ssh"
+  pf.ssh.username  = "vagrant"
+  pf.ssh.password  = "vagrant"
+  pf.ssh.shell    = "sh"
+  pf.ssh.insert_key = true
+  # ⚠️ CRÍTICO VMware: el adaptador 0 es WAN (NAT). Nuestras ACLs bloquean
+  # SSH desde WAN. Apuntamos a OPT2 (VLAN40 host-only), alcanzable desde
+  # el host Windows gracias al adaptador virtual VMnet3.
+  pf.ssh.host    = "192.168.40.1"
+  pf.ssh.port    = 22
 
-    # ── Carpeta compartida deshabilitada (pfSense/FreeBSD) ────
-    pf.vm.synced_folder ".", "/vagrant", disabled: true
+  # ── Carpeta compartida deshabilitada (pfSense/FreeBSD) ────
+  pf.vm.synced_folder ".", "/vagrant", disabled: true
 
-    # ── Interfaces de red (VMware VMnets) ─────────────────────
-    pf.vm.network "private_network", ip: "192.168.10.1",
-      vmware__vmnet: "VMnet1", auto_config: false
-    pf.vm.network "private_network", ip: "192.168.30.1",
-      vmware__vmnet: "VMnet2", auto_config: false
-    pf.vm.network "private_network", ip: "192.168.40.1",
-      vmware__vmnet: "VMnet3", auto_config: false
+  # ── Interfaces de red (VMware VMnets) ─────────────────────
+  pf.vm.network "private_network", ip: "192.168.10.1",
+   vmware__vmnet: "VMnet1", auto_config: false
+  pf.vm.network "private_network", ip: "192.168.30.1",
+   vmware__vmnet: "VMnet2", auto_config: false
+  pf.vm.network "private_network", ip: "192.168.40.1",
+   vmware__vmnet: "VMnet3", auto_config: false
 
-    # ── Recursos y optimizaciones VMware para pfSense/FreeBSD ─
-    pf.vm.provider "vmware_desktop" do |v|
-      v.vmx["displayName"] = "TFC-pfSense"
-      v.memory = 1024
-      v.cpus   = 1
-      v.gui    = true
+  # ── Recursos y optimizaciones VMware para pfSense/FreeBSD ─
+  pf.vm.provider "vmware_desktop" do |v|
+   v.vmx["displayName"] = "pfSense"
+   v.memory = 1024
+   v.cpus  = 1
+   v.gui  = true
 
-      # Guest OS correcto → drivers de red em0/em1/em2/em3 funcionan bien
-      v.vmx["guestOS"]                    = "freebsd-64"
-      # EFI: requerido por el instalador pfSense 2.7+
-      v.vmx["firmware"]                   = "efi"
-      # pfSense no tiene VMware Tools → desactivar sincronización de tiempo
-      v.vmx["tools.syncTime"]             = "FALSE"
-      v.vmx["tools.upgrade.policy"]       = "manual"
-      # UUID estable → evita que FreeBSD renombre las interfaces entre reinicios
-      v.vmx["disk.EnableUUID"]            = "TRUE"
-      # vmxnet3 en los 4 adaptadores → mejor rendimiento en FreeBSD que e1000
-      v.vmx["ethernet0.virtualDev"]       = "vmxnet3"
-      v.vmx["ethernet1.virtualDev"]       = "vmxnet3"
-      v.vmx["ethernet2.virtualDev"]       = "vmxnet3"
-      v.vmx["ethernet3.virtualDev"]       = "vmxnet3"
-      # Responder automáticamente a diálogos VMware (headless-friendly)
-      v.vmx["msg.autoanswer"]             = "TRUE"
-    end
-
-    # ── Provisioning: importar config.xml con todas las ACLs ──
-    # El XML se genera en el PC anfitrión con:
-    #   bash scripts/deploy/generate_pfsense_config.sh
-    # Si no existe, muestra instrucciones de configuración manual.
-    pf.vm.provision "file",
-      source:      "config/pfsense_config.xml",
-      destination: "/tmp/pfsense_config.xml"
-
-    pf.vm.provision "shell",
-      path:       "vagrant/provision_pfsense.sh",
-      privileged: true
-
+   # Guest OS correcto → drivers de red em0/em1/em2/em3 funcionan bien
+   v.vmx["guestOS"]          = "freebsd-64"
+   # EFI: requerido por el instalador pfSense 2.7+
+   v.vmx["firmware"]          = "efi"
+   # pfSense no tiene VMware Tools → desactivar sincronización de tiempo
+   v.vmx["tools.syncTime"]       = "FALSE"
+   v.vmx["tools.upgrade.policy"]    = "manual"
+   # UUID estable → evita que FreeBSD renombre las interfaces entre reinicios
+   v.vmx["disk.EnableUUID"]      = "TRUE"
+   # vmxnet3 en los 4 adaptadores → mejor rendimiento en FreeBSD que e1000
+   v.vmx["ethernet0.virtualDev"]    = "vmxnet3"
+   v.vmx["ethernet1.virtualDev"]    = "vmxnet3"
+   v.vmx["ethernet2.virtualDev"]    = "vmxnet3"
+   v.vmx["ethernet3.virtualDev"]    = "vmxnet3"
+   # Responder automáticamente a diálogos VMware (headless-friendly)
+   v.vmx["msg.autoanswer"]       = "TRUE"
   end
+
+  # ── Provisioning: importar config.xml con todas las ACLs ──
+  # El XML se genera en el PC anfitrión con:
+  #  bash scripts/deploy/generate_pfsense_config.sh
+  # Si no existe, muestra instrucciones de configuración manual.
+  pf.vm.provision "file",
+   source:   "config/pfsense_config.xml",
+   destination: "/tmp/pfsense_config.xml"
+
+  pf.vm.provision "shell",
+   path:    "vagrant/provision_pfsense.sh",
+   privileged: true
+
+ end

@@ -2,1509 +2,1509 @@
 <html lang="es">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="slides-format" content="viewport">
-    <title>TFC — Implantación Segura y Automatizada de Odoo</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <style type="text/tailwindcss">
-        @theme {
-            --color-bg: #070d1a;
-            --color-bg-deep: #030812;
-            --color-surface: #0f1e35;
-            --color-text: #e8f4ff;
-            --color-text-secondary: #a8c8e8;
-            --color-text-muted: #5a8ab8;
-            --color-accent-1: #38bdf8;
-            --color-accent-2: #818cf8;
-            --color-accent-3: #34d399;
-            --color-glass-bg: rgba(56,189,248,0.05);
-            --color-glass-border: rgba(56,189,248,0.12);
-            --color-vignette: rgba(0,0,0,0.55);
-            --font-display: 'Instrument Serif', serif;
-            --font-body: 'Inter', sans-serif;
-        }
-    </style>
-    <style>
-        :root {
-            --color-bg: #070d1a;
-            --color-text: #e8f4ff;
-            --glow-color-rgb: 56, 189, 248;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="slides-format" content="viewport">
+  <title> — Implantación Segura y Automatizada de Odoo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --color-bg: #070d1a;
+      --color-bg-deep: #030812;
+      --color-surface: #0f1e35;
+      --color-text: #e8f4ff;
+      --color-text-secondary: #a8c8e8;
+      --color-text-muted: #5a8ab8;
+      --color-accent-1: #38bdf8;
+      --color-accent-2: #818cf8;
+      --color-accent-3: #34d399;
+      --color-glass-bg: rgba(56,189,248,0.05);
+      --color-glass-border: rgba(56,189,248,0.12);
+      --color-vignette: rgba(0,0,0,0.55);
+      --font-display: 'Instrument Serif', serif;
+      --font-body: 'Inter', sans-serif;
+    }
+  </style>
+  <style>
+    :root {
+      --color-bg: #070d1a;
+      --color-text: #e8f4ff;
+      --glow-color-rgb: 56, 189, 248;
+    }
 
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-        }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
 
-        html,
-        body {
-            background: var(--color-bg);
-            margin: 0;
-        }
+    html,
+    body {
+      background: var(--color-bg);
+      margin: 0;
+    }
 
-        body {
-            font-family: 'Inter', sans-serif;
-            color: var(--color-text);
-            overflow: hidden;
-            height: 100vh;
-            width: 100vw;
-        }
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--color-text);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
 
-        .deck {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-        }
+    .deck {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
 
-        .slide {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--color-bg);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transform: scale(0.96);
-            transition: opacity 0.65s ease, transform 0.65s ease;
-            pointer-events: none;
-            overflow: hidden;
-        }
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--color-bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(0.96);
+      transition: opacity 0.65s ease, transform 0.65s ease;
+      pointer-events: none;
+      overflow: hidden;
+    }
 
-        .slide.active {
-            opacity: 1;
-            transform: scale(1);
-            pointer-events: all;
-        }
+    .slide.active {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: all;
+    }
 
-        .slide>.content {
-            position: relative;
-            z-index: 2;
-            width: 100%;
-            max-width: 1060px;
-            padding: clamp(1.2rem, 3.5vw, 3.5rem);
-        }
+    .slide>.content {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      max-width: 1060px;
+      padding: clamp(1.2rem, 3.5vw, 3.5rem);
+    }
 
-        .nav-controls {
-            position: fixed;
-            bottom: 22px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            z-index: 100;
-            background: rgba(56, 189, 248, 0.07);
-            backdrop-filter: blur(12px);
-            padding: 8px 22px;
-            border-radius: 40px;
-            border: 1px solid rgba(56, 189, 248, 0.15);
-        }
+    .nav-controls {
+      position: fixed;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 100;
+      background: rgba(56, 189, 248, 0.07);
+      backdrop-filter: blur(12px);
+      padding: 8px 22px;
+      border-radius: 40px;
+      border: 1px solid rgba(56, 189, 248, 0.15);
+    }
 
-        .nav-btn {
-            width: 36px;
-            height: 36px;
-            border: none;
-            background: rgba(56, 189, 248, 0.08);
-            color: #38bdf8;
-            border-radius: 50%;
-            font-size: 1.1rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.3s;
-        }
+    .nav-btn {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: rgba(56, 189, 248, 0.08);
+      color: #38bdf8;
+      border-radius: 50%;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
 
-        .nav-btn:hover {
-            background: rgba(56, 189, 248, 0.18);
-        }
+    .nav-btn:hover {
+      background: rgba(56, 189, 248, 0.18);
+    }
 
-        .slide-dots {
-            display: flex;
-            gap: 7px;
-        }
+    .slide-dots {
+      display: flex;
+      gap: 7px;
+    }
 
-        .slide-dots .dot {
-            width: 9px;
-            height: 9px;
-            border-radius: 50%;
-            background: rgba(56, 189, 248, 0.2);
-            cursor: pointer;
-            transition: background 0.3s, transform 0.3s;
-        }
+    .slide-dots .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: rgba(56, 189, 248, 0.2);
+      cursor: pointer;
+      transition: background 0.3s, transform 0.3s;
+    }
 
-        .slide-dots .dot.active {
-            background: #38bdf8;
-            transform: scale(1.35);
-        }
+    .slide-dots .dot.active {
+      background: #38bdf8;
+      transform: scale(1.35);
+    }
 
-        .slide-counter {
-            font-size: 0.75rem;
-            color: #5a8ab8;
-            min-width: 38px;
-            text-align: center;
-        }
+    .slide-counter {
+      font-size: 0.75rem;
+      color: #5a8ab8;
+      min-width: 38px;
+      text-align: center;
+    }
 
-        .reveal {
-            opacity: 0;
-            transform: translateY(18px);
-        }
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+    }
 
-        /* Gradient mesh */
-        @keyframes float-slow {
-            0% {
-                transform: translate(0, 0) scale(1);
-            }
+    /* Gradient mesh */
+    @keyframes float-slow {
+      0% {
+        transform: translate(0, 0) scale(1);
+      }
 
-            25% {
-                transform: translate(55px, -45px) scale(1.1);
-            }
+      25% {
+        transform: translate(55px, -45px) scale(1.1);
+      }
 
-            50% {
-                transform: translate(-35px, 38px) scale(0.92);
-            }
+      50% {
+        transform: translate(-35px, 38px) scale(0.92);
+      }
 
-            75% {
-                transform: translate(45px, 18px) scale(1.07);
-            }
+      75% {
+        transform: translate(45px, 18px) scale(1.07);
+      }
 
-            100% {
-                transform: translate(0, 0) scale(1);
-            }
-        }
+      100% {
+        transform: translate(0, 0) scale(1);
+      }
+    }
 
-        @keyframes float-drift {
-            0% {
-                transform: translate(0, 0) scale(1) rotate(0deg);
-            }
+    @keyframes float-drift {
+      0% {
+        transform: translate(0, 0) scale(1) rotate(0deg);
+      }
 
-            33% {
-                transform: translate(-45px, -55px) scale(1.12) rotate(3deg);
-            }
+      33% {
+        transform: translate(-45px, -55px) scale(1.12) rotate(3deg);
+      }
 
-            66% {
-                transform: translate(38px, 28px) scale(0.9) rotate(-2deg);
-            }
+      66% {
+        transform: translate(38px, 28px) scale(0.9) rotate(-2deg);
+      }
 
-            100% {
-                transform: translate(0, 0) scale(1) rotate(0deg);
-            }
-        }
+      100% {
+        transform: translate(0, 0) scale(1) rotate(0deg);
+      }
+    }
 
-        @keyframes float {
+    @keyframes float {
 
-            0%,
-            100% {
-                transform: translateY(0);
-            }
+      0%,
+      100% {
+        transform: translateY(0);
+      }
 
-            50% {
-                transform: translateY(-12px);
-            }
-        }
+      50% {
+        transform: translateY(-12px);
+      }
+    }
 
-        .gradient-mesh {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            overflow: hidden;
-            pointer-events: none;
-        }
+    .gradient-mesh {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
 
-        .blob {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(75px);
-            animation: float-slow 11s ease-in-out infinite;
-        }
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(75px);
+      animation: float-slow 11s ease-in-out infinite;
+    }
 
-        .blob:nth-child(2) {
-            animation: float-drift 15s ease-in-out infinite;
-        }
+    .blob:nth-child(2) {
+      animation: float-drift 15s ease-in-out infinite;
+    }
 
-        .blob:nth-child(3) {
-            animation: float-slow 19s ease-in-out infinite reverse;
-        }
+    .blob:nth-child(3) {
+      animation: float-slow 19s ease-in-out infinite reverse;
+    }
 
-        /* Vignette & noise */
-        .slide::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            pointer-events: none;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-            background-repeat: repeat;
-            background-size: 256px 256px;
-            opacity: 0.025;
-            mix-blend-mode: overlay;
-        }
+    /* Vignette & noise */
+    .slide::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+      background-size: 256px 256px;
+      opacity: 0.025;
+      mix-blend-mode: overlay;
+    }
 
-        .slide::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            z-index: 1;
-            pointer-events: none;
-            background: radial-gradient(ellipse at center, transparent 50%, var(--color-vignette) 100%);
-        }
+    .slide::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 50%, var(--color-vignette) 100%);
+    }
 
-        /* Glow */
-        .text-glow {
-            text-shadow: 0 0 20px rgba(56, 189, 248, 0.5), 0 0 40px rgba(56, 189, 248, 0.2);
-        }
+    /* Glow */
+    .text-glow {
+      text-shadow: 0 0 20px rgba(56, 189, 248, 0.5), 0 0 40px rgba(56, 189, 248, 0.2);
+    }
 
-        .stat-glow {
-            text-shadow: 0 0 28px rgba(56, 189, 248, 0.6), 0 0 55px rgba(56, 189, 248, 0.25);
-        }
+    .stat-glow {
+      text-shadow: 0 0 28px rgba(56, 189, 248, 0.6), 0 0 55px rgba(56, 189, 248, 0.25);
+    }
 
-        @keyframes glow-pulse {
+    @keyframes glow-pulse {
 
-            0%,
-            100% {
-                text-shadow: 0 0 20px rgba(56, 189, 248, 0.5), 0 0 40px rgba(56, 189, 248, 0.2);
-            }
+      0%,
+      100% {
+        text-shadow: 0 0 20px rgba(56, 189, 248, 0.5), 0 0 40px rgba(56, 189, 248, 0.2);
+      }
 
-            50% {
-                text-shadow: 0 0 30px rgba(56, 189, 248, 0.85), 0 0 60px rgba(56, 189, 248, 0.35);
-            }
-        }
+      50% {
+        text-shadow: 0 0 30px rgba(56, 189, 248, 0.85), 0 0 60px rgba(56, 189, 248, 0.35);
+      }
+    }
 
-        .glow-pulse {
-            animation: glow-pulse 3s ease-in-out infinite;
-        }
+    .glow-pulse {
+      animation: glow-pulse 3s ease-in-out infinite;
+    }
 
-        /* Bar fills */
-        .bar-fill {
-            border-radius: 4px;
-            height: 100%;
-            transition: width 0.7s ease;
-        }
+    /* Bar fills */
+    .bar-fill {
+      border-radius: 4px;
+      height: 100%;
+      transition: width 0.7s ease;
+    }
 
-        /* Horizontal bar rows */
-        .bar-row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 10px;
-        }
+    /* Horizontal bar rows */
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
 
-        .bar-track {
-            flex: 1;
-            height: 26px;
-            background: rgba(56, 189, 248, 0.08);
-            border-radius: 6px;
-            overflow: hidden;
-            position: relative;
-        }
+    .bar-track {
+      flex: 1;
+      height: 26px;
+      background: rgba(56, 189, 248, 0.08);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
 
-        .bar-fill-h {
-            height: 100%;
-            border-radius: 6px;
-            background: linear-gradient(90deg, #38bdf8, #818cf8);
-            transition: width 0.7s ease;
-        }
+    .bar-fill-h {
+      height: 100%;
+      border-radius: 6px;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      transition: width 0.7s ease;
+    }
 
-        .bar-val {
-            font-size: 0.75rem;
-            color: #38bdf8;
-            font-weight: 700;
-            min-width: 36px;
-            text-align: right;
-        }
+    .bar-val {
+      font-size: 0.75rem;
+      color: #38bdf8;
+      font-weight: 700;
+      min-width: 36px;
+      text-align: right;
+    }
 
-        .bar-label {
-            font-size: 0.78rem;
-            color: #a8c8e8;
-            min-width: 160px;
-        }
+    .bar-label {
+      font-size: 0.78rem;
+      color: #a8c8e8;
+      min-width: 160px;
+    }
 
-        /* Network diagram lines */
-        .arch-box {
-            border: 1px solid rgba(56, 189, 248, 0.25);
-            border-radius: 10px;
-            background: rgba(56, 189, 248, 0.05);
-            padding: 10px 14px;
-            text-align: center;
-            font-size: 0.72rem;
-        }
+    /* Network diagram lines */
+    .arch-box {
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 10px;
+      background: rgba(56, 189, 248, 0.05);
+      padding: 10px 14px;
+      text-align: center;
+      font-size: 0.72rem;
+    }
 
-        .arch-arrow {
-            color: #38bdf8;
-            font-size: 1.1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+    .arch-arrow {
+      color: #38bdf8;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-        /* Tag pills */
-        .tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            border: 1px solid;
-            white-space: nowrap;
-        }
+    /* Tag pills */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border: 1px solid;
+      white-space: nowrap;
+    }
 
-        /* Timeline */
-        .tl-line {
-            position: absolute;
-            left: 18px;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: linear-gradient(to bottom, #38bdf8, #818cf8);
-        }
+    /* Timeline */
+    .tl-line {
+      position: absolute;
+      left: 18px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, #38bdf8, #818cf8);
+    }
 
-        .tl-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #38bdf8;
-            box-shadow: 0 0 8px #38bdf8;
-            flex-shrink: 0;
-            margin-top: 3px;
-        }
+    .tl-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 8px #38bdf8;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
 
-        /* Reduced motion */
-        @media(prefers-reduced-motion:reduce) {
+    /* Reduced motion */
+    @media(prefers-reduced-motion:reduce) {
 
-            *,
-            *::before,
-            *::after {
-                animation-duration: 0.01ms !important;
-                transition-duration: 0.2s !important;
-            }
-        }
-    </style>
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
-    <div class="mouse-spotlight" style="position:fixed;inset:0;z-index:99;pointer-events:none;"></div>
+  <div class="mouse-spotlight" style="position:fixed;inset:0;z-index:99;pointer-events:none;"></div>
 
-    <div class="deck">
+  <div class="deck">
 
-        <!-- ===== SLIDE 1: PORTADA ===== -->
-        <div class="slide slide-1 active" data-slide="1">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:520px;height:520px;top:-120px;right:-100px;background:#38bdf8;opacity:0.13;"></div>
-                <div class="blob"
-                    style="width:320px;height:320px;bottom:-80px;left:-60px;background:#818cf8;opacity:0.11;"></div>
-                <div class="blob" style="width:220px;height:220px;top:45%;left:12%;background:#34d399;opacity:0.09;">
-                </div>
-            </div>
-            <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1;"></canvas>
-            <div class="content text-center">
-                <div class="reveal"
-                    style="font-size:5rem;margin-bottom:0.8rem;animation:float 3s ease-in-out infinite;">⚙️</div>
-                <h1 class="font-display reveal"
-                    style="font-size:clamp(2rem,5.5vw,3.8rem);font-weight:700;background:linear-gradient(135deg,#38bdf8,#818cf8,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.15;margin-bottom:1rem;">
-                    Implantación Segura y Automatizada<br>de Odoo 17
-                </h1>
-                <p class="reveal"
-                    style="letter-spacing:5px;text-transform:uppercase;font-size:0.85rem;color:#5a8ab8;margin-bottom:1.6rem;">
-                    TFC · ASIR · Infrastructure as Code</p>
-                <div class="reveal"
-                    style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:1.2rem;">
-                    <span class="tag"
-                        style="color:#38bdf8;border-color:rgba(56,189,248,0.3);background:rgba(56,189,248,0.08);">🟦
-                        Vagrant</span>
-                    <span class="tag"
-                        style="color:#818cf8;border-color:rgba(129,140,248,0.3);background:rgba(129,140,248,0.08);">🐳
-                        Docker</span>
-                    <span class="tag"
-                        style="color:#34d399;border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.08);">⚡
-                        GitHub Actions</span>
-                    <span class="tag"
-                        style="color:#f87171;border-color:rgba(248,113,113,0.3);background:rgba(248,113,113,0.08);">🛡️
-                        pfSense</span>
-                    <span class="tag"
-                        style="color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.08);">🐘
-                        PostgreSQL</span>
-                </div>
-                <p class="reveal" style="color:#5a8ab8;font-size:0.85rem;">Sandra Fradejas Avedillo &amp; Javier Córdoba
-                    Del Valle · 2025</p>
-            </div>
+    <!-- ===== SLIDE 1: PORTADA ===== -->
+    <div class="slide slide-1 active" data-slide="1">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:520px;height:520px;top:-120px;right:-100px;background:#38bdf8;opacity:0.13;"></div>
+        <div class="blob"
+          style="width:320px;height:320px;bottom:-80px;left:-60px;background:#818cf8;opacity:0.11;"></div>
+        <div class="blob" style="width:220px;height:220px;top:45%;left:12%;background:#34d399;opacity:0.09;">
         </div>
-
-        <!-- ===== SLIDE 2: AGENDA ===== -->
-        <div class="slide slide-2" data-slide="2">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:380px;height:380px;top:-80px;right:-70px;background:#38bdf8;opacity:0.08;"></div>
-                <div class="blob"
-                    style="width:250px;height:250px;bottom:-60px;left:-40px;background:#818cf8;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Estructura · 20 minutos</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;color:#38bdf8;margin-bottom:1.6rem;">
-                    Agenda</h2>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
-                        <span
-                            style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">01</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">¿Qué es IaC y por qué?
-                            </p>
-                            <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Motivación y conceptos clave</p>
-                        </div>
-                    </div>
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
-                        <span
-                            style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">02</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">Arquitectura de red</p>
-                            <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">VLANs, pfSense, VMware</p>
-                        </div>
-                    </div>
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
-                        <span
-                            style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">03</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">Vagrant — capa 1 IaC</p>
-                            <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Provisioning automatizado</p>
-                        </div>
-                    </div>
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
-                        <span
-                            style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">04</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">Docker — capa 2 IaC</p>
-                            <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Odoo + Nginx contenerizados</p>
-                        </div>
-                    </div>
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
-                        <span
-                            style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">05</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">GitHub Actions — CI/CD
-                            </p>
-                            <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Pipeline completo</p>
-                        </div>
-                    </div>
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
-                        <span
-                            style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">06</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">Seguridad &amp; Demo en
-                                vivo</p>
-                            <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Nginx HTTPS, PostgreSQL seguro
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+      </div>
+      <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1;"></canvas>
+      <div class="content text-center">
+        <div class="reveal"
+          style="font-size:5rem;margin-bottom:0.8rem;animation:float 3s ease-in-out infinite;">⚙️</div>
+        <h1 class="font-display reveal"
+          style="font-size:clamp(2rem,5.5vw,3.8rem);font-weight:700;background:linear-gradient(135deg,#38bdf8,#818cf8,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.15;margin-bottom:1rem;">
+          Implantación Segura y Automatizada<br>de Odoo 17
+        </h1>
+        <p class="reveal"
+          style="letter-spacing:5px;text-transform:uppercase;font-size:0.85rem;color:#5a8ab8;margin-bottom:1.6rem;">
+           · ASIR · Infrastructure as Code</p>
+        <div class="reveal"
+          style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:1.2rem;">
+          <span class="tag"
+            style="color:#38bdf8;border-color:rgba(56,189,248,0.3);background:rgba(56,189,248,0.08);">🟦
+            Vagrant</span>
+          <span class="tag"
+            style="color:#818cf8;border-color:rgba(129,140,248,0.3);background:rgba(129,140,248,0.08);">🐳
+            Docker</span>
+          <span class="tag"
+            style="color:#34d399;border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.08);">⚡
+            GitHub Actions</span>
+          <span class="tag"
+            style="color:#f87171;border-color:rgba(248,113,113,0.3);background:rgba(248,113,113,0.08);">🛡️
+            pfSense</span>
+          <span class="tag"
+            style="color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.08);">🐘
+            PostgreSQL</span>
         </div>
-
-        <!-- ===== SLIDE 3: QUÉ ES IaC ===== -->
-        <div class="slide slide-3" data-slide="3">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:400px;height:400px;top:-90px;right:-80px;background:#818cf8;opacity:0.09;"></div>
-                <div class="blob"
-                    style="width:280px;height:280px;bottom:-70px;left:-50px;background:#38bdf8;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Fundamento del proyecto</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;color:#38bdf8;margin-bottom:0.6rem;">¿Por
-                    qué Infrastructure as Code?</h2>
-                <p class="reveal" style="color:#a8c8e8;font-size:0.9rem;margin-bottom:1.4rem;">El problema clásico:
-                    <em>"En mi máquina funciona."</em> IaC elimina la configuración manual, hace la infraestructura
-                    reproducible, versionable y auditable.</p>
-                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;text-align:center;">
-                        <div style="font-size:1.8rem;margin-bottom:6px;">📦</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#38bdf8;margin:0 0 4px;">Declarativo</p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Defines qué, no cómo</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;text-align:center;">
-                        <div style="font-size:1.8rem;margin-bottom:6px;">🔁</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#818cf8;margin:0 0 4px;">Idempotente</p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Mismo resultado siempre</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;text-align:center;">
-                        <div style="font-size:1.8rem;margin-bottom:6px;">🗂️</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#34d399;margin:0 0 4px;">Versionado</p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Git como única fuente de verdad</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-radius:10px;text-align:center;">
-                        <div style="font-size:1.8rem;margin-bottom:6px;">⚡</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#fbbf24;margin:0 0 4px;">Automatizado</p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">0 pasos manuales en despliegue</p>
-                    </div>
-                </div>
-                <div class="reveal"
-                    style="margin-top:1rem;padding:10px 16px;background:rgba(52,211,153,0.07);border-left:3px solid #34d399;border-radius:6px;">
-                    <p style="font-size:0.82rem;color:#a8c8e8;margin:0;"><span style="color:#34d399;font-weight:700;">En
-                            este proyecto:</span> Vagrant (VMs) + Docker Compose (contenedores) + GitHub Actions (CI/CD)
-                        forman 3 capas IaC que cubren el ciclo completo de vida de la infraestructura.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 4: ARQUITECTURA DE RED ===== -->
-        <div class="slide slide-4" data-slide="4">
-            <canvas class="particle-canvas-ambient" style="position:absolute;inset:0;z-index:1;"></canvas>
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:350px;height:350px;top:-70px;right:-60px;background:#38bdf8;opacity:0.09;"></div>
-                <div class="blob"
-                    style="width:260px;height:260px;bottom:-55px;left:-40px;background:#34d399;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    VMware Workstation Pro · pfSense</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.6rem,3.5vw,2.5rem);font-weight:700;color:#38bdf8;margin-bottom:1rem;">
-                    Arquitectura de Red: 3 VLANs segmentadas</h2>
-                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1rem;">
-                    <div class="reveal"
-                        style="padding:10px;background:rgba(56,189,248,0.07);border:1px solid rgba(56,189,248,0.2);border-radius:8px;text-align:center;">
-                        <p
-                            style="font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:#5a8ab8;margin:0 0 4px;">
-                            WAN · vmnet8</p>
-                        <p style="font-weight:700;font-size:0.8rem;color:#38bdf8;margin:0;">192.168.133.x</p>
-                        <p style="font-size:0.68rem;color:#5a8ab8;margin:2px 0 0;">NAT · Internet</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:10px;background:rgba(129,140,248,0.07);border:1px solid rgba(129,140,248,0.2);border-radius:8px;text-align:center;">
-                        <p
-                            style="font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:#5a8ab8;margin:0 0 4px;">
-                            LAN · vmnet1</p>
-                        <p style="font-weight:700;font-size:0.8rem;color:#818cf8;margin:0;">192.168.10.0/24</p>
-                        <p style="font-size:0.68rem;color:#5a8ab8;margin:2px 0 0;">Usuarios internos</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:10px;background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.2);border-radius:8px;text-align:center;">
-                        <p
-                            style="font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:#5a8ab8;margin:0 0 4px;">
-                            DMZ · vmnet2</p>
-                        <p style="font-weight:700;font-size:0.8rem;color:#34d399;margin:0;">192.168.30.0/24</p>
-                        <p style="font-size:0.68rem;color:#5a8ab8;margin:2px 0 0;">odoo-server · Nginx+Odoo</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:10px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.2);border-radius:8px;text-align:center;">
-                        <p
-                            style="font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:#5a8ab8;margin:0 0 4px;">
-                            ADMIN · vmnet3</p>
-                        <p style="font-weight:700;font-size:0.8rem;color:#fbbf24;margin:0;">192.168.40.0/24</p>
-                        <p style="font-size:0.68rem;color:#5a8ab8;margin:2px 0 0;">db-server · PostgreSQL</p>
-                    </div>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:8px;align-items:center;">
-                    <div class="reveal arch-box">
-                        <p style="font-size:0.72rem;font-weight:700;color:#818cf8;margin:0 0 2px;">👥 Usuario LAN</p>
-                        <p style="font-size:0.65rem;color:#5a8ab8;margin:0;">192.168.10.x</p>
-                    </div>
-                    <div class="reveal arch-arrow">→</div>
-                    <div class="reveal arch-box"
-                        style="border-color:rgba(248,113,113,0.4);background:rgba(248,113,113,0.06);">
-                        <p style="font-size:0.72rem;font-weight:700;color:#f87171;margin:0 0 2px;">🛡️ pfSense</p>
-                        <p style="font-size:0.65rem;color:#5a8ab8;margin:0;">Firewall · enrutamiento inter-VLAN</p>
-                    </div>
-                    <div class="reveal arch-arrow">→</div>
-                    <div class="reveal" style="display:grid;grid-template-rows:1fr 1fr;gap:6px;">
-                        <div class="arch-box"
-                            style="border-color:rgba(52,211,153,0.4);background:rgba(52,211,153,0.06);">
-                            <p style="font-size:0.68rem;font-weight:700;color:#34d399;margin:0 0 1px;">🌐 DMZ · 30.10 —
-                                Nginx:443 → Odoo:8069</p>
-                        </div>
-                        <div class="arch-box"
-                            style="border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.06);">
-                            <p style="font-size:0.68rem;font-weight:700;color:#fbbf24;margin:0 0 1px;">🐘 ADMIN · 40.10
-                                — PostgreSQL:5432</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="reveal"
-                    style="margin-top:0.8rem;padding:8px 14px;background:rgba(248,113,113,0.07);border-left:3px solid #f87171;border-radius:6px;">
-                    <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
-                            style="color:#f87171;font-weight:700;">Decisión clave:</span> MACVLAN descartado — VMware
-                        host-only no permite modo promiscuo. El enrutamiento inter-VLAN lo gestiona exclusivamente
-                        pfSense.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 5: VAGRANT ===== -->
-        <div class="slide slide-5" data-slide="5">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:380px;height:380px;top:-80px;right:-70px;background:#38bdf8;opacity:0.08;"></div>
-                <div class="blob"
-                    style="width:260px;height:260px;bottom:-60px;left:-40px;background:#818cf8;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Capa 1 IaC · Provisioning de VMs</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#38bdf8;margin-bottom:0.8rem;">
-                    Vagrant — 2 VMs Debian desde código</h2>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem;">
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.88rem;color:#38bdf8;margin:0 0 6px;">🖥️ db-server</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:4px;">
-                            <li>📍 192.168.40.10 (ADMIN/vmnet3)</li>
-                            <li>📜 <code style="color:#34d399;">provision_postgres.sh</code></li>
-                            <li>🐘 PostgreSQL instalado y configurado</li>
-                            <li>⚡ Runner GitHub Actions self-hosted</li>
-                            <li>⚠️ Levantarse <strong>siempre primero</strong></li>
-                        </ul>
-                    </div>
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.88rem;color:#818cf8;margin:0 0 6px;">🌐 odoo-server</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:4px;">
-                            <li>📍 192.168.30.10 (DMZ/vmnet2)</li>
-                            <li>📜 <code style="color:#34d399;">provision_debian.sh</code></li>
-                            <li>🐳 Docker + Docker Compose instalados</li>
-                            <li>⚡ Runner GitHub Actions self-hosted</li>
-                            <li>🔒 Nginx HTTPS configurado</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="reveal"
-                    style="padding:10px 14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.12);border-radius:8px;font-size:0.77rem;color:#a8c8e8;">
-                    <span style="color:#34d399;font-weight:700;">Idempotencia garantizada:</span>
-                    <code style="color:#38bdf8;">vagrant destroy -f</code> desregistra automáticamente los runners via
-                    GitHub API REST antes de destruir las VMs.
-                    Los tokens <code style="color:#f87171;">GH_RUNNER_TOKEN_*</code> caducan en 1h → generar justo antes
-                    de <code style="color:#38bdf8;">vagrant up</code>.
-                </div>
-                <div class="reveal" style="margin-top:0.7rem;display:flex;gap:10px;flex-wrap:wrap;">
-                    <span class="tag"
-                        style="color:#38bdf8;border-color:rgba(56,189,248,0.3);background:rgba(56,189,248,0.08);">vagrant
-                        up · 2 VMs en paralelo</span>
-                    <span class="tag"
-                        style="color:#34d399;border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.08);">disable_nat_gateway.sh
-                        · pfSense como único GW</span>
-                    <span class="tag"
-                        style="color:#818cf8;border-color:rgba(129,140,248,0.3);background:rgba(129,140,248,0.08);">vagrant-vmware-desktop
-                        plugin</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 6: DOCKER ===== -->
-        <div class="slide slide-6" data-slide="6">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:360px;height:360px;top:-75px;right:-65px;background:#818cf8;opacity:0.09;"></div>
-                <div class="blob"
-                    style="width:240px;height:240px;bottom:-55px;left:-40px;background:#38bdf8;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Capa 2 IaC · Contenerización</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#818cf8;margin-bottom:0.8rem;">
-                    Docker Compose — Stack odoo-server</h2>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:0.9rem;">
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.88rem;color:#818cf8;margin:0 0 6px;">🐳 odoo-web</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:4px;">
-                            <li>🏷️ Imagen: <code style="color:#38bdf8;">odoo:17</code></li>
-                            <li>🔌 Puerto: <code style="color:#34d399;">8069</code> (interno)</li>
-                            <li>⚙️ Config: <code style="color:#34d399;">odoo.conf</code></li>
-                            <li>💾 Volume: <code style="color:#34d399;">odoo-data</code></li>
-                            <li>🔗 Conecta a PostgreSQL 40.10:5432</li>
-                        </ul>
-                    </div>
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.88rem;color:#34d399;margin:0 0 6px;">🌐 nginx-proxy</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:4px;">
-                            <li>🔒 HTTPS :443 → Odoo :8069</li>
-                            <li>📜 Config: <code style="color:#34d399;">odoo_proxy.conf</code></li>
-                            <li>🌍 WebSocket soporte</li>
-                            <li>📦 Red interna Docker</li>
-                            <li>🔑 Certificado TLS autofirmado</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="reveal" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                    <div
-                        style="padding:10px 14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.12);border-radius:8px;">
-                        <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
-                                style="color:#38bdf8;font-weight:700;">⚙️ Variables de entorno:</span> <code
-                                style="color:#fbbf24;">.env</code> centraliza <code>POSTGRES_PASSWORD</code>,
-                            <code>ODOO_MASTER_PASSWORD</code>, <code>GH_PAT</code> — nunca en el repo.</p>
-                    </div>
-                    <div
-                        style="padding:10px 14px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.12);border-radius:8px;">
-                        <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
-                                style="color:#f87171;font-weight:700;">🐘 PostgreSQL en VM dedicada:</span> No en
-                            Docker. Corre en db-server (192.168.40.10:5432), aislado en ADMIN VLAN.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 7: GITHUB ACTIONS ===== -->
-        <div class="slide slide-7" data-slide="7">
-            <canvas class="particle-canvas-ambient" style="position:absolute;inset:0;z-index:1;"></canvas>
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:400px;height:400px;top:-90px;right:-80px;background:#34d399;opacity:0.08;"></div>
-                <div class="blob"
-                    style="width:280px;height:280px;bottom:-65px;left:-45px;background:#38bdf8;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Capa 3 IaC · CI/CD pipeline</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#34d399;margin-bottom:0.9rem;">
-                    GitHub Actions — Runners self-hosted en las propias VMs</h2>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:0.9rem;">
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.85rem;color:#34d399;margin:0 0 6px;">⚙️ ci.yml —
-                            Validación</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
-                            <li>✅ Valida <code style="color:#38bdf8;">docker-compose.yml</code></li>
-                            <li>✅ Lint de scripts Bash</li>
-                            <li>✅ Chequeo de variables de entorno</li>
-                            <li>🔁 Se dispara en cada push/PR</li>
-                        </ul>
-                    </div>
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.85rem;color:#38bdf8;margin:0 0 6px;">🚀 deploy.yml —
-                            Despliegue CD</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
-                            <li>🔄 <code style="color:#34d399;">git pull</code> en odoo-server</li>
-                            <li>🐳 <code style="color:#34d399;">docker compose up -d</code></li>
-                            <li>🔍 Verificación de contenedores activos</li>
-                            <li>🏃 Runner: odoo-server self-hosted</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="reveal"
-                    style="padding:10px 14px;background:rgba(52,211,153,0.07);border-left:3px solid #34d399;border-radius:6px;font-size:0.8rem;color:#a8c8e8;">
-                    <span style="color:#34d399;font-weight:700;">Ciclo completo IaC:</span> El runner corre
-                    <em>dentro</em> de la VM desplegada por Vagrant → el pipeline despliega Odoo desde dentro de la
-                    propia infraestructura → ningún paso es manual.
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 8: SCRIPTS ===== -->
-        <div class="slide slide-8" data-slide="8">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:360px;height:360px;top:-75px;right:-65px;background:#fbbf24;opacity:0.07;"></div>
-                <div class="blob"
-                    style="width:250px;height:250px;bottom:-55px;left:-40px;background:#818cf8;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    scripts/ · Operaciones del ciclo de vida</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#fbbf24;margin-bottom:0.9rem;">
-                    Scripts de automatización</h2>
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-                    <div class="reveal"
-                        style="padding:12px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.82rem;color:#38bdf8;margin:0 0 6px;">🚀 deploy/</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.72rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
-                            <li><code style="color:#34d399;">deploy.sh</code> — stack completo</li>
-                            <li><code style="color:#34d399;">erp.sh</code> — menú interactivo</li>
-                            <li><code style="color:#34d399;">configure.sh</code> — configurador .env</li>
-                            <li><code style="color:#34d399;">install_cron.sh</code> — tareas cron</li>
-                            <li><code style="color:#34d399;">generate_pfsense_config.sh</code></li>
-                        </ul>
-                    </div>
-                    <div class="reveal"
-                        style="padding:12px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.82rem;color:#818cf8;margin:0 0 6px;">🔧 mantenimiento/</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.72rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
-                            <li><code style="color:#34d399;">backup_postgres.sh</code></li>
-                            <li>pg_dump remoto · retención 7 días</li>
-                            <li><code style="color:#34d399;">restore.sh</code> — desde .sql.gz</li>
-                            <li><code style="color:#34d399;">monitor.sh</code> — salud + auto-reinicio</li>
-                            <li><code style="color:#34d399;">update.sh</code> — imágenes Docker</li>
-                        </ul>
-                    </div>
-                    <div class="reveal"
-                        style="padding:12px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.82rem;color:#34d399;margin:0 0 6px;">👤 odoo/</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.72rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
-                            <li><code style="color:#34d399;">odoo_crear_usuarios.sh</code></li>
-                            <li>Crea usuarios vía XML-RPC</li>
-                            <li>Asigna roles automáticamente</li>
-                            <li>Sin interfaz gráfica</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="reveal" style="margin-top:0.9rem;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                    <div
-                        style="padding:9px 14px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.14);border-radius:8px;">
-                        <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
-                                style="color:#fbbf24;font-weight:700;">🗂️ sql/</span> — Scripts de auditoría PostgreSQL
-                        </p>
-                    </div>
-                    <div
-                        style="padding:9px 14px;background:rgba(248,113,113,0.07);border:1px solid rgba(248,113,113,0.14);border-radius:8px;">
-                        <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
-                                style="color:#f87171;font-weight:700;">📦 extras/</span> — LDAP como referencia (no
-                            implementado en TFC)</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 9: SEGURIDAD ===== -->
-        <div class="slide slide-9" data-slide="9">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:380px;height:380px;top:-80px;right:-70px;background:#f87171;opacity:0.08;"></div>
-                <div class="blob"
-                    style="width:260px;height:260px;bottom:-55px;left:-40px;background:#38bdf8;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Hardening · Segmentación · Secretos</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#f87171;margin-bottom:0.9rem;">
-                    Seguridad por capas</h2>
-                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0.9rem;">
-                    <div class="reveal"
-                        style="padding:12px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.14);border-radius:10px;text-align:center;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">🛡️</div>
-                        <p style="font-weight:700;font-size:0.8rem;color:#f87171;margin:0 0 3px;">pfSense</p>
-                        <p style="font-size:0.7rem;color:#5a8ab8;margin:0;">Firewall + NAT + enrutamiento inter-VLAN</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:12px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;text-align:center;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">🔒</div>
-                        <p style="font-weight:700;font-size:0.8rem;color:#34d399;margin:0 0 3px;">HTTPS/TLS</p>
-                        <p style="font-size:0.7rem;color:#5a8ab8;margin:0;">Nginx proxy HTTPS en DMZ</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:12px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-radius:10px;text-align:center;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">🔑</div>
-                        <p style="font-weight:700;font-size:0.8rem;color:#fbbf24;margin:0 0 3px;">Secretos</p>
-                        <p style="font-size:0.7rem;color:#5a8ab8;margin:0;">.env excluido del repo · GitHub Secrets</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:12px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;text-align:center;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">🐘</div>
-                        <p style="font-weight:700;font-size:0.8rem;color:#818cf8;margin:0 0 3px;">PostgreSQL aislado</p>
-                        <p style="font-size:0.7rem;color:#5a8ab8;margin:0;">Solo DMZ puede acceder :5432</p>
-                    </div>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                    <div class="reveal"
-                        style="padding:10px 14px;background:rgba(52,211,153,0.06);border-left:3px solid #34d399;border-radius:6px;">
-                        <p style="font-size:0.78rem;color:#a8c8e8;margin:0;"><span
-                                style="color:#34d399;font-weight:700;">SECURITY file:</span> Política de seguridad
-                            documentada en el repo. Procedimiento de reporte de vulnerabilidades establecido.</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:10px 14px;background:rgba(56,189,248,0.06);border-left:3px solid #38bdf8;border-radius:6px;">
-                        <p style="font-size:0.78rem;color:#a8c8e8;margin:0;"><span
-                                style="color:#38bdf8;font-weight:700;">sql/ auditoría:</span> Scripts PostgreSQL para
-                            trazabilidad de cambios en la base de datos de Odoo.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 10: STATS / MÉTRICAS DEL REPO ===== -->
-        <div class="slide slide-10" data-slide="10">
-            <canvas class="particle-canvas-ambient" style="position:absolute;inset:0;z-index:1;"></canvas>
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:450px;height:450px;top:-100px;right:-90px;background:#38bdf8;opacity:0.1;"></div>
-                <div class="blob"
-                    style="width:300px;height:300px;bottom:-70px;left:-50px;background:#818cf8;opacity:0.09;"></div>
-                <div class="blob" style="width:200px;height:200px;top:40%;left:10%;background:#34d399;opacity:0.07;">
-                </div>
-            </div>
-            <div class="content text-center">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Lo que hay detrás</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#38bdf8;margin-bottom:1.4rem;">El
-                    trabajo real</h2>
-                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:1.2rem;">
-                    <div class="reveal"
-                        style="padding:16px 12px;background:rgba(56,189,248,0.07);border:1px solid rgba(56,189,248,0.18);border-radius:12px;">
-                        <p class="stat-glow" style="font-size:2.4rem;font-weight:900;color:#38bdf8;margin:0 0 4px;"
-                            data-count="3">0</p>
-                        <p
-                            style="font-size:0.72rem;color:#5a8ab8;text-transform:uppercase;letter-spacing:2px;margin:0;">
-                            Capas IaC</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:16px 12px;background:rgba(129,140,248,0.07);border:1px solid rgba(129,140,248,0.18);border-radius:12px;">
-                        <p class="stat-glow" style="font-size:2.4rem;font-weight:900;color:#818cf8;margin:0 0 4px;"
-                            data-count="4" style="--glow-color-rgb:129,140,248;">0</p>
-                        <p
-                            style="font-size:0.72rem;color:#5a8ab8;text-transform:uppercase;letter-spacing:2px;margin:0;">
-                            VLANs</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:16px 12px;background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.18);border-radius:12px;">
-                        <p class="stat-glow" style="font-size:2.4rem;font-weight:900;color:#34d399;margin:0 0 4px;"
-                            data-count="12">0</p>
-                        <p
-                            style="font-size:0.72rem;color:#5a8ab8;text-transform:uppercase;letter-spacing:2px;margin:0;">
-                            Scripts bash</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:16px 12px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.18);border-radius:12px;">
-                        <p class="stat-glow" style="font-size:2.4rem;font-weight:900;color:#fbbf24;margin:0 0 4px;"
-                            data-count="2">0</p>
-                        <p
-                            style="font-size:0.72rem;color:#5a8ab8;text-transform:uppercase;letter-spacing:2px;margin:0;">
-                            Pipelines CI/CD</p>
-                    </div>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-                    <div class="reveal bar-row"
-                        style="display:flex;flex-direction:column;gap:4px;padding:10px;background:rgba(56,189,248,0.05);border-radius:8px;border:1px solid rgba(56,189,248,0.1);">
-                        <div style="display:flex;justify-content:space-between;align-items:center;"><span
-                                style="font-size:0.72rem;color:#a8c8e8;">Vagrant</span><span
-                                style="font-size:0.72rem;color:#38bdf8;font-weight:700;">100%</span></div>
-                        <div style="height:8px;background:rgba(56,189,248,0.12);border-radius:4px;overflow:hidden;">
-                            <div class="bar-fill-h" data-width="100" style="width:0%;"></div>
-                        </div>
-                    </div>
-                    <div class="reveal bar-row"
-                        style="display:flex;flex-direction:column;gap:4px;padding:10px;background:rgba(129,140,248,0.05);border-radius:8px;border:1px solid rgba(129,140,248,0.1);">
-                        <div style="display:flex;justify-content:space-between;align-items:center;"><span
-                                style="font-size:0.72rem;color:#a8c8e8;">Docker</span><span
-                                style="font-size:0.72rem;color:#818cf8;font-weight:700;">100%</span></div>
-                        <div style="height:8px;background:rgba(129,140,248,0.12);border-radius:4px;overflow:hidden;">
-                            <div style="height:100%;border-radius:4px;background:linear-gradient(90deg,#818cf8,#38bdf8);transition:width 0.7s ease;"
-                                class="bar-fill-h" data-width="100" style="width:0%;"></div>
-                        </div>
-                    </div>
-                    <div class="reveal bar-row"
-                        style="display:flex;flex-direction:column;gap:4px;padding:10px;background:rgba(52,211,153,0.05);border-radius:8px;border:1px solid rgba(52,211,153,0.1);">
-                        <div style="display:flex;justify-content:space-between;align-items:center;"><span
-                                style="font-size:0.72rem;color:#a8c8e8;">CI/CD</span><span
-                                style="font-size:0.72rem;color:#34d399;font-weight:700;">100%</span></div>
-                        <div style="height:8px;background:rgba(52,211,153,0.12);border-radius:4px;overflow:hidden;">
-                            <div style="height:100%;border-radius:4px;background:linear-gradient(90deg,#34d399,#38bdf8);transition:width 0.7s ease;"
-                                class="bar-fill-h" data-width="100" style="width:0%;"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 11: ODOO 17 ===== -->
-        <div class="slide slide-11" data-slide="11">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:370px;height:370px;top:-75px;right:-65px;background:#818cf8;opacity:0.09;"></div>
-                <div class="blob"
-                    style="width:250px;height:250px;bottom:-55px;left:-40px;background:#34d399;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    El ERP desplegado</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#818cf8;margin-bottom:0.9rem;">Odoo
-                    17 Community Edition</h2>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:0.9rem;">
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.85rem;color:#818cf8;margin:0 0 6px;">📋 ¿Qué es Odoo?</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
-                            <li>🏢 ERP open-source modular</li>
-                            <li>📦 Módulos: CRM, inventario, RRHH, contabilidad</li>
-                            <li>🌐 Interfaz web en :8069</li>
-                            <li>🐘 Backend: PostgreSQL</li>
-                            <li>🐍 Core en Python + framework propio</li>
-                        </ul>
-                    </div>
-                    <div class="reveal"
-                        style="padding:14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
-                        <p style="font-weight:700;font-size:0.85rem;color:#34d399;margin:0 0 6px;">⚙️ Configuración en
-                            este TFC</p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
-                            <li>🐳 Contenerizado en Docker</li>
-                            <li>🔒 Expuesto solo vía Nginx HTTPS</li>
-                            <li>🔗 Conecta a PostgreSQL 40.10:5432</li>
-                            <li>👤 Usuarios creados por XML-RPC</li>
-                            <li>📜 odoo.conf versionado en repo</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="reveal"
-                    style="padding:10px 14px;background:rgba(129,140,248,0.07);border-left:3px solid #818cf8;border-radius:6px;font-size:0.8rem;color:#a8c8e8;">
-                    <span style="color:#818cf8;font-weight:700;">Importante:</span> El TFC no es "sobre Odoo" — es sobre
-                    la infraestructura que lo despliega y gestiona de forma segura y automatizada. Odoo es el <em>caso
-                        de uso</em> del sistema IaC.
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 12: DEMO EN VIVO ===== -->
-        <div class="slide slide-12" data-slide="12">
-            <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1;"></canvas>
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:480px;height:480px;top:-110px;right:-90px;background:#34d399;opacity:0.11;"></div>
-                <div class="blob"
-                    style="width:320px;height:320px;bottom:-80px;left:-60px;background:#38bdf8;opacity:0.1;"></div>
-                <div class="blob" style="width:200px;height:200px;top:40%;left:15%;background:#818cf8;opacity:0.08;">
-                </div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    ~4 minutos en vivo</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#34d399;margin-bottom:1rem;">Mini
-                    Demo</h2>
-                <div style="position:relative;padding-left:36px;">
-                    <div class="tl-line"></div>
-                    <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
-                        <div class="tl-dot"></div>
-                        <div
-                            style="padding:10px 14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:8px;flex:1;">
-                            <p style="font-weight:700;font-size:0.84rem;color:#34d399;margin:0 0 2px;">① Arquitectura en
-                                GitHub</p>
-                            <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Mostrar README + Vagrantfile +
-                                estructura de carpetas — demostrar que <em>todo es código</em></p>
-                        </div>
-                    </div>
-                    <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
-                        <div class="tl-dot"></div>
-                        <div
-                            style="padding:10px 14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:8px;flex:1;">
-                            <p style="font-weight:700;font-size:0.84rem;color:#38bdf8;margin:0 0 2px;">② Odoo corriendo
-                            </p>
-                            <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Abrir
-                                <code>https://192.168.30.10</code> → login → dashboard de Odoo 17 funcional</p>
-                        </div>
-                    </div>
-                    <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
-                        <div class="tl-dot"></div>
-                        <div
-                            style="padding:10px 14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:8px;flex:1;">
-                            <p style="font-weight:700;font-size:0.84rem;color:#818cf8;margin:0 0 2px;">③ Pipeline GitHub
-                                Actions</p>
-                            <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Mostrar último run de
-                                <code>deploy.yml</code> — pasos ejecutados dentro de la VM</p>
-                        </div>
-                    </div>
-                    <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;">
-                        <div class="tl-dot" style="background:#fbbf24;box-shadow:0 0 8px #fbbf24;"></div>
-                        <div
-                            style="padding:10px 14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-radius:8px;flex:1;">
-                            <p style="font-weight:700;font-size:0.84rem;color:#fbbf24;margin:0 0 2px;">④ Backup en
-                                acción</p>
-                            <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Ejecutar
-                                <code>backup_postgres.sh</code> → mostrar .sql.gz generado con retención 7 días</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="reveal"
-                    style="margin-top:0.8rem;padding:8px 14px;background:rgba(248,113,113,0.07);border-left:3px solid #f87171;border-radius:6px;font-size:0.75rem;color:#a8c8e8;">
-                    <span style="color:#f87171;font-weight:700;">Plan B:</span> Vídeo de backup de 1 min con el pipeline
-                    ejecutándose, por si falla la red en la demo.
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 13: LIMITACIONES ===== -->
-        <div class="slide slide-13" data-slide="13">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:360px;height:360px;top:-75px;right:-65px;background:#f87171;opacity:0.08;"></div>
-                <div class="blob"
-                    style="width:250px;height:250px;bottom:-55px;left:-40px;background:#fbbf24;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Honestidad técnica</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#f87171;margin-bottom:0.9rem;">
-                    Limitaciones conocidas</h2>
-                <div style="display:flex;flex-direction:column;gap:9px;">
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.14);border-left:3px solid #f87171;border-radius:8px;">
-                        <span style="font-size:1.1rem;flex-shrink:0;">⚠️</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.84rem;color:#f87171;margin:0 0 2px;">MACVLAN
-                                descartado</p>
-                            <p style="font-size:0.75rem;color:#a8c8e8;margin:0;">VMware host-only no permite modo
-                                promiscuo → contenedores no alcanzables desde host. Documentado en README y Vagrantfile.
-                            </p>
-                        </div>
-                    </div>
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-left:3px solid #fbbf24;border-radius:8px;">
-                        <span style="font-size:1.1rem;flex-shrink:0;">⏱️</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.84rem;color:#fbbf24;margin:0 0 2px;">Tokens de runner
-                                caducan en 1h</p>
-                            <p style="font-size:0.75rem;color:#a8c8e8;margin:0;">GH_RUNNER_TOKEN_* deben generarse justo
-                                antes de <code style="color:#38bdf8;">vagrant up</code>. Es una limitación de la API de
-                                GitHub.</p>
-                        </div>
-                    </div>
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-left:3px solid #818cf8;border-radius:8px;">
-                        <span style="font-size:1.1rem;flex-shrink:0;">🔒</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.84rem;color:#818cf8;margin:0 0 2px;">Certificado TLS
-                                autofirmado</p>
-                            <p style="font-size:0.75rem;color:#a8c8e8;margin:0;">Funcional en entorno local, pero no
-                                apto para producción sin CA reconocida (Let's Encrypt con IP pública).</p>
-                        </div>
-                    </div>
-                    <div class="reveal"
-                        style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-left:3px solid #38bdf8;border-radius:8px;">
-                        <span style="font-size:1.1rem;flex-shrink:0;">🖥️</span>
-                        <div>
-                            <p style="font-weight:600;font-size:0.84rem;color:#38bdf8;margin:0 0 2px;">pfSense
-                                configuración manual</p>
-                            <p style="font-size:0.75rem;color:#a8c8e8;margin:0;">pfSense no se gestiona con Vagrant.
-                                Existe <code>generate_pfsense_config.sh</code> para facilitar la config, pero el
-                                arranque es manual.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 14: VISIÓN A FUTURO ===== -->
-        <div class="slide slide-14" data-slide="14">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:400px;height:400px;top:-85px;right:-75px;background:#818cf8;opacity:0.1;"></div>
-                <div class="blob"
-                    style="width:270px;height:270px;bottom:-60px;left:-45px;background:#38bdf8;opacity:0.08;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Roadmap · Evolución natural</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#818cf8;margin-bottom:0.9rem;">
-                    Visión a futuro</h2>
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-                    <div class="reveal"
-                        style="padding:13px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">🔧</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#38bdf8;margin:0 0 4px;">Ansible</p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Reemplazar scripts Bash por playbooks
-                            idempotentes y versionados</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:13px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">☸️</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#818cf8;margin:0 0 4px;">Kubernetes</p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Migrar stack Docker Compose a K8s para
-                            escalado horizontal</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:13px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">☁️</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#34d399;margin:0 0 4px;">Cloud (AWS/Azure)</p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Terraform para provisioning en cloud, misma
-                            lógica IaC</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:13px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-radius:10px;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">🔐</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#fbbf24;margin:0 0 4px;">HashiCorp Vault</p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Gestión de secretos centralizada en lugar
-                            de .env</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:13px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.14);border-radius:10px;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">📊</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#f87171;margin:0 0 4px;">Observabilidad</p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Prometheus + Grafana para monitorización de
-                            la infra</p>
-                    </div>
-                    <div class="reveal"
-                        style="padding:13px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
-                        <div style="font-size:1.6rem;margin-bottom:5px;">🧪</div>
-                        <p style="font-weight:700;font-size:0.82rem;color:#38bdf8;margin:0 0 4px;">Tests automatizados
-                        </p>
-                        <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Testinfra / Molecule para validar el estado
-                            de la infra</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 15: REPARTO DE TRABAJO ===== -->
-        <div class="slide slide-15" data-slide="15">
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:370px;height:370px;top:-78px;right:-68px;background:#34d399;opacity:0.09;"></div>
-                <div class="blob"
-                    style="width:260px;height:260px;bottom:-58px;left:-43px;background:#818cf8;opacity:0.07;"></div>
-            </div>
-            <div class="content">
-                <p class="reveal"
-                    style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
-                    Autoría · Trabajo propio</p>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#34d399;margin-bottom:0.9rem;">
-                    Reparto de trabajo</h2>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-                    <div class="reveal"
-                        style="padding:16px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.16);border-radius:12px;">
-                        <p style="font-weight:700;font-size:0.95rem;color:#38bdf8;margin:0 0 8px;">👩‍💻 Sandra Fradejas
-                        </p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:5px;">
-                            <li>🏗️ Diseño de arquitectura de red (VLANs, pfSense)</li>
-                            <li>📜 Vagrantfile completo (2 VMs Debian)</li>
-                            <li>🐳 Docker Compose + odoo.conf</li>
-                            <li>🔒 Configuración Nginx HTTPS</li>
-                            <li>📋 README + documentación</li>
-                        </ul>
-                    </div>
-                    <div class="reveal"
-                        style="padding:16px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.16);border-radius:12px;">
-                        <p style="font-weight:700;font-size:0.95rem;color:#818cf8;margin:0 0 8px;">👨‍💻 Javier Córdoba
-                        </p>
-                        <ul
-                            style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:5px;">
-                            <li>⚡ Pipelines GitHub Actions (ci.yml + deploy.yml)</li>
-                            <li>🔧 Scripts bash (deploy, erp, configure)</li>
-                            <li>🛡️ Scripts mantenimiento (backup, restore, monitor)</li>
-                            <li>🐘 PostgreSQL + sql/ auditoría</li>
-                            <li>👤 odoo_crear_usuarios.sh (XML-RPC)</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="reveal"
-                    style="margin-top:0.9rem;padding:10px 16px;background:rgba(52,211,153,0.07);border-left:3px solid #34d399;border-radius:6px;font-size:0.8rem;color:#a8c8e8;">
-                    <span style="color:#34d399;font-weight:700;">Prueba de autoría:</span> El historial de commits en
-                    GitHub con nuestros emails confirma la autoría real del proyecto. Todos los archivos clave están
-                    firmados con nuestras cuentas.
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== SLIDE 16: CONCLUSIONES ===== -->
-        <div class="slide slide-16" data-slide="16">
-            <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1;"></canvas>
-            <div class="gradient-mesh">
-                <div class="blob"
-                    style="width:500px;height:500px;top:-115px;right:-95px;background:#38bdf8;opacity:0.13;"></div>
-                <div class="blob"
-                    style="width:330px;height:330px;bottom:-80px;left:-60px;background:#818cf8;opacity:0.11;"></div>
-                <div class="blob" style="width:210px;height:210px;top:42%;left:12%;background:#34d399;opacity:0.08;">
-                </div>
-            </div>
-            <div class="content text-center">
-                <div class="reveal"
-                    style="font-size:4rem;margin-bottom:0.7rem;animation:float 3s ease-in-out infinite;">🚀</div>
-                <h2 class="font-display reveal"
-                    style="font-size:clamp(2rem,5vw,3.5rem);font-weight:700;background:linear-gradient(135deg,#38bdf8,#818cf8,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2;margin-bottom:0.8rem;">
-                    Infraestructura como Código<br>en producción
-                </h2>
-                <p class="reveal"
-                    style="color:#a8c8e8;font-size:0.95rem;max-width:680px;margin:0 auto 1.4rem;line-height:1.6;">
-                    De VMware + pfSense + Vagrant + Docker + GitHub Actions a un ERP empresarial funcionando de forma
-                    segura, automatizada y reproducible. Cada línea, versionada. Cada despliegue, trazable.
-                </p>
-                <div class="reveal"
-                    style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:1.2rem;">
-                    <span class="tag"
-                        style="color:#38bdf8;border-color:rgba(56,189,248,0.3);background:rgba(56,189,248,0.08);">✅ 3
-                        capas IaC implementadas</span>
-                    <span class="tag"
-                        style="color:#34d399;border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.08);">✅
-                        CI/CD funcional sobre self-hosted runners</span>
-                    <span class="tag"
-                        style="color:#818cf8;border-color:rgba(129,140,248,0.3);background:rgba(129,140,248,0.08);">✅
-                        Segmentación por VLANs con pfSense</span>
-                    <span class="tag"
-                        style="color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.08);">✅
-                        PostgreSQL aislado en ADMIN VLAN</span>
-                </div>
-                <p class="reveal" style="color:#5a8ab8;font-size:0.82rem;letter-spacing:3px;text-transform:uppercase;">
-                    Sandra Fradejas · Javier Córdoba · ASIR 2025</p>
-                <p class="reveal" style="color:#38bdf8;font-size:0.85rem;margin-top:0.6rem;">
-                    github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo</p>
-            </div>
-        </div>
-
-    </div><!-- .deck -->
-
-    <div class="nav-controls">
-        <button class="nav-btn" onclick="changeSlide(-1)">&#8249;</button>
-        <div class="slide-dots" id="dots"></div>
-        <button class="nav-btn" onclick="changeSlide(1)">&#8250;</button>
-        <span class="slide-counter" id="counter">1 / 16</span>
+        <p class="reveal" style="color:#5a8ab8;font-size:0.85rem;">Sandra Fradejas Avedillo &amp; Javier Córdoba
+          Del Valle · 2025</p>
+      </div>
     </div>
 
-    <script>
-        let current = 1;
-        const total = document.querySelectorAll('.slide').length;
-        const dotsContainer = document.getElementById('dots');
-        const counter = document.getElementById('counter');
-        for (let i = 1; i <= total; i++) {
-            const dot = document.createElement('div');
-            dot.className = 'dot' + (i === 1 ? ' active' : '');
-            dot.onclick = () => goToSlide(i);
-            dotsContainer.appendChild(dot);
-        }
-        function goToSlide(n) {
-            const prev = document.querySelector('.slide.active');
-            const next = document.querySelector(`.slide[data-slide="${n}"]`);
-            if (prev) prev.classList.remove('active');
-            if (next) { next.classList.add('active'); animateSlide(next); }
-            current = n; updateNav();
-        }
-        function changeSlide(dir) { let n = current + dir; if (n < 1) n = total; if (n > total) n = 1; goToSlide(n); }
-        function updateNav() {
-            document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i + 1 === current));
-            counter.textContent = current + ' / ' + total;
-        }
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); changeSlide(1); }
-            if (e.key === 'ArrowLeft') { e.preventDefault(); changeSlide(-1); }
+    <!-- ===== SLIDE 2: AGENDA ===== -->
+    <div class="slide slide-2" data-slide="2">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:380px;height:380px;top:-80px;right:-70px;background:#38bdf8;opacity:0.08;"></div>
+        <div class="blob"
+          style="width:250px;height:250px;bottom:-60px;left:-40px;background:#818cf8;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Estructura · 20 minutos</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;color:#38bdf8;margin-bottom:1.6rem;">
+          Agenda</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
+            <span
+              style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">01</span>
+            <div>
+              <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">¿Qué es IaC y por qué?
+              </p>
+              <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Motivación y conceptos clave</p>
+            </div>
+          </div>
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
+            <span
+              style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">02</span>
+            <div>
+              <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">Arquitectura de red</p>
+              <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">VLANs, pfSense, VMware</p>
+            </div>
+          </div>
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
+            <span
+              style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">03</span>
+            <div>
+              <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">Vagrant — capa 1 IaC</p>
+              <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Provisioning automatizado</p>
+            </div>
+          </div>
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
+            <span
+              style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">04</span>
+            <div>
+              <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">Docker — capa 2 IaC</p>
+              <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Odoo + Nginx contenerizados</p>
+            </div>
+          </div>
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
+            <span
+              style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">05</span>
+            <div>
+              <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">GitHub Actions — CI/CD
+              </p>
+              <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Pipeline completo</p>
+            </div>
+          </div>
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.12);border-radius:10px;">
+            <span
+              style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#818cf8);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;">06</span>
+            <div>
+              <p style="font-weight:600;font-size:0.9rem;color:#e8f4ff;margin:0;">Seguridad &amp; Demo en
+                vivo</p>
+              <p style="font-size:0.75rem;color:#5a8ab8;margin:2px 0 0;">Nginx HTTPS, PostgreSQL seguro
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 3: QUÉ ES IaC ===== -->
+    <div class="slide slide-3" data-slide="3">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:400px;height:400px;top:-90px;right:-80px;background:#818cf8;opacity:0.09;"></div>
+        <div class="blob"
+          style="width:280px;height:280px;bottom:-70px;left:-50px;background:#38bdf8;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Fundamento del proyecto</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;color:#38bdf8;margin-bottom:0.6rem;">¿Por
+          qué Infrastructure as Code?</h2>
+        <p class="reveal" style="color:#a8c8e8;font-size:0.9rem;margin-bottom:1.4rem;">El problema clásico:
+          <em>"En mi máquina funciona."</em> IaC elimina la configuración manual, hace la infraestructura
+          reproducible, versionable y auditable.</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+          <div class="reveal"
+            style="padding:14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;text-align:center;">
+            <div style="font-size:1.8rem;margin-bottom:6px;">📦</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#38bdf8;margin:0 0 4px;">Declarativo</p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Defines qué, no cómo</p>
+          </div>
+          <div class="reveal"
+            style="padding:14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;text-align:center;">
+            <div style="font-size:1.8rem;margin-bottom:6px;">🔁</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#818cf8;margin:0 0 4px;">Idempotente</p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Mismo resultado siempre</p>
+          </div>
+          <div class="reveal"
+            style="padding:14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;text-align:center;">
+            <div style="font-size:1.8rem;margin-bottom:6px;">🗂️</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#34d399;margin:0 0 4px;">Versionado</p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Git como única fuente de verdad</p>
+          </div>
+          <div class="reveal"
+            style="padding:14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-radius:10px;text-align:center;">
+            <div style="font-size:1.8rem;margin-bottom:6px;">⚡</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#fbbf24;margin:0 0 4px;">Automatizado</p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">0 pasos manuales en despliegue</p>
+          </div>
+        </div>
+        <div class="reveal"
+          style="margin-top:1rem;padding:10px 16px;background:rgba(52,211,153,0.07);border-left:3px solid #34d399;border-radius:6px;">
+          <p style="font-size:0.82rem;color:#a8c8e8;margin:0;"><span style="color:#34d399;font-weight:700;">En
+              este proyecto:</span> Vagrant (VMs) + Docker Compose (contenedores) + GitHub Actions (CI/CD)
+            forman 3 capas IaC que cubren el ciclo completo de vida de la infraestructura.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 4: ARQUITECTURA DE RED ===== -->
+    <div class="slide slide-4" data-slide="4">
+      <canvas class="particle-canvas-ambient" style="position:absolute;inset:0;z-index:1;"></canvas>
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:350px;height:350px;top:-70px;right:-60px;background:#38bdf8;opacity:0.09;"></div>
+        <div class="blob"
+          style="width:260px;height:260px;bottom:-55px;left:-40px;background:#34d399;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          VMware Workstation Pro · pfSense</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.6rem,3.5vw,2.5rem);font-weight:700;color:#38bdf8;margin-bottom:1rem;">
+          Arquitectura de Red: 3 VLANs segmentadas</h2>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1rem;">
+          <div class="reveal"
+            style="padding:10px;background:rgba(56,189,248,0.07);border:1px solid rgba(56,189,248,0.2);border-radius:8px;text-align:center;">
+            <p
+              style="font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:#5a8ab8;margin:0 0 4px;">
+              WAN · vmnet8</p>
+            <p style="font-weight:700;font-size:0.8rem;color:#38bdf8;margin:0;">192.168.133.x</p>
+            <p style="font-size:0.68rem;color:#5a8ab8;margin:2px 0 0;">NAT · Internet</p>
+          </div>
+          <div class="reveal"
+            style="padding:10px;background:rgba(129,140,248,0.07);border:1px solid rgba(129,140,248,0.2);border-radius:8px;text-align:center;">
+            <p
+              style="font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:#5a8ab8;margin:0 0 4px;">
+              LAN · vmnet1</p>
+            <p style="font-weight:700;font-size:0.8rem;color:#818cf8;margin:0;">192.168.10.0/24</p>
+            <p style="font-size:0.68rem;color:#5a8ab8;margin:2px 0 0;">Usuarios internos</p>
+          </div>
+          <div class="reveal"
+            style="padding:10px;background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.2);border-radius:8px;text-align:center;">
+            <p
+              style="font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:#5a8ab8;margin:0 0 4px;">
+              DMZ · vmnet2</p>
+            <p style="font-weight:700;font-size:0.8rem;color:#34d399;margin:0;">192.168.30.0/24</p>
+            <p style="font-size:0.68rem;color:#5a8ab8;margin:2px 0 0;">odoo-server · Nginx+Odoo</p>
+          </div>
+          <div class="reveal"
+            style="padding:10px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.2);border-radius:8px;text-align:center;">
+            <p
+              style="font-size:0.65rem;text-transform:uppercase;letter-spacing:2px;color:#5a8ab8;margin:0 0 4px;">
+              ADMIN · vmnet3</p>
+            <p style="font-weight:700;font-size:0.8rem;color:#fbbf24;margin:0;">192.168.40.0/24</p>
+            <p style="font-size:0.68rem;color:#5a8ab8;margin:2px 0 0;">db-server · PostgreSQL</p>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:8px;align-items:center;">
+          <div class="reveal arch-box">
+            <p style="font-size:0.72rem;font-weight:700;color:#818cf8;margin:0 0 2px;">👥 Usuario LAN</p>
+            <p style="font-size:0.65rem;color:#5a8ab8;margin:0;">192.168.10.x</p>
+          </div>
+          <div class="reveal arch-arrow">→</div>
+          <div class="reveal arch-box"
+            style="border-color:rgba(248,113,113,0.4);background:rgba(248,113,113,0.06);">
+            <p style="font-size:0.72rem;font-weight:700;color:#f87171;margin:0 0 2px;">🛡️ pfSense</p>
+            <p style="font-size:0.65rem;color:#5a8ab8;margin:0;">Firewall · enrutamiento inter-VLAN</p>
+          </div>
+          <div class="reveal arch-arrow">→</div>
+          <div class="reveal" style="display:grid;grid-template-rows:1fr 1fr;gap:6px;">
+            <div class="arch-box"
+              style="border-color:rgba(52,211,153,0.4);background:rgba(52,211,153,0.06);">
+              <p style="font-size:0.68rem;font-weight:700;color:#34d399;margin:0 0 1px;">🌐 DMZ · 30.10 —
+                Nginx:443 → Odoo:8069</p>
+            </div>
+            <div class="arch-box"
+              style="border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.06);">
+              <p style="font-size:0.68rem;font-weight:700;color:#fbbf24;margin:0 0 1px;">🐘 ADMIN · 40.10
+                — PostgreSQL:5432</p>
+            </div>
+          </div>
+        </div>
+        <div class="reveal"
+          style="margin-top:0.8rem;padding:8px 14px;background:rgba(248,113,113,0.07);border-left:3px solid #f87171;border-radius:6px;">
+          <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
+              style="color:#f87171;font-weight:700;">Decisión clave:</span> MACVLAN descartado — VMware
+            host-only no permite modo promiscuo. El enrutamiento inter-VLAN lo gestiona exclusivamente
+            pfSense.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 5: VAGRANT ===== -->
+    <div class="slide slide-5" data-slide="5">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:380px;height:380px;top:-80px;right:-70px;background:#38bdf8;opacity:0.08;"></div>
+        <div class="blob"
+          style="width:260px;height:260px;bottom:-60px;left:-40px;background:#818cf8;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Capa 1 IaC · Provisioning de VMs</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#38bdf8;margin-bottom:0.8rem;">
+          Vagrant — 2 VMs Debian desde código</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1rem;">
+          <div class="reveal"
+            style="padding:14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.88rem;color:#38bdf8;margin:0 0 6px;">🖥️ db-server</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:4px;">
+              <li>📍 192.168.40.10 (ADMIN/vmnet3)</li>
+              <li>📜 <code style="color:#34d399;">provision_postgres.sh</code></li>
+              <li>🐘 PostgreSQL instalado y configurado</li>
+              <li>⚡ Runner GitHub Actions self-hosted</li>
+              <li>⚠️ Levantarse <strong>siempre primero</strong></li>
+            </ul>
+          </div>
+          <div class="reveal"
+            style="padding:14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.88rem;color:#818cf8;margin:0 0 6px;">🌐 odoo-server</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:4px;">
+              <li>📍 192.168.30.10 (DMZ/vmnet2)</li>
+              <li>📜 <code style="color:#34d399;">provision_debian.sh</code></li>
+              <li>🐳 Docker + Docker Compose instalados</li>
+              <li>⚡ Runner GitHub Actions self-hosted</li>
+              <li>🔒 Nginx HTTPS configurado</li>
+            </ul>
+          </div>
+        </div>
+        <div class="reveal"
+          style="padding:10px 14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.12);border-radius:8px;font-size:0.77rem;color:#a8c8e8;">
+          <span style="color:#34d399;font-weight:700;">Idempotencia garantizada:</span>
+          <code style="color:#38bdf8;">vagrant destroy -f</code> desregistra automáticamente los runners via
+          GitHub API REST antes de destruir las VMs.
+          Los tokens <code style="color:#f87171;">GH_RUNNER_TOKEN_*</code> caducan en 1h → generar justo antes
+          de <code style="color:#38bdf8;">vagrant up</code>.
+        </div>
+        <div class="reveal" style="margin-top:0.7rem;display:flex;gap:10px;flex-wrap:wrap;">
+          <span class="tag"
+            style="color:#38bdf8;border-color:rgba(56,189,248,0.3);background:rgba(56,189,248,0.08);">vagrant
+            up · 2 VMs en paralelo</span>
+          <span class="tag"
+            style="color:#34d399;border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.08);">disable_nat_gateway.sh
+            · pfSense como único GW</span>
+          <span class="tag"
+            style="color:#818cf8;border-color:rgba(129,140,248,0.3);background:rgba(129,140,248,0.08);">vagrant-vmware-desktop
+            plugin</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 6: DOCKER ===== -->
+    <div class="slide slide-6" data-slide="6">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:360px;height:360px;top:-75px;right:-65px;background:#818cf8;opacity:0.09;"></div>
+        <div class="blob"
+          style="width:240px;height:240px;bottom:-55px;left:-40px;background:#38bdf8;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Capa 2 IaC · Contenerización</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#818cf8;margin-bottom:0.8rem;">
+          Docker Compose — Stack odoo-server</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:0.9rem;">
+          <div class="reveal"
+            style="padding:14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.88rem;color:#818cf8;margin:0 0 6px;">🐳 odoo-web</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:4px;">
+              <li>🏷️ Imagen: <code style="color:#38bdf8;">odoo:17</code></li>
+              <li>🔌 Puerto: <code style="color:#34d399;">8069</code> (interno)</li>
+              <li>⚙️ Config: <code style="color:#34d399;">odoo.conf</code></li>
+              <li>💾 Volume: <code style="color:#34d399;">odoo-data</code></li>
+              <li>🔗 Conecta a PostgreSQL 40.10:5432</li>
+            </ul>
+          </div>
+          <div class="reveal"
+            style="padding:14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.88rem;color:#34d399;margin:0 0 6px;">🌐 nginx-proxy</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:4px;">
+              <li>🔒 HTTPS :443 → Odoo :8069</li>
+              <li>📜 Config: <code style="color:#34d399;">odoo_proxy.conf</code></li>
+              <li>🌍 WebSocket soporte</li>
+              <li>📦 Red interna Docker</li>
+              <li>🔑 Certificado TLS autofirmado</li>
+            </ul>
+          </div>
+        </div>
+        <div class="reveal" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div
+            style="padding:10px 14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.12);border-radius:8px;">
+            <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
+                style="color:#38bdf8;font-weight:700;">⚙️ Variables de entorno:</span> <code
+                style="color:#fbbf24;">.env</code> centraliza <code>POSTGRES_PASSWORD</code>,
+              <code>ODOO_MASTER_PASSWORD</code>, <code>GH_PAT</code> — nunca en el repo.</p>
+          </div>
+          <div
+            style="padding:10px 14px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.12);border-radius:8px;">
+            <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
+                style="color:#f87171;font-weight:700;">🐘 PostgreSQL en VM dedicada:</span> No en
+              Docker. Corre en db-server (192.168.40.10:5432), aislado en ADMIN VLAN.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 7: GITHUB ACTIONS ===== -->
+    <div class="slide slide-7" data-slide="7">
+      <canvas class="particle-canvas-ambient" style="position:absolute;inset:0;z-index:1;"></canvas>
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:400px;height:400px;top:-90px;right:-80px;background:#34d399;opacity:0.08;"></div>
+        <div class="blob"
+          style="width:280px;height:280px;bottom:-65px;left:-45px;background:#38bdf8;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Capa 3 IaC · CI/CD pipeline</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#34d399;margin-bottom:0.9rem;">
+          GitHub Actions — Runners self-hosted en las propias VMs</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:0.9rem;">
+          <div class="reveal"
+            style="padding:14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.85rem;color:#34d399;margin:0 0 6px;">⚙️ ci.yml —
+              Validación</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
+              <li>✅ Valida <code style="color:#38bdf8;">docker-compose.yml</code></li>
+              <li>✅ Lint de scripts Bash</li>
+              <li>✅ Chequeo de variables de entorno</li>
+              <li>🔁 Se dispara en cada push/PR</li>
+            </ul>
+          </div>
+          <div class="reveal"
+            style="padding:14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.85rem;color:#38bdf8;margin:0 0 6px;">🚀 deploy.yml —
+              Despliegue CD</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
+              <li>🔄 <code style="color:#34d399;">git pull</code> en odoo-server</li>
+              <li>🐳 <code style="color:#34d399;">docker compose up -d</code></li>
+              <li>🔍 Verificación de contenedores activos</li>
+              <li>🏃 Runner: odoo-server self-hosted</li>
+            </ul>
+          </div>
+        </div>
+        <div class="reveal"
+          style="padding:10px 14px;background:rgba(52,211,153,0.07);border-left:3px solid #34d399;border-radius:6px;font-size:0.8rem;color:#a8c8e8;">
+          <span style="color:#34d399;font-weight:700;">Ciclo completo IaC:</span> El runner corre
+          <em>dentro</em> de la VM desplegada por Vagrant → el pipeline despliega Odoo desde dentro de la
+          propia infraestructura → ningún paso es manual.
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 8: SCRIPTS ===== -->
+    <div class="slide slide-8" data-slide="8">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:360px;height:360px;top:-75px;right:-65px;background:#fbbf24;opacity:0.07;"></div>
+        <div class="blob"
+          style="width:250px;height:250px;bottom:-55px;left:-40px;background:#818cf8;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          scripts/ · Operaciones del ciclo de vida</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#fbbf24;margin-bottom:0.9rem;">
+          Scripts de automatización</h2>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <div class="reveal"
+            style="padding:12px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.82rem;color:#38bdf8;margin:0 0 6px;">🚀 deploy/</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.72rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
+              <li><code style="color:#34d399;">deploy.sh</code> — stack completo</li>
+              <li><code style="color:#34d399;">erp.sh</code> — menú interactivo</li>
+              <li><code style="color:#34d399;">configure.sh</code> — configurador .env</li>
+              <li><code style="color:#34d399;">install_cron.sh</code> — tareas cron</li>
+              <li><code style="color:#34d399;">generate_pfsense_config.sh</code></li>
+            </ul>
+          </div>
+          <div class="reveal"
+            style="padding:12px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.82rem;color:#818cf8;margin:0 0 6px;">🔧 mantenimiento/</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.72rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
+              <li><code style="color:#34d399;">backup_postgres.sh</code></li>
+              <li>pg_dump remoto · retención 7 días</li>
+              <li><code style="color:#34d399;">restore.sh</code> — desde .sql.gz</li>
+              <li><code style="color:#34d399;">monitor.sh</code> — salud + auto-reinicio</li>
+              <li><code style="color:#34d399;">update.sh</code> — imágenes Docker</li>
+            </ul>
+          </div>
+          <div class="reveal"
+            style="padding:12px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.82rem;color:#34d399;margin:0 0 6px;">👤 odoo/</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.72rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
+              <li><code style="color:#34d399;">odoo_crear_usuarios.sh</code></li>
+              <li>Crea usuarios vía XML-RPC</li>
+              <li>Asigna roles automáticamente</li>
+              <li>Sin interfaz gráfica</li>
+            </ul>
+          </div>
+        </div>
+        <div class="reveal" style="margin-top:0.9rem;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div
+            style="padding:9px 14px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.14);border-radius:8px;">
+            <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
+                style="color:#fbbf24;font-weight:700;">🗂️ sql/</span> — Scripts de auditoría PostgreSQL
+            </p>
+          </div>
+          <div
+            style="padding:9px 14px;background:rgba(248,113,113,0.07);border:1px solid rgba(248,113,113,0.14);border-radius:8px;">
+            <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
+                style="color:#f87171;font-weight:700;">📦 extras/</span> — LDAP como referencia (no
+              implementado en )</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 9: SEGURIDAD ===== -->
+    <div class="slide slide-9" data-slide="9">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:380px;height:380px;top:-80px;right:-70px;background:#f87171;opacity:0.08;"></div>
+        <div class="blob"
+          style="width:260px;height:260px;bottom:-55px;left:-40px;background:#38bdf8;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Hardening · Segmentación · Secretos</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#f87171;margin-bottom:0.9rem;">
+          Seguridad por capas</h2>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0.9rem;">
+          <div class="reveal"
+            style="padding:12px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.14);border-radius:10px;text-align:center;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">🛡️</div>
+            <p style="font-weight:700;font-size:0.8rem;color:#f87171;margin:0 0 3px;">pfSense</p>
+            <p style="font-size:0.7rem;color:#5a8ab8;margin:0;">Firewall + NAT + enrutamiento inter-VLAN</p>
+          </div>
+          <div class="reveal"
+            style="padding:12px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;text-align:center;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">🔒</div>
+            <p style="font-weight:700;font-size:0.8rem;color:#34d399;margin:0 0 3px;">HTTPS/TLS</p>
+            <p style="font-size:0.7rem;color:#5a8ab8;margin:0;">Nginx proxy HTTPS en DMZ</p>
+          </div>
+          <div class="reveal"
+            style="padding:12px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-radius:10px;text-align:center;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">🔑</div>
+            <p style="font-weight:700;font-size:0.8rem;color:#fbbf24;margin:0 0 3px;">Secretos</p>
+            <p style="font-size:0.7rem;color:#5a8ab8;margin:0;">.env excluido del repo · GitHub Secrets</p>
+          </div>
+          <div class="reveal"
+            style="padding:12px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;text-align:center;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">🐘</div>
+            <p style="font-weight:700;font-size:0.8rem;color:#818cf8;margin:0 0 3px;">PostgreSQL aislado</p>
+            <p style="font-size:0.7rem;color:#5a8ab8;margin:0;">Solo DMZ puede acceder :5432</p>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="reveal"
+            style="padding:10px 14px;background:rgba(52,211,153,0.06);border-left:3px solid #34d399;border-radius:6px;">
+            <p style="font-size:0.78rem;color:#a8c8e8;margin:0;"><span
+                style="color:#34d399;font-weight:700;">SECURITY file:</span> Política de seguridad
+              documentada en el repo. Procedimiento de reporte de vulnerabilidades establecido.</p>
+          </div>
+          <div class="reveal"
+            style="padding:10px 14px;background:rgba(56,189,248,0.06);border-left:3px solid #38bdf8;border-radius:6px;">
+            <p style="font-size:0.78rem;color:#a8c8e8;margin:0;"><span
+                style="color:#38bdf8;font-weight:700;">sql/ auditoría:</span> Scripts PostgreSQL para
+              trazabilidad de cambios en la base de datos de Odoo.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 10: STATS / MÉTRICAS DEL REPO ===== -->
+    <div class="slide slide-10" data-slide="10">
+      <canvas class="particle-canvas-ambient" style="position:absolute;inset:0;z-index:1;"></canvas>
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:450px;height:450px;top:-100px;right:-90px;background:#38bdf8;opacity:0.1;"></div>
+        <div class="blob"
+          style="width:300px;height:300px;bottom:-70px;left:-50px;background:#818cf8;opacity:0.09;"></div>
+        <div class="blob" style="width:200px;height:200px;top:40%;left:10%;background:#34d399;opacity:0.07;">
+        </div>
+      </div>
+      <div class="content text-center">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Lo que hay detrás</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#38bdf8;margin-bottom:1.4rem;">El
+          trabajo real</h2>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:1.2rem;">
+          <div class="reveal"
+            style="padding:16px 12px;background:rgba(56,189,248,0.07);border:1px solid rgba(56,189,248,0.18);border-radius:12px;">
+            <p class="stat-glow" style="font-size:2.4rem;font-weight:900;color:#38bdf8;margin:0 0 4px;"
+              data-count="3">0</p>
+            <p
+              style="font-size:0.72rem;color:#5a8ab8;text-transform:uppercase;letter-spacing:2px;margin:0;">
+              Capas IaC</p>
+          </div>
+          <div class="reveal"
+            style="padding:16px 12px;background:rgba(129,140,248,0.07);border:1px solid rgba(129,140,248,0.18);border-radius:12px;">
+            <p class="stat-glow" style="font-size:2.4rem;font-weight:900;color:#818cf8;margin:0 0 4px;"
+              data-count="4" style="--glow-color-rgb:129,140,248;">0</p>
+            <p
+              style="font-size:0.72rem;color:#5a8ab8;text-transform:uppercase;letter-spacing:2px;margin:0;">
+              VLANs</p>
+          </div>
+          <div class="reveal"
+            style="padding:16px 12px;background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.18);border-radius:12px;">
+            <p class="stat-glow" style="font-size:2.4rem;font-weight:900;color:#34d399;margin:0 0 4px;"
+              data-count="12">0</p>
+            <p
+              style="font-size:0.72rem;color:#5a8ab8;text-transform:uppercase;letter-spacing:2px;margin:0;">
+              Scripts bash</p>
+          </div>
+          <div class="reveal"
+            style="padding:16px 12px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.18);border-radius:12px;">
+            <p class="stat-glow" style="font-size:2.4rem;font-weight:900;color:#fbbf24;margin:0 0 4px;"
+              data-count="2">0</p>
+            <p
+              style="font-size:0.72rem;color:#5a8ab8;text-transform:uppercase;letter-spacing:2px;margin:0;">
+              Pipelines CI/CD</p>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div class="reveal bar-row"
+            style="display:flex;flex-direction:column;gap:4px;padding:10px;background:rgba(56,189,248,0.05);border-radius:8px;border:1px solid rgba(56,189,248,0.1);">
+            <div style="display:flex;justify-content:space-between;align-items:center;"><span
+                style="font-size:0.72rem;color:#a8c8e8;">Vagrant</span><span
+                style="font-size:0.72rem;color:#38bdf8;font-weight:700;">100%</span></div>
+            <div style="height:8px;background:rgba(56,189,248,0.12);border-radius:4px;overflow:hidden;">
+              <div class="bar-fill-h" data-width="100" style="width:0%;"></div>
+            </div>
+          </div>
+          <div class="reveal bar-row"
+            style="display:flex;flex-direction:column;gap:4px;padding:10px;background:rgba(129,140,248,0.05);border-radius:8px;border:1px solid rgba(129,140,248,0.1);">
+            <div style="display:flex;justify-content:space-between;align-items:center;"><span
+                style="font-size:0.72rem;color:#a8c8e8;">Docker</span><span
+                style="font-size:0.72rem;color:#818cf8;font-weight:700;">100%</span></div>
+            <div style="height:8px;background:rgba(129,140,248,0.12);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;border-radius:4px;background:linear-gradient(90deg,#818cf8,#38bdf8);transition:width 0.7s ease;"
+                class="bar-fill-h" data-width="100" style="width:0%;"></div>
+            </div>
+          </div>
+          <div class="reveal bar-row"
+            style="display:flex;flex-direction:column;gap:4px;padding:10px;background:rgba(52,211,153,0.05);border-radius:8px;border:1px solid rgba(52,211,153,0.1);">
+            <div style="display:flex;justify-content:space-between;align-items:center;"><span
+                style="font-size:0.72rem;color:#a8c8e8;">CI/CD</span><span
+                style="font-size:0.72rem;color:#34d399;font-weight:700;">100%</span></div>
+            <div style="height:8px;background:rgba(52,211,153,0.12);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;border-radius:4px;background:linear-gradient(90deg,#34d399,#38bdf8);transition:width 0.7s ease;"
+                class="bar-fill-h" data-width="100" style="width:0%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 11: ODOO 17 ===== -->
+    <div class="slide slide-11" data-slide="11">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:370px;height:370px;top:-75px;right:-65px;background:#818cf8;opacity:0.09;"></div>
+        <div class="blob"
+          style="width:250px;height:250px;bottom:-55px;left:-40px;background:#34d399;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          El ERP desplegado</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#818cf8;margin-bottom:0.9rem;">Odoo
+          17 Community Edition</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:0.9rem;">
+          <div class="reveal"
+            style="padding:14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.85rem;color:#818cf8;margin:0 0 6px;">📋 ¿Qué es Odoo?</p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
+              <li>🏢 ERP open-source modular</li>
+              <li>📦 Módulos: CRM, inventario, RRHH, contabilidad</li>
+              <li>🌐 Interfaz web en :8069</li>
+              <li>🐘 Backend: PostgreSQL</li>
+              <li>🐍 Core en Python + framework propio</li>
+            </ul>
+          </div>
+          <div class="reveal"
+            style="padding:14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
+            <p style="font-weight:700;font-size:0.85rem;color:#34d399;margin:0 0 6px;">⚙️ Configuración en
+              este </p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:3px;">
+              <li>🐳 Contenerizado en Docker</li>
+              <li>🔒 Expuesto solo vía Nginx HTTPS</li>
+              <li>🔗 Conecta a PostgreSQL 40.10:5432</li>
+              <li>👤 Usuarios creados por XML-RPC</li>
+              <li>📜 odoo.conf versionado en repo</li>
+            </ul>
+          </div>
+        </div>
+        <div class="reveal"
+          style="padding:10px 14px;background:rgba(129,140,248,0.07);border-left:3px solid #818cf8;border-radius:6px;font-size:0.8rem;color:#a8c8e8;">
+          <span style="color:#818cf8;font-weight:700;">Importante:</span> El no es "sobre Odoo" — es sobre
+          la infraestructura que lo despliega y gestiona de forma segura y automatizada. Odoo es el <em>caso
+            de uso</em> del sistema IaC.
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 12: DEMO EN VIVO ===== -->
+    <div class="slide slide-12" data-slide="12">
+      <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1;"></canvas>
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:480px;height:480px;top:-110px;right:-90px;background:#34d399;opacity:0.11;"></div>
+        <div class="blob"
+          style="width:320px;height:320px;bottom:-80px;left:-60px;background:#38bdf8;opacity:0.1;"></div>
+        <div class="blob" style="width:200px;height:200px;top:40%;left:15%;background:#818cf8;opacity:0.08;">
+        </div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          ~4 minutos en vivo</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#34d399;margin-bottom:1rem;">Mini
+          Demo</h2>
+        <div style="position:relative;padding-left:36px;">
+          <div class="tl-line"></div>
+          <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+            <div class="tl-dot"></div>
+            <div
+              style="padding:10px 14px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:8px;flex:1;">
+              <p style="font-weight:700;font-size:0.84rem;color:#34d399;margin:0 0 2px;">① Arquitectura en
+                GitHub</p>
+              <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Mostrar README + Vagrantfile +
+                estructura de carpetas — demostrar que <em>todo es código</em></p>
+            </div>
+          </div>
+          <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+            <div class="tl-dot"></div>
+            <div
+              style="padding:10px 14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:8px;flex:1;">
+              <p style="font-weight:700;font-size:0.84rem;color:#38bdf8;margin:0 0 2px;">② Odoo corriendo
+              </p>
+              <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Abrir
+                <code>https://192.168.30.10</code> → login → dashboard de Odoo 17 funcional</p>
+            </div>
+          </div>
+          <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+            <div class="tl-dot"></div>
+            <div
+              style="padding:10px 14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:8px;flex:1;">
+              <p style="font-weight:700;font-size:0.84rem;color:#818cf8;margin:0 0 2px;">③ Pipeline GitHub
+                Actions</p>
+              <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Mostrar último run de
+                <code>deploy.yml</code> — pasos ejecutados dentro de la VM</p>
+            </div>
+          </div>
+          <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;">
+            <div class="tl-dot" style="background:#fbbf24;box-shadow:0 0 8px #fbbf24;"></div>
+            <div
+              style="padding:10px 14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-radius:8px;flex:1;">
+              <p style="font-weight:700;font-size:0.84rem;color:#fbbf24;margin:0 0 2px;">④ Backup en
+                acción</p>
+              <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Ejecutar
+                <code>backup_postgres.sh</code> → mostrar .sql.gz generado con retención 7 días</p>
+            </div>
+          </div>
+        </div>
+        <div class="reveal"
+          style="margin-top:0.8rem;padding:8px 14px;background:rgba(248,113,113,0.07);border-left:3px solid #f87171;border-radius:6px;font-size:0.75rem;color:#a8c8e8;">
+          <span style="color:#f87171;font-weight:700;">Plan B:</span> Vídeo de backup de 1 min con el pipeline
+          ejecutándose, por si falla la red en la demo.
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 13: LIMITACIONES ===== -->
+    <div class="slide slide-13" data-slide="13">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:360px;height:360px;top:-75px;right:-65px;background:#f87171;opacity:0.08;"></div>
+        <div class="blob"
+          style="width:250px;height:250px;bottom:-55px;left:-40px;background:#fbbf24;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Honestidad técnica</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#f87171;margin-bottom:0.9rem;">
+          Limitaciones conocidas</h2>
+        <div style="display:flex;flex-direction:column;gap:9px;">
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.14);border-left:3px solid #f87171;border-radius:8px;">
+            <span style="font-size:1.1rem;flex-shrink:0;">⚠️</span>
+            <div>
+              <p style="font-weight:600;font-size:0.84rem;color:#f87171;margin:0 0 2px;">MACVLAN
+                descartado</p>
+              <p style="font-size:0.75rem;color:#a8c8e8;margin:0;">VMware host-only no permite modo
+                promiscuo → contenedores no alcanzables desde host. Documentado en README y Vagrantfile.
+              </p>
+            </div>
+          </div>
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-left:3px solid #fbbf24;border-radius:8px;">
+            <span style="font-size:1.1rem;flex-shrink:0;">⏱️</span>
+            <div>
+              <p style="font-weight:600;font-size:0.84rem;color:#fbbf24;margin:0 0 2px;">Tokens de runner
+                caducan en 1h</p>
+              <p style="font-size:0.75rem;color:#a8c8e8;margin:0;">GH_RUNNER_TOKEN_* deben generarse justo
+                antes de <code style="color:#38bdf8;">vagrant up</code>. Es una limitación de la API de
+                GitHub.</p>
+            </div>
+          </div>
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-left:3px solid #818cf8;border-radius:8px;">
+            <span style="font-size:1.1rem;flex-shrink:0;">🔒</span>
+            <div>
+              <p style="font-weight:600;font-size:0.84rem;color:#818cf8;margin:0 0 2px;">Certificado TLS
+                autofirmado</p>
+              <p style="font-size:0.75rem;color:#a8c8e8;margin:0;">Funcional en entorno local, pero no
+                apto para producción sin CA reconocida (Let's Encrypt con IP pública).</p>
+            </div>
+          </div>
+          <div class="reveal"
+            style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-left:3px solid #38bdf8;border-radius:8px;">
+            <span style="font-size:1.1rem;flex-shrink:0;">🖥️</span>
+            <div>
+              <p style="font-weight:600;font-size:0.84rem;color:#38bdf8;margin:0 0 2px;">pfSense
+                configuración manual</p>
+              <p style="font-size:0.75rem;color:#a8c8e8;margin:0;">pfSense no se gestiona con Vagrant.
+                Existe <code>generate_pfsense_config.sh</code> para facilitar la config, pero el
+                arranque es manual.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 14: VISIÓN A FUTURO ===== -->
+    <div class="slide slide-14" data-slide="14">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:400px;height:400px;top:-85px;right:-75px;background:#818cf8;opacity:0.1;"></div>
+        <div class="blob"
+          style="width:270px;height:270px;bottom:-60px;left:-45px;background:#38bdf8;opacity:0.08;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Roadmap · Evolución natural</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#818cf8;margin-bottom:0.9rem;">
+          Visión a futuro</h2>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <div class="reveal"
+            style="padding:13px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">🔧</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#38bdf8;margin:0 0 4px;">Ansible</p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Reemplazar scripts Bash por playbooks
+              idempotentes y versionados</p>
+          </div>
+          <div class="reveal"
+            style="padding:13px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.14);border-radius:10px;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">☸️</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#818cf8;margin:0 0 4px;">Kubernetes</p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Migrar stack Docker Compose a K8s para
+              escalado horizontal</p>
+          </div>
+          <div class="reveal"
+            style="padding:13px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.14);border-radius:10px;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">☁️</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#34d399;margin:0 0 4px;">Cloud (AWS/Azure)</p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Terraform para provisioning en cloud, misma
+              lógica IaC</p>
+          </div>
+          <div class="reveal"
+            style="padding:13px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.14);border-radius:10px;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">🔐</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#fbbf24;margin:0 0 4px;">HashiCorp Vault</p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Gestión de secretos centralizada en lugar
+              de .env</p>
+          </div>
+          <div class="reveal"
+            style="padding:13px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.14);border-radius:10px;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">📊</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#f87171;margin:0 0 4px;">Observabilidad</p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Prometheus + Grafana para monitorización de
+              la infra</p>
+          </div>
+          <div class="reveal"
+            style="padding:13px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;">
+            <div style="font-size:1.6rem;margin-bottom:5px;">🧪</div>
+            <p style="font-weight:700;font-size:0.82rem;color:#38bdf8;margin:0 0 4px;">Tests automatizados
+            </p>
+            <p style="font-size:0.72rem;color:#5a8ab8;margin:0;">Testinfra / Molecule para validar el estado
+              de la infra</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 15: REPARTO DE TRABAJO ===== -->
+    <div class="slide slide-15" data-slide="15">
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:370px;height:370px;top:-78px;right:-68px;background:#34d399;opacity:0.09;"></div>
+        <div class="blob"
+          style="width:260px;height:260px;bottom:-58px;left:-43px;background:#818cf8;opacity:0.07;"></div>
+      </div>
+      <div class="content">
+        <p class="reveal"
+          style="text-transform:uppercase;letter-spacing:4px;font-size:0.72rem;color:#5a8ab8;margin-bottom:0.4rem;">
+          Autoría · Trabajo propio</p>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;color:#34d399;margin-bottom:0.9rem;">
+          Reparto de trabajo</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="reveal"
+            style="padding:16px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.16);border-radius:12px;">
+            <p style="font-weight:700;font-size:0.95rem;color:#38bdf8;margin:0 0 8px;">👩‍💻 Sandra Fradejas
+            </p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:5px;">
+              <li>🏗️ Diseño de arquitectura de red (VLANs, pfSense)</li>
+              <li>📜 Vagrantfile completo (2 VMs Debian)</li>
+              <li>🐳 Docker Compose + odoo.conf</li>
+              <li>🔒 Configuración Nginx HTTPS</li>
+              <li>📋 README + documentación</li>
+            </ul>
+          </div>
+          <div class="reveal"
+            style="padding:16px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.16);border-radius:12px;">
+            <p style="font-weight:700;font-size:0.95rem;color:#818cf8;margin:0 0 8px;">👨‍💻 Javier Córdoba
+            </p>
+            <ul
+              style="list-style:none;padding:0;margin:0;font-size:0.77rem;color:#a8c8e8;display:flex;flex-direction:column;gap:5px;">
+              <li>⚡ Pipelines GitHub Actions (ci.yml + deploy.yml)</li>
+              <li>🔧 Scripts bash (deploy, erp, configure)</li>
+              <li>🛡️ Scripts mantenimiento (backup, restore, monitor)</li>
+              <li>🐘 PostgreSQL + sql/ auditoría</li>
+              <li>👤 odoo_crear_usuarios.sh (XML-RPC)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="reveal"
+          style="margin-top:0.9rem;padding:10px 16px;background:rgba(52,211,153,0.07);border-left:3px solid #34d399;border-radius:6px;font-size:0.8rem;color:#a8c8e8;">
+          <span style="color:#34d399;font-weight:700;">Prueba de autoría:</span> El historial de commits en
+          GitHub con nuestros emails confirma la autoría real del proyecto. Todos los archivos clave están
+          firmados con nuestras cuentas.
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SLIDE 16: CONCLUSIONES ===== -->
+    <div class="slide slide-16" data-slide="16">
+      <canvas class="particle-canvas" style="position:absolute;inset:0;z-index:1;"></canvas>
+      <div class="gradient-mesh">
+        <div class="blob"
+          style="width:500px;height:500px;top:-115px;right:-95px;background:#38bdf8;opacity:0.13;"></div>
+        <div class="blob"
+          style="width:330px;height:330px;bottom:-80px;left:-60px;background:#818cf8;opacity:0.11;"></div>
+        <div class="blob" style="width:210px;height:210px;top:42%;left:12%;background:#34d399;opacity:0.08;">
+        </div>
+      </div>
+      <div class="content text-center">
+        <div class="reveal"
+          style="font-size:4rem;margin-bottom:0.7rem;animation:float 3s ease-in-out infinite;">🚀</div>
+        <h2 class="font-display reveal"
+          style="font-size:clamp(2rem,5vw,3.5rem);font-weight:700;background:linear-gradient(135deg,#38bdf8,#818cf8,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2;margin-bottom:0.8rem;">
+          Infraestructura como Código<br>en producción
+        </h2>
+        <p class="reveal"
+          style="color:#a8c8e8;font-size:0.95rem;max-width:680px;margin:0 auto 1.4rem;line-height:1.6;">
+          De VMware + pfSense + Vagrant + Docker + GitHub Actions a un ERP empresarial funcionando de forma
+          segura, automatizada y reproducible. Cada línea, versionada. Cada despliegue, trazable.
+        </p>
+        <div class="reveal"
+          style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:1.2rem;">
+          <span class="tag"
+            style="color:#38bdf8;border-color:rgba(56,189,248,0.3);background:rgba(56,189,248,0.08);">✅ 3
+            capas IaC implementadas</span>
+          <span class="tag"
+            style="color:#34d399;border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.08);">✅
+            CI/CD funcional sobre self-hosted runners</span>
+          <span class="tag"
+            style="color:#818cf8;border-color:rgba(129,140,248,0.3);background:rgba(129,140,248,0.08);">✅
+            Segmentación por VLANs con pfSense</span>
+          <span class="tag"
+            style="color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.08);">✅
+            PostgreSQL aislado en ADMIN VLAN</span>
+        </div>
+        <p class="reveal" style="color:#5a8ab8;font-size:0.82rem;letter-spacing:3px;text-transform:uppercase;">
+          Sandra Fradejas · Javier Córdoba · ASIR 2025</p>
+        <p class="reveal" style="color:#38bdf8;font-size:0.85rem;margin-top:0.6rem;">
+          github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo</p>
+      </div>
+    </div>
+
+  </div><!-- .deck -->
+
+  <div class="nav-controls">
+    <button class="nav-btn" onclick="changeSlide(-1)">&#8249;</button>
+    <div class="slide-dots" id="dots"></div>
+    <button class="nav-btn" onclick="changeSlide(1)">&#8250;</button>
+    <span class="slide-counter" id="counter">1 / 16</span>
+  </div>
+
+  <script>
+    let current = 1;
+    const total = document.querySelectorAll('.slide').length;
+    const dotsContainer = document.getElementById('dots');
+    const counter = document.getElementById('counter');
+    for (let i = 1; i <= total; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'dot' + (i === 1 ? ' active' : '');
+      dot.onclick = () => goToSlide(i);
+      dotsContainer.appendChild(dot);
+    }
+    function goToSlide(n) {
+      const prev = document.querySelector('.slide.active');
+      const next = document.querySelector(`.slide[data-slide="${n}"]`);
+      if (prev) prev.classList.remove('active');
+      if (next) { next.classList.add('active'); animateSlide(next); }
+      current = n; updateNav();
+    }
+    function changeSlide(dir) { let n = current + dir; if (n < 1) n = total; if (n > total) n = 1; goToSlide(n); }
+    function updateNav() {
+      document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i + 1 === current));
+      counter.textContent = current + ' / ' + total;
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); changeSlide(1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); changeSlide(-1); }
+    });
+    let touchStartX = 0;
+    document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+    document.addEventListener('touchend', (e) => { const diff = touchStartX e.changedTouches[0].clientX; if (Math.abs(diff) > 50) changeSlide(diff > 0 ? 1 : -1); });
+
+    function animateSlide(slide) {
+      slide.querySelectorAll('.reveal').forEach((el, i) => {
+        el.style.transition = 'none';
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(18px)';
+        el.offsetHeight;
+        const delay = i * 0.07;
+        el.style.transition = `opacity 0.32s ease ${delay}s, transform 0.32s ease ${delay}s`;
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0px)';
+      });
+      animateSlideEffects(slide);
+    }
+
+    function animateSlideEffects(slide) {
+      slide.querySelectorAll('[data-count]:not(.counted)').forEach(el => {
+        el.classList.add('counted');
+        const target = parseInt(el.dataset.count);
+        const suffix = el.dataset.suffix || '', prefix = el.dataset.prefix || '';
+        let cur = 0; const step = target / 40;
+        const timer = setInterval(() => {
+          cur += step; if (cur >= target) { cur = target; clearInterval(timer); }
+          el.textContent = prefix + Math.round(cur).toLocaleString() + suffix;
+        }, 30);
+      });
+      slide.querySelectorAll('.bar-fill-h:not(.fill-init)').forEach((bar, i) => {
+        bar.classList.add('fill-init');
+        bar.style.width = '0%';
+        bar.style.transition = `width 0.6s ease ${i * 0.1}s`;
+        bar.offsetHeight;
+        bar.style.width = (bar.dataset.width || '0') + '%';
+      });
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      const spotlight = document.querySelector('.mouse-spotlight');
+      if (spotlight) {
+        spotlight.style.background = `radial-gradient(600px circle at ${e.clientX}px ${e.clientY}px, rgba(56,189,248,0.05), transparent 40%)`;
+      }
+    });
+
+    window.initParticles = function (canvas, options) {
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.offsetWidth || window.innerWidth;
+      canvas.height = canvas.offsetHeight || window.innerHeight;
+      const interactive = options.interactive !== false;
+      const count = options.count || (interactive ? 55 : 18);
+      let mx = -1000, my = -1000;
+      const particles = Array.from({ length: count }, () => ({
+        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+        vx: (Math.random() 0.5) * 0.3, vy: (Math.random() 0.5) * 0.3,
+        size: Math.random() * 2.2 + 0.8, alpha: Math.random() * 0.3 + 0.08
+      }));
+      if (interactive) {
+        canvas.addEventListener('mousemove', (e) => { const r = canvas.getBoundingClientRect(); mx = e.clientX r.left; my = e.clientY r.top; });
+        canvas.addEventListener('mouseleave', () => { mx = -1000; my = -1000; });
+      }
+      (function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+          if (interactive) { const dx = p.x mx, dy = p.y my, dist = Math.sqrt(dx * dx + dy * dy); if (dist < 120) { const f = (120 dist) / 120 * 2; p.vx += (dx / dist) * f * 0.1; p.vy += (dy / dist) * f * 0.1; } }
+          p.vx *= 0.98; p.vy *= 0.98; p.x += p.vx; p.y += p.vy;
+          if (p.x < 0) p.x = canvas.width; if (p.x > canvas.width) p.x = 0;
+          if (p.y < 0) p.y = canvas.height; if (p.y > canvas.height) p.y = 0;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(56,189,248,${p.alpha})`; ctx.fill();
         });
-        let touchStartX = 0;
-        document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
-        document.addEventListener('touchend', (e) => { const diff = touchStartX - e.changedTouches[0].clientX; if (Math.abs(diff) > 50) changeSlide(diff > 0 ? 1 : -1); });
+        requestAnimationFrame(animate);
+      })();
+    };
+    document.querySelectorAll('.particle-canvas').forEach(c => window.initParticles(c, { interactive: true, count: 55 }));
+    document.querySelectorAll('.particle-canvas-ambient').forEach(c => window.initParticles(c, { interactive: false, count: 18 }));
 
-        function animateSlide(slide) {
-            slide.querySelectorAll('.reveal').forEach((el, i) => {
-                el.style.transition = 'none';
-                el.style.opacity = '0';
-                el.style.transform = 'translateY(18px)';
-                el.offsetHeight;
-                const delay = i * 0.07;
-                el.style.transition = `opacity 0.32s ease ${delay}s, transform 0.32s ease ${delay}s`;
-                el.style.opacity = '1';
-                el.style.transform = 'translateY(0px)';
-            });
-            animateSlideEffects(slide);
-        }
-
-        function animateSlideEffects(slide) {
-            slide.querySelectorAll('[data-count]:not(.counted)').forEach(el => {
-                el.classList.add('counted');
-                const target = parseInt(el.dataset.count);
-                const suffix = el.dataset.suffix || '', prefix = el.dataset.prefix || '';
-                let cur = 0; const step = target / 40;
-                const timer = setInterval(() => {
-                    cur += step; if (cur >= target) { cur = target; clearInterval(timer); }
-                    el.textContent = prefix + Math.round(cur).toLocaleString() + suffix;
-                }, 30);
-            });
-            slide.querySelectorAll('.bar-fill-h:not(.fill-init)').forEach((bar, i) => {
-                bar.classList.add('fill-init');
-                bar.style.width = '0%';
-                bar.style.transition = `width 0.6s ease ${i * 0.1}s`;
-                bar.offsetHeight;
-                bar.style.width = (bar.dataset.width || '0') + '%';
-            });
-        }
-
-        document.addEventListener('mousemove', (e) => {
-            const spotlight = document.querySelector('.mouse-spotlight');
-            if (spotlight) {
-                spotlight.style.background = `radial-gradient(600px circle at ${e.clientX}px ${e.clientY}px, rgba(56,189,248,0.05), transparent 40%)`;
-            }
-        });
-
-        window.initParticles = function (canvas, options) {
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            canvas.width = canvas.offsetWidth || window.innerWidth;
-            canvas.height = canvas.offsetHeight || window.innerHeight;
-            const interactive = options.interactive !== false;
-            const count = options.count || (interactive ? 55 : 18);
-            let mx = -1000, my = -1000;
-            const particles = Array.from({ length: count }, () => ({
-                x: Math.random() * canvas.width, y: Math.random() * canvas.height,
-                vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
-                size: Math.random() * 2.2 + 0.8, alpha: Math.random() * 0.3 + 0.08
-            }));
-            if (interactive) {
-                canvas.addEventListener('mousemove', (e) => { const r = canvas.getBoundingClientRect(); mx = e.clientX - r.left; my = e.clientY - r.top; });
-                canvas.addEventListener('mouseleave', () => { mx = -1000; my = -1000; });
-            }
-            (function animate() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                particles.forEach(p => {
-                    if (interactive) { const dx = p.x - mx, dy = p.y - my, dist = Math.sqrt(dx * dx + dy * dy); if (dist < 120) { const f = (120 - dist) / 120 * 2; p.vx += (dx / dist) * f * 0.1; p.vy += (dy / dist) * f * 0.1; } }
-                    p.vx *= 0.98; p.vy *= 0.98; p.x += p.vx; p.y += p.vy;
-                    if (p.x < 0) p.x = canvas.width; if (p.x > canvas.width) p.x = 0;
-                    if (p.y < 0) p.y = canvas.height; if (p.y > canvas.height) p.y = 0;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(56,189,248,${p.alpha})`; ctx.fill();
-                });
-                requestAnimationFrame(animate);
-            })();
-        };
-        document.querySelectorAll('.particle-canvas').forEach(c => window.initParticles(c, { interactive: true, count: 55 }));
-        document.querySelectorAll('.particle-canvas-ambient').forEach(c => window.initParticles(c, { interactive: false, count: 18 }));
-
-        try { animateSlide(document.querySelector('.slide.active')); } catch (e) { console.warn(e); }
-    </script>
+    try { animateSlide(document.querySelector('.slide.active')); } catch (e) { console.warn(e); }
+  </script>
 </body>
 
 </html>

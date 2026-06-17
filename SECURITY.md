@@ -1,6 +1,6 @@
 # 🛡️ Política de Seguridad
 
-La seguridad es una prioridad en este proyecto de **Implantación Segura y Automatizada de Odoo**. Como este proyecto tiene un enfoque académico (TFC) y de pruebas de concepto (PoC) sobre automatización y hardening, me tomo muy en serio cualquier reporte sobre posibles vulnerabilidades en la configuración o en los scripts de despliegue.
+La seguridad es una prioridad en este proyecto de **Implantación Segura y Automatizada de Odoo**. Como este proyecto tiene un enfoque académico () y de pruebas de concepto (PoC) sobre automatización y hardening, me tomo muy en serio cualquier reporte sobre posibles vulnerabilidades en la configuración o en los scripts de despliegue.
 
 ## Versiones Soportadas
 
@@ -8,15 +8,15 @@ Actualmente, solo la rama principal (`main`) y las versiones etiquetadas más re
 
 | Versión | Soportada |
 | ------- | ------------------ |
-| v1.0.x  | ✅ Sí              |
-| < v1.0  | ❌ No              |
+| v1.0.x | ✅ Sí       |
+| < v1.0 | ❌ No       |
 
 ## 🚨 Cómo reportar una vulnerabilidad
 
 **Por favor, NO abras un "Issue" público para reportar fallos de seguridad.** Si descubres cualquier vulnerabilidad relacionada con la configuración de Docker, exposición de puertos, manejo de credenciales o cualquier otro vector de ataque dentro de este repositorio, te ruego que sigas este proceso:
 
 1. Envía un correo electrónico directamente a: **sandrafradejas@gmail.com**.
-2. En el asunto, incluye la etiqueta `[REPORTE DE SEGURIDAD - TFC Odoo]`.
+2. En el asunto, incluye la etiqueta `[REPORTE DE SEGURIDAD Odoo]`.
 3. Proporciona una descripción clara del problema, los pasos para reproducirlo y, si es posible, una sugerencia de mitigación.
 
 ### Tiempos de respuesta

@@ -3,155 +3,155 @@ name: CD Deploy (Self-Hosted)
 # ============================================================
 # GITHUB ACTION: CD Deploy
 # DESCRIPCIÓN: Descarga las imágenes Docker más recientes y
-#              despliega el stack Odoo+Nginx en el servidor
-#              Debian de la DMZ de forma automática.
-#              PostgreSQL reside en VM separada (VLAN 40).
+#       despliega el stack Odoo+Nginx en el servidor
+#       Debian de la DMZ de forma automática.
+#       PostgreSQL reside en VM separada (VLAN 40).
 #
-#              Si algún contenedor no está corriendo al llegar
-#              al paso de verificación, los levanta automáticamente.
+#       Si algún contenedor no está corriendo al llegar
+#       al paso de verificación, los levanta automáticamente.
 #
 # PRE-REQUISITO: El servidor Debian debe estar registrado como
-#                self-hosted runner en este repositorio con el
-#                label 'odoo' (self-hosted, linux, odoo).
+#        self-hosted runner en este repositorio con el
+#        label 'odoo' (self-hosted, linux, odoo).
 # ============================================================
 
 on:
-  workflow_run:
-    workflows: ["CI Validator"]
-    types:
-      - completed
-    branches:
-      - main
+ workflow_run:
+  workflows: ["CI Validator"]
+  types:
+   completed
+  branches:
+   main
 
 jobs:
 
-  deploy:
-    name: Desplegar Stack en Servidor Debian
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    # Solo corre en la VM de Odoo, nunca en el runner de la BD
-    runs-on: [self-hosted, linux, odoo]
+ deploy:
+  name: Desplegar Stack en Servidor Debian
+  if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  # Solo corre en la VM de Odoo, nunca en el runner de la BD
+  runs-on: [self-hosted, linux, odoo]
 
-    steps:
+  steps:
 
-      - name: Verificar entorno del servidor
-        run: |
-          echo "============================================="
-          echo " Iniciando despliegue automático:"
-          echo " Servidor: $(hostname)"
-          echo " Fecha:    $(date '+%Y-%m-%d %H:%M:%S')"
-          echo " Docker:   $(docker --version)"
-          echo "============================================="
+   name: Verificar entorno del servidor
+    run: |
+     echo "============================================="
+     echo " Iniciando despliegue automático:"
+     echo " Servidor: $(hostname)"
+     echo " Fecha:  $(date '+%Y-%m-%d %H:%M:%S')"
+     echo " Docker:  $(docker --version)"
+     echo "============================================="
 
-      # Necesario porque /opt/erp-odoo es propiedad de root pero el runner
-      # corre como usuario 'runner'. Git bloquea el acceso por seguridad
-      # a menos que se marque explícitamente como directorio seguro.
-      - name: Marcar directorio del proyecto como seguro para Git
-        run: git config --global --add safe.directory /opt/erp-odoo
+   # Necesario porque /opt/erp-odoo es propiedad de root pero el runner
+   # corre como usuario 'runner'. Git bloquea el acceso por seguridad
+   # a menos que se marque explícitamente como directorio seguro.
+   name: Marcar directorio del proyecto como seguro para Git
+    run: git config --global --add safe.directory /opt/erp-odoo
 
-      # El repo fue clonado por root durante el provisioning.
-      # El runner necesita escribir en .git/ (fetch, config, lock files)
-      # y en el working tree (git reset --hard sobreescribe archivos tracked).
-      # Sin esto falla con: "unable to unlink old '...': Permission denied"
-      # La regla sudoers NOPASSWD en /etc/sudoers.d/runner-deploy
-      # permite exactamente este comando sin contraseña.
-      - name: Corregir permisos del proyecto para el runner
-        run: sudo /usr/bin/chown -R runner /opt/erp-odoo
+   # El repo fue clonado por root durante el provisioning.
+   # El runner necesita escribir en .git/ (fetch, config, lock files)
+   # y en el working tree (git reset --hard sobreescribe archivos tracked).
+   # Sin esto falla con: "unable to unlink old '...': Permission denied"
+   # La regla sudoers NOPASSWD en /etc/sudoers.d/runner-deploy
+   # permite exactamente este comando sin contraseña.
+   name: Corregir permisos del proyecto para el runner
+    run: sudo /usr/bin/chown -R runner /opt/erp-odoo
 
-      - name: Sincronizar repositorio en el servidor (git pull)
-        working-directory: /opt/erp-odoo
-        env:
-          # Usar el PAT almacenado en secrets para repos privados.
-          # github.token NO tiene acceso a repositorios privados en runners self-hosted.
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          echo "Sincronizando repositorio con origin/main..."
-          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
-          git fetch origin
-          git reset --hard origin/main
-          # Limpiar el PAT de la URL del remote tras el pull (seguridad)
-          git remote set-url origin https://github.com/${{ github.repository }}.git
-          echo "Repositorio actualizado al commit: $(git rev-parse --short HEAD)"
+   name: Sincronizar repositorio en el servidor (git pull)
+    working-directory: /opt/erp-odoo
+    env:
+     # Usar el PAT almacenado en secrets para repos privados.
+     # github.token NO tiene acceso a repositorios privados en runners self-hosted.
+     GH_TOKEN: ${{ secrets.GH_PAT }}
+    run: |
+     echo "Sincronizando repositorio con origin/main..."
+     git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+     git fetch origin
+     git reset --hard origin/main
+     # Limpiar el PAT de la URL del remote tras el pull (seguridad)
+     git remote set-url origin https://github.com/${{ github.repository }}.git
+     echo "Repositorio actualizado al commit: $(git rev-parse --short HEAD)"
 
-      # Los contenedores Docker (uid 101) necesitan escribir en los dirs de datos.
-      # El chown anterior los cambió a 'runner'; restauramos a 101:101.
-      - name: Restaurar permisos de datos Docker (uid 101)
-        run: sudo /usr/bin/chown -R 101:101 /opt/erp-odoo/odoo-data /opt/erp-odoo/odoo_sessions /opt/erp-odoo/addons
+   # Los contenedores Docker (uid 101) necesitan escribir en los dirs de datos.
+   # El chown anterior los cambió a 'runner'; restauramos a 101:101.
+   name: Restaurar permisos de datos Docker (uid 101)
+    run: sudo /usr/bin/chown -R 101:101 /opt/erp-odoo/odoo-data /opt/erp-odoo/odoo_sessions /opt/erp-odoo/addons
 
-      - name: Descargar imágenes Docker (docker pull)
-        run: |
-          echo "[1/3] Descargando imagen de Odoo 17..."
-          docker pull odoo:17 || echo "  [Aviso] No se pudo descargar odoo:17. Se usará la imagen local."
-          echo "[2/3] Descargando imagen de Nginx Alpine..."
-          docker pull nginx:alpine || echo "  [Aviso] No se pudo descargar nginx:alpine. Se usará la imagen local."
-          echo "Todas las imágenes están actualizadas."
+   name: Descargar imágenes Docker (docker pull)
+    run: |
+     echo "[1/3] Descargando imagen de Odoo 17..."
+     docker pull odoo:17 || echo " [Aviso] No se pudo descargar odoo:17. Se usará la imagen local."
+     echo "[2/3] Descargando imagen de Nginx Alpine..."
+     docker pull nginx:alpine || echo " [Aviso] No se pudo descargar nginx:alpine. Se usará la imagen local."
+     echo "Todas las imágenes están actualizadas."
 
-      - name: Ejecutar deploy.sh
-        working-directory: /opt/erp-odoo
-        run: |
-          echo "Ejecutando script de despliegue..."
-          bash scripts/deploy/deploy.sh
+   name: Ejecutar deploy.sh
+    working-directory: /opt/erp-odoo
+    run: |
+     echo "Ejecutando script de despliegue..."
+     bash scripts/deploy/deploy.sh
 
-      - name: Verificar contenedores y levantar si están caídos
-        working-directory: /opt/erp-odoo
-        run: |
-          echo "============================================="
-          echo " Comprobando estado de los contenedores..."
-          echo "============================================="
+   name: Verificar contenedores y levantar si están caídos
+    working-directory: /opt/erp-odoo
+    run: |
+     echo "============================================="
+     echo " Comprobando estado de los contenedores..."
+     echo "============================================="
 
-          COMPOSE_FILE="docker/docker-compose.yml"
-          # PostgreSQL vive en VM externa (192.168.40.10), no es un contenedor local
-          CONTENEDORES=("odoo-web" "nginx-proxy")
-          ALGUNO_CAIDO=false
+     COMPOSE_FILE="docker/docker-compose.yml"
+     # PostgreSQL vive en VM externa (192.168.40.10), no es un contenedor local
+     CONTENEDORES=("odoo-web" "nginx-proxy")
+     ALGUNO_CAIDO=false
 
-          for CONTENEDOR in "${CONTENEDORES[@]}"; do
-            STATUS=$(docker inspect --format='{{.State.Status}}' "$CONTENEDOR" 2>/dev/null || echo "no_existe")
+     for CONTENEDOR in "${CONTENEDORES[@]}"; do
+      STATUS=$(docker inspect --format='{{.State.Status}}' "$CONTENEDOR" 2>/dev/null || echo "no_existe")
 
-            if [ "$STATUS" = "running" ]; then
-              echo "  [OK]     $CONTENEDOR → running"
-            elif [ "$STATUS" = "no_existe" ]; then
-              echo "  [FALTA]  $CONTENEDOR → no existe"
-              ALGUNO_CAIDO=true
-            else
-              echo "  [CAÍDO]  $CONTENEDOR → $STATUS"
-              ALGUNO_CAIDO=true
-            fi
-          done
+      if [ "$STATUS" = "running" ]; then
+       echo " [OK]   $CONTENEDOR → running"
+      elif [ "$STATUS" = "no_existe" ]; then
+       echo " [FALTA] $CONTENEDOR → no existe"
+       ALGUNO_CAIDO=true
+      else
+       echo " [CAÍDO] $CONTENEDOR → $STATUS"
+       ALGUNO_CAIDO=true
+      fi
+     done
 
-          if [ "$ALGUNO_CAIDO" = "true" ]; then
-            echo ""
-            echo "  Contenedores caídos o ausentes detectados."
-            echo "  Levantando stack completo con docker compose up..."
-            docker compose -f "$COMPOSE_FILE" up -d
-            echo ""
-            echo "  Esperando 15 segundos para que los servicios arranquen..."
-            sleep 15
+     if [ "$ALGUNO_CAIDO" = "true" ]; then
+      echo ""
+      echo " Contenedores caídos o ausentes detectados."
+      echo " Levantando stack completo con docker compose up..."
+      docker compose -f "$COMPOSE_FILE" up -d
+      echo ""
+      echo " Esperando 15 segundos para que los servicios arranquen..."
+      sleep 15
 
-            echo ""
-            echo "  Segunda verificación tras el arranque:"
-            for CONTENEDOR in "${CONTENEDORES[@]}"; do
-              STATUS=$(docker inspect --format='{{.State.Status}}' "$CONTENEDOR" 2>/dev/null || echo "no_existe")
-              if [ "$STATUS" = "running" ]; then
-                echo "  [OK]     $CONTENEDOR → running"
-              else
-                echo "  [ERROR]  $CONTENEDOR → $STATUS  ← revisar logs"
-              fi
-            done
-          else
-            echo ""
-            echo "  Todos los contenedores están corriendo. No se necesita acción."
-          fi
+      echo ""
+      echo " Segunda verificación tras el arranque:"
+      for CONTENEDOR in "${CONTENEDORES[@]}"; do
+       STATUS=$(docker inspect --format='{{.State.Status}}' "$CONTENEDOR" 2>/dev/null || echo "no_existe")
+       if [ "$STATUS" = "running" ]; then
+        echo " [OK]   $CONTENEDOR → running"
+       else
+        echo " [ERROR] $CONTENEDOR → $STATUS ← revisar logs"
+       fi
+      done
+     else
+      echo ""
+      echo " Todos los contenedores están corriendo. No se necesita acción."
+     fi
 
-      - name: Estado final del stack
-        working-directory: /opt/erp-odoo
-        run: |
-          echo "====================================================="
-          echo " Estado final de los contenedores:"
-          echo "====================================================="
-          docker compose -f docker/docker-compose.yml ps
-          echo ""
-          echo "  Health check de Odoo:"
-          curl -sk https://localhost/web/health 2>/dev/null \
-            && echo "  [OK] Odoo responde correctamente" \
-            || echo "  [AVISO] Odoo aun no responde (puede necesitar mas tiempo)"
-          echo ""
-          echo "[OK] Despliegue completado."
+   name: Estado final del stack
+    working-directory: /opt/erp-odoo
+    run: |
+     echo "====================================================="
+     echo " Estado final de los contenedores:"
+     echo "====================================================="
+     docker compose -f docker/docker-compose.yml ps
+     echo ""
+     echo " Health check de Odoo:"
+     curl -sk https://localhost/web/health 2>/dev/null \
+      && echo " [OK] Odoo responde correctamente" \
+      || echo " [AVISO] Odoo aun no responde (puede necesitar mas tiempo)"
+     echo ""
+     echo "[OK] Despliegue completado."
