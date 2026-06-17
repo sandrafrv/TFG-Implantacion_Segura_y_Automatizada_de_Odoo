@@ -1,5 +1,5 @@
 # ==========================================
-# .gitignore - TFG ASIR
+# .gitignore - TFC ASIR
 # Archivos a EXCLUIR del repositorio GitHub
 # ==========================================
 
@@ -33,8 +33,6 @@ Thumbs.db
 
 # ISOs no deben subirse a GitHub (son demasiado grandes)
 ISOs/
-
-CLAUDE.md
 
 docs/mas info/*
 

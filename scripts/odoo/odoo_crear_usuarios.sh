@@ -427,15 +427,15 @@ ok "Autenticado. UID administrador = ${ADMIN_UID}"
 #   Usa: openssl rand -base64 16
 #
 declare -a USUARIOS=(
-    "Usuario API|api.user@erp.odoo.tfg.com|$(openssl rand -base64 16)|api"
-    "Becario Ejemplo|becario@erp.odoo.tfg.com|$(openssl rand -base64 16)|becario"
-    "Agente Ventas|ventas@erp.odoo.tfg.com|$(openssl rand -base64 16)|ventas"
-    "Responsable RRHH|rrhh@erp.odoo.tfg.com|$(openssl rand -base64 16)|rrhh"
-    "Operario Almacen|almacen@erp.odoo.tfg.com|$(openssl rand -base64 16)|almacen"
-    "Tecnico Sistema|tecnico@erp.odoo.tfg.com|$(openssl rand -base64 16)|tecnico"
-    "Jefe de Ventas|jefe.ventas@erp.odoo.tfg.com|$(openssl rand -base64 16)|jefe_ventas"
-    "Jefe de RRHH|jefe.rrhh@erp.odoo.tfg.com|$(openssl rand -base64 16)|jefe_rrhh"
-    "Jefe de Almacen|jefe.almacen@erp.odoo.tfg.com|$(openssl rand -base64 16)|jefe_almacen"
+    "Usuario API|api.user@erp.odoo.tfc.com|$(openssl rand -base64 16)|api"
+    "Becario Ejemplo|becario@erp.odoo.tfc.com|$(openssl rand -base64 16)|becario"
+    "Agente Ventas|ventas@erp.odoo.tfc.com|$(openssl rand -base64 16)|ventas"
+    "Responsable RRHH|rrhh@erp.odoo.tfc.com|$(openssl rand -base64 16)|rrhh"
+    "Operario Almacen|almacen@erp.odoo.tfc.com|$(openssl rand -base64 16)|almacen"
+    "Tecnico Sistema|tecnico@erp.odoo.tfc.com|$(openssl rand -base64 16)|tecnico"
+    "Jefe de Ventas|jefe.ventas@erp.odoo.tfc.com|$(openssl rand -base64 16)|jefe_ventas"
+    "Jefe de RRHH|jefe.rrhh@erp.odoo.tfc.com|$(openssl rand -base64 16)|jefe_rrhh"
+    "Jefe de Almacen|jefe.almacen@erp.odoo.tfc.com|$(openssl rand -base64 16)|jefe_almacen"
 )
 
 # ── 5. Crear usuarios con sus grupos ─────────────────────────

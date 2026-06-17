@@ -1,5 +1,5 @@
 # Historial de Implementación — Cómo se construyó este repositorio
-**TFG ASIR 2025/2026 — Sandra Fradejas Avedillo**
+**TFC ASIR 2025/2026 — Sandra Fradejas Avedillo**
 
 > [!NOTE]
 > Este documento narra el proceso real de desarrollo: decisiones tomadas, problemas encontrados y cómo se resolvieron.
@@ -137,7 +137,7 @@ docker network create --driver macvlan --subnet=192.168.30.0/24 \
 
 ### Por qué se retiró
 
-La integración LDAP añadía complejidad operativa significativa: contenedor adicional con estado persistente, variables extra en `.env`, mayor superficie de ataque. Para el entorno de demostración del TFG, la autenticación nativa de Odoo cubre todos los casos de uso necesarios. LDAP queda documentado como **mejora futura** en `extras/ldap/README.md`.
+La integración LDAP añadía complejidad operativa significativa: contenedor adicional con estado persistente, variables extra en `.env`, mayor superficie de ataque. Para el entorno de demostración del TFC, la autenticación nativa de Odoo cubre todos los casos de uso necesarios. LDAP queda documentado como **mejora futura** en `extras/ldap/README.md`.
 
 ---
 
@@ -179,7 +179,7 @@ La integración LDAP añadía complejidad operativa significativa: contenedor ad
 | MACVLAN | ❌ **Descartada** | VMware host-only no permite promiscuous mode — bridge + port mapping |
 | **LDAP** | ❌ **No activo** | Retirado del despliegue → ver `extras/ldap/` |
 | PostgreSQL (VM3) | ✅ Activo | **Nativo** en `192.168.40.10`, fuera de Docker |
-| DNS interno | ✅ Configurado | `erp.odoo.tfg.com` → `192.168.30.10` (host odoo-server) |
+| DNS interno | ✅ Configurado | `erp.odoo.tfc.com` → `192.168.30.10` (host odoo-server) |
 | CI/CD | ✅ Operativo | Runner activo, verifica 2 contenedores |
 | Auditoría SQL | ✅ Ejecutada | Trigger en `res_users` de BD en VM3 |
 | Backups | ✅ Programados | Cada 4h vía `pg_dump` remoto, retención 7 días |
@@ -195,7 +195,7 @@ La integración LDAP añadía complejidad operativa significativa: contenedor ad
 | Debian headless (eliminar GUI) | Alta |
 | SSH por clave pública | Alta |
 | Capturas de pantalla para la memoria | Alta |
-| Redactar memoria del TFG | Alta |
+| Redactar memoria del TFC | Alta |
 | Preparar demostración para la defensa | Alta |
 
 ---
@@ -203,7 +203,7 @@ La integración LDAP añadía complejidad operativa significativa: contenedor ad
 ## Estructura Final del Repositorio
 
 ```
-TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
+TFC-Implantacion_Segura_y_Automatizada_de_Odoo/
 ├── Vagrantfile                  # Define las 2 VMs Debian (IaC) — pfSense es VM manual
 ├── .env                         # Variables de entorno (en la RAÍZ, no en docker/)
 ├── .env.example                 # Plantilla sin secretos ni variables LDAP

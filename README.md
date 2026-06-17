@@ -1,7 +1,8 @@
-# TFG — Implantación Segura y Automatizada de Odoo 17
+# TFC — Implantación Segura y Automatizada de Odoo 17
 
-> **Proyecto de Fin de Grado — ASIR**
+> **Proyecto de Fin de Ciclo — ASIR**
 > Implantación de un sistema ERP Odoo 17 Community Edition en una infraestructura virtualizada, segmentada por VLANs, con despliegue automatizado mediante Vagrant, Docker y GitHub Actions.
+
 
 ---
 
@@ -20,6 +21,8 @@
 11. [Runners self-hosted](#runners-self-hosted)
 12. [Scripts auxiliares](#scripts-auxiliares)
 13. [Gestión de runners al destruir VMs](#gestión-de-runners-al-destruir-vms)
+14. [Secrets de GitHub requeridos](#secrets-de-github-requeridos)
+15. [Autoría y Licencia](#autoría-y-licencia)
 
 ---
 
@@ -38,34 +41,34 @@ El ciclo completo de vida (aprovisionamiento → despliegue → actualización) 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     VMware Workstation Pro                       │
+│                     VMware Workstation Pro                      │
 │                                                                 │
-│  ┌──────────────┐    ┌──────────────────────────────────────┐  │
-│  │   Host       │    │          pfSense (Firewall)           │  │
-│  │  Windows     │    │   WAN: 192.168.133.x (vmnet8/NAT)   │  │
-│  │              │◄──►│   LAN: 192.168.10.1  (vmnet1)        │  │
-│  └──────────────┘    │   DMZ: 192.168.30.1  (vmnet2)        │  │
-│                      │  ADMIN: 192.168.40.1  (vmnet3)        │  │
-│                      └──────────────────────────────────────┘  │
+│  ┌──────────────┐    ┌──────────────────────────────────────┐   │
+│  │   Host       │    │          pfSense (Firewall)          │   │
+│  │  Windows     │    │   WAN: 192.168.133.x (vmnet8/NAT)    │   │
+│  │              │◄──►│   LAN: 192.168.10.1  (vmnet1)        │   │
+│  └──────────────┘    │   DMZ: 192.168.30.1  (vmnet2)        │   │
+│                      │  ADMIN: 192.168.40.1  (vmnet3)       │   │
+│                      └──────────────────────────────────────┘   │
 │                             │           │           │           │
 │                         vmnet1       vmnet2       vmnet3        │
 │                          LAN          DMZ         ADMIN         │
 │                       10.0/24       30.0/24      40.0/24        │
 │                                        │            │           │
-│                               ┌────────┴──┐  ┌─────┴───────┐  │
-│                               │odoo-server│  │  db-server  │  │
-│                               │192.168.   │  │192.168.     │  │
-│                               │  30.10    │  │  40.10      │  │
-│                               │           │  │             │  │
-│                               │ ┌───────┐ │  │ PostgreSQL  │  │
-│                               │ │Nginx  │ │  │    :5432    │  │
-│                               │ │:80/443│ │  │             │  │
-│                               │ └───┬───┘ │  └─────────────┘  │
-│                               │ ┌───┴───┐ │                    │
-│                               │ │ Odoo  │ │                    │
-│                               │ │ :8069 │ │                    │
-│                               │ └───────┘ │                    │
-│                               └───────────┘                    │
+│                               ┌────────┴──┐  ┌─────┴───────┐    │
+│                               │odoo-server│  │  db-server  │    │
+│                               │192.168.   │  │192.168.     │    │
+│                               │  30.10    │  │  40.10      │    │
+│                               │           │  │             │    │
+│                               │ ┌───────┐ │  │ PostgreSQL  │    │
+│                               │ │Nginx  │ │  │    :5432    │    │
+│                               │ │:80/443│ │  │             │    │
+│                               │ └───┬───┘ │  └─────────────┘    │
+│                               │ ┌───┴───┐ │                     │
+│                               │ │ Odoo  │ │                     │
+│                               │ │ :8069 │ │                     │
+│                               │ └───────┘ │                     │
+│                               └───────────┘                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -83,16 +86,15 @@ El ciclo completo de vida (aprovisionamiento → despliegue → actualización) 
 ## Estructura del repositorio
 
 ```
-TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
+TFC-Implantacion_Segura_y_Automatizada_de_Odoo/
 │
 ├── Vagrantfile                    # Orquestación de VMs (db-server + odoo-server)
 ├── .env.example                   # Plantilla de variables de entorno
 ├── .gitignore
 ├── .gitattributes
-├── CLAUDE.md                      # Contexto del proyecto para asistentes IA
 ├── LICENSE
 ├── README.md
-├── SECURITY
+├── SECURITY.md                    # Política de seguridad
 │
 ├── .github/
 │   └── workflows/
@@ -131,7 +133,6 @@ TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
 │
 ├── config/                        # Configuraciones adicionales (logrotate)
 ├── sql/                           # Scripts SQL de auditoría PostgreSQL
-├── extras/                        # Recursos adicionales (LDAP como referencia)
 └── docs/                          # Documentación del proyecto
 ```
 
@@ -296,13 +297,13 @@ La configuración se encuentra en `config_nginx/odoo_proxy.conf` y cubre:
 
 ```
 https://192.168.30.10        → Odoo desde la red (IP directa)
-https://erp.odoo.tfg.com     → Odoo desde LAN/Admin (requiere DNS en pfSense)
+https://erp.odoo.tfc.com     → Odoo desde LAN/Admin (requiere DNS en pfSense)
 ```
 
-Para que el dominio `erp.odoo.tfg.com` resuelva correctamente, el DNS Resolver (Unbound) de pfSense debe tener configurada la entrada:
+Para que el dominio `erp.odoo.tfc.com` resuelva correctamente, el DNS Resolver (Unbound) de pfSense debe tener configurada la entrada:
 
 ```
-erp.odoo.tfg.com → 192.168.30.10
+erp.odoo.tfc.com → 192.168.30.10
 ```
 
 ---
@@ -331,7 +332,9 @@ Se activa automáticamente cuando el workflow CI finaliza con éxito en la rama 
 
 ## Runners self-hosted
 
-Cada VM tiene instalado un GitHub Actions runner que permite ejecutar los pipelines directamente sobre la infraestructura del TFG.
+> **⚠️ Nota para evaluación:** Los runners self-hosted se ejecutan en las máquinas virtuales locales de esta infraestructura. Si las VMs no están encendidas, los workflows de GitHub Actions se quedarán en estado "Pending" o los runners aparecerán como "Offline".
+
+Cada VM tiene instalado un GitHub Actions runner que permite ejecutar los pipelines directamente sobre la infraestructura del TFC.
 
 | Runner | VM | IP | Label |
 |---|---|---|---|
@@ -349,7 +352,7 @@ Si las VMs se han levantado sin Vagrant o los tokens han caducado:
 # 2. En odoo-server (192.168.30.10):
 cd /opt/actions-runner
 ./config.sh \
-  --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+  --url https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo \
   --token <TOKEN_NUEVO> \
   --name odoo-runner \
   --labels self-hosted,linux,odoo \
@@ -360,7 +363,7 @@ sudo ./svc.sh start
 # 3. En db-server (192.168.40.10):
 cd /opt/actions-runner
 ./config.sh \
-  --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+  --url https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo \
   --token <TOKEN_NUEVO> \
   --name db-runner \
   --labels self-hosted,linux,db \
@@ -423,3 +426,12 @@ Configurar en **GitHub → Repositorio → Settings → Secrets and variables �
 |---|---|
 | `GH_PAT` | Personal Access Token con scope `repo` |
 | `POSTGRES_PASSWORD` | Contraseña de la base de datos PostgreSQL |
+
+---
+
+## Autoría y Licencia
+
+**Autora:** Sandra ([@sandrafrv](https://github.com/sandrafrv))  
+**Proyecto:** Trabajo de Fin de Ciclo (ASIR)
+
+Este proyecto está bajo la licencia **GPL-3.0** (GNU General Public License v3.0). Consulta el archivo [`LICENSE`](LICENSE) para más detalles.

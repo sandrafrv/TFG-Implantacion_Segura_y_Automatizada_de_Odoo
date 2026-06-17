@@ -1,4 +1,4 @@
-# Memoria del TFG: Implantación Segura y Automatizada de Odoo
+# Memoria del TFC: Implantación Segura y Automatizada de Odoo
 
 *(Este documento es la plantilla definitiva basada en los requisitos exactos de tu instituto. Debes usarlo como base para redactar tu memoria en Word/PDF).*
 
@@ -17,9 +17,9 @@ El proyecto surge de la necesidad que tienen las pequeñas y medianas empresas (
 > [!NOTE]
 > **¿Por qué LDAP no está activo en el despliegue principal?**
 >
-> Durante el desarrollo del TFG se implementó y probó OpenLDAP con éxito, pero se tomó la decisión razonada de retirarlo del stack principal por los siguientes motivos:
+> Durante el desarrollo del TFC se implementó y probó OpenLDAP con éxito, pero se tomó la decisión razonada de retirarlo del stack principal por los siguientes motivos:
 > 1. **Superficie de ataque:** Un contenedor `openldap` expuesto en la DMZ amplía el perímetro de ataque (puertos 389/636, gestión de ACLs, etc.).
-> 2. **Complejidad de mantenimiento:** La sincronización entre `auth_ldap` de Odoo, SSSD/PAM en los clientes y la gestión del árbol LDAP introduce puntos de fallo que dificultan el mantenimiento en el contexto de un TFG.
+> 2. **Complejidad de mantenimiento:** La sincronización entre `auth_ldap` de Odoo, SSSD/PAM en los clientes y la gestión del árbol LDAP introduce puntos de fallo que dificultan el mantenimiento en el contexto de un TFC.
 > 3. **Suficiencia del sistema actual:** La autenticación nativa de Odoo, combinada con el modelo de control de acceso en 3 capas (Nginx + tipo usuario + grupos/roles), cubre todos los requisitos de seguridad del proyecto.
 >
 > Todo el material LDAP (estructura LDIF, scripts, guía) está disponible en `extras/ldap/` como **mejora futura** documentada.
@@ -137,7 +137,7 @@ Internet (WAN)
 | PostgreSQL en VM separada (VLAN 40) | Aislamiento máximo: si el stack Docker se compromete, la BD permanece inaccesible desde la DMZ sin regla explícita de firewall |
 | Docker Compose con red interna | Los contenedores se comunican por red interna de Docker; Nginx actúa como único punto de entrada expuesto en la DMZ |
 | Vagrant como IaC | Reproducibilidad: el entorno completo se regenera desde cero con `vagrant up` |
-| LDAP fuera del despliegue principal | Reducción de superficie de ataque y complejidad operativa; autenticación nativa de Odoo es suficiente para el TFG |
+| LDAP fuera del despliegue principal | Reducción de superficie de ataque y complejidad operativa; autenticación nativa de Odoo es suficiente para el TFC |
 | SSL autofirmado (OpenSSL) | Cifrado en tránsito sin dependencia de CA externa para entorno de laboratorio |
 
 ### 6.3.- Diagramas de clases y de entidad-relación
@@ -269,11 +269,11 @@ Se ejecutaron los siguientes tipos de pruebas para garantizar la calidad del sis
 
   | Prueba | Comando | Resultado esperado |
   |--------|---------|-------------------|
-  | Nginx bloquea panel BD desde VLAN 10 | `curl -k https://erp.odoo.tfg.com/web/database/manager` | `403 Forbidden` |
+  | Nginx bloquea panel BD desde VLAN 10 | `curl -k https://erp.odoo.tfc.com/web/database/manager` | `403 Forbidden` |
   | Nginx permite panel BD desde VLAN 40 | Mismo curl desde PC en VLAN 40 | `200 OK` |
-  | Nginx bloquea `/web/tests` | `curl -k https://erp.odoo.tfg.com/web/tests` | `403 Forbidden` |
-  | DBA no tiene UI Odoo | Login con `dba@erp.odoo.tfg.com` | Sin módulos extra |
-  | Becario no ve botón Eliminar | Login con `becario@erp.odoo.tfg.com` | Sin botón Eliminar en CRM |
+  | Nginx bloquea `/web/tests` | `curl -k https://erp.odoo.tfc.com/web/tests` | `403 Forbidden` |
+  | DBA no tiene UI Odoo | Login con `dba@erp.odoo.tfc.com` | Sin módulos extra |
+  | Becario no ve botón Eliminar | Login con `becario@erp.odoo.tfc.com` | Sin botón Eliminar en CRM |
   | VLAN 10 no accede a PostgreSQL | `nc -zv 192.168.40.10 5432` desde VLAN 10 | Timeout |
   | BD no expuesta a Internet | `nmap -p 5432 <IP_WAN>` | Puerto filtrado |
 
@@ -300,9 +300,9 @@ A nivel técnico, se ha conseguido aislar la carga de trabajo en una DMZ, separa
 
 A nivel metodológico, la inversión de tiempo en planificar la infraestructura como código (Vagrant + Docker) y automatizar el ciclo de vida (Bash/Cron) ha reducido drásticamente los errores de despliegue en comparación con una instalación manual.
 
-**Lección aprendida sobre LDAP:** Durante el proyecto se implementó y probó OpenLDAP con éxito, pero se tomó la decisión de retirarlo del despliegue activo tras evaluar la relación coste/beneficio: la autenticación nativa de Odoo cubre los requisitos del TFG con menor complejidad y menor superficie de ataque. Esta decisión refleja un criterio de ingeniería real: no añadir complejidad sin una necesidad clara que la justifique.
+**Lección aprendida sobre LDAP:** Durante el proyecto se implementó y probó OpenLDAP con éxito, pero se tomó la decisión de retirarlo del despliegue activo tras evaluar la relación coste/beneficio: la autenticación nativa de Odoo cubre los requisitos del TFC con menor complejidad y menor superficie de ataque. Esta decisión refleja un criterio de ingeniería real: no añadir complejidad sin una necesidad clara que la justifique.
 
-Uno de los principales aprendizajes del proyecto fue priorizar soluciones viables y mantenibles dentro del tiempo disponible, descartando alternativas más complejas que no aportaban una mejora proporcional al objetivo final del TFG.
+Uno de los principales aprendizajes del proyecto fue priorizar soluciones viables y mantenibles dentro del tiempo disponible, descartando alternativas más complejas que no aportaban una mejora proporcional al objetivo final del TFC.
 
 ---
 

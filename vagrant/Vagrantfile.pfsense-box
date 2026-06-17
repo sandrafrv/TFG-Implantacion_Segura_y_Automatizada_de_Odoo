@@ -5,7 +5,7 @@
 # PRE-REQUISITOS:
 #   1. Seguir docs/guias/CREAR_BOX_PFSENSE.md para crear la box
 #   2. Subir la box a GitHub Releases y actualizar box_url abajo
-#   3. (Opcional) Tenerla en local: vagrant box add --name tfg/pfsense config/pfsense-tfg.box
+#   3. (Opcional) Tenerla en local: vagrant box add --name tfc/pfsense config/pfsense-tfc.box
 # ============================================================
 #
 # BLOQUE A SUSTITUIR EN Vagrantfile:
@@ -18,12 +18,12 @@
 
   config.vm.define "pfsense" do |pf|
     # ── Box propia desde GitHub Releases ──────────────────────
-    # La box incluye pfSense preconfigurado con todas las ACLs del TFG.
+    # La box incluye pfSense preconfigurado con todas las ACLs del TFC.
     # Se descarga una sola vez (~700MB). Vagrant la cachea localmente.
-    pf.vm.box     = "tfg/pfsense"
-    pf.vm.box_url = "https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfg.box"
+    pf.vm.box     = "tfc/pfsense"
+    pf.vm.box_url = "https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfc.box"
     pf.vm.box_check_update = false
-    pf.vm.hostname         = "pfsense-tfg"
+    pf.vm.hostname         = "pfsense-tfc"
 
     # ── Comunicación SSH (habilitada en la box propia) ────────
     # pfSense (FreeBSD) usa /bin/sh, no bash
@@ -51,7 +51,7 @@
 
     # ── Recursos y optimizaciones VMware para pfSense/FreeBSD ─
     pf.vm.provider "vmware_desktop" do |v|
-      v.vmx["displayName"] = "TFG-pfSense"
+      v.vmx["displayName"] = "TFC-pfSense"
       v.memory = 1024
       v.cpus   = 1
       v.gui    = true

@@ -1,4 +1,4 @@
-# Guion de Presentación TFG — Enfoque en Infraestructura como Código (IaC)
+# Guion de Presentación TFC — Enfoque en Infraestructura como Código (IaC)
 
 > **Duración estimada:** 15-20 minutos
 > **Audiencia:** Tribunal evaluador (perfil técnico: profesores de ASIR)

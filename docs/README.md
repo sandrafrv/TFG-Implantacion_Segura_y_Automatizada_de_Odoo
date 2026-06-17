@@ -1,4 +1,4 @@
-# Documentación Técnica — TFG ASIR 2025/2026
+# Documentación Técnica — TFC ASIR 2025/2026
 
 **Proyecto:** Implantación Segura y Automatizada de Odoo ERP  
 **Autora:** Sandra Fradejas Avedillo  
@@ -38,12 +38,12 @@ Ubicadas en [`guias/`](guias/):
 | [`HISTORIAL_IMPLEMENTACION.md`](HISTORIAL_IMPLEMENTACION.md) | Cómo se construyó el proyecto: decisiones técnicas, problemas encontrados y cómo se resolvieron |
 | [`CHANGELOG.md`](CHANGELOG.md) | Registro de cambios por versión (formato Keep a Changelog) |
 
-### Memoria del TFG
+### Memoria del TFC
 
 | Archivo | Descripción |
 |:--------|:------------|
-| [`memoria_tfg_nuevo.md`](memoria_tfg_nuevo.md) | Memoria oficial del TFG en redacción |
-| [`memoria_tfg_borrador.md`](memoria_tfg_borrador.md) | Borrador anterior de referencia |
+| [`memoria_tfc_nuevo.md`](memoria_tfc_nuevo.md) | Memoria oficial del TFC en redacción |
+| [`memoria_tfc_borrador.md`](memoria_tfc_borrador.md) | Borrador anterior de referencia |
 
 ---
 
@@ -58,8 +58,8 @@ docs/
 ├── HISTORIAL_IMPLEMENTACION.md     ← Historia del desarrollo
 ├── diagrama_red.md                 ← Diagramas de arquitectura
 ├── reglas_pfsense.md               ← Referencia de reglas pfSense
-├── memoria_tfg_nuevo.md            ← Memoria del TFG
-├── memoria_tfg_borrador.md         ← Borrador de la memoria
+├── memoria_tfc_nuevo.md            ← Memoria del TFC
+├── memoria_tfc_borrador.md         ← Borrador de la memoria
 │
 ├── guias/                          ← Guías de instalación
 │   ├── GUIA_COMPLETA.md          (Guía técnica unificada)
@@ -128,7 +128,7 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 - [ ] `nc -zv 192.168.30.10 5432` desde VLAN 10 → **timeout** ✅
 - [ ] `nc -zv 192.168.30.10 8069` desde VLAN 10 → **timeout** ✅
 - [ ] `nc -zv 192.168.30.10 22` desde VLAN 10 → **timeout** ✅
-- [ ] `curl -k -I https://erp.odoo.tfg.com` desde VLAN 10 → **200** ✅
+- [ ] `curl -k -I https://erp.odoo.tfc.com` desde VLAN 10 → **200** ✅
 - [ ] `ping 192.168.10.x` desde DMZ → **sin respuesta** ✅
 - [ ] Panel pfSense desde VLAN 10 → **no accesible** ✅
 - [ ] Captura → `screenshots/fase_A_vlan/`
@@ -163,7 +163,7 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 - [ ] Paquetes GNOME + X11 eliminados
 - [ ] Reinicio → arranque en modo texto ✅
 - [ ] Docker + 4 contenedores activos tras reinicio ✅
-- [ ] Odoo accesible `https://erp.odoo.tfg.com` ✅
+- [ ] Odoo accesible `https://erp.odoo.tfc.com` ✅
 - [ ] Captura → `screenshots/fase_D_headless/`
 
 ---
@@ -227,4 +227,4 @@ screenshots/
 
 ---
 
-*TFG ASIR 2025/2026 — Sandra Fradejas Avedillo — IES Cañaveral*
+*TFC ASIR 2025/2026 — Sandra Fradejas Avedillo — IES Cañaveral*

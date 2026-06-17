@@ -1,6 +1,6 @@
 # Diagrama de Red — Arquitectura Completa
 
-**TFG ASIR 2025/2026 — TechSolutions S.L.**
+**TFC ASIR 2025/2026 — TechSolutions S.L.**
 
 > ⚠️ Este diagrama refleja la arquitectura **actual** (Junio 2026):
 > PostgreSQL corre en una **VM externa** (`db-server`, `192.168.40.10`, VLAN 40).
@@ -131,7 +131,7 @@ graph TD
 ## Flujo de Acceso de un Empleado
 
 ```
-Empleado (VLAN 10) abre https://192.168.30.10  ← (o https://erp.odoo.tfg.com → DNS resuelve a 192.168.30.10)
+Empleado (VLAN 10) abre https://192.168.30.10  ← (o https://erp.odoo.tfc.com → DNS resuelve a 192.168.30.10)
           │
           ▼  pfSense: VLAN10 → DMZ :443 → PASS ✅
           │

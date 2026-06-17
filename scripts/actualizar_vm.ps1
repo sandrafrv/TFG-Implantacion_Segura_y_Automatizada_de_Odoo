@@ -106,7 +106,7 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host '=============================================' -ForegroundColor Green
     Write-Host '  [OK] Actualizacion completada.'             -ForegroundColor Green
     Write-Host '  Accede desde la red interna:'               -ForegroundColor Green
-    Write-Host '  https://erp.odoo.tfg.com'                   -ForegroundColor Green
+    Write-Host '  https://erp.odoo.tfc.com'                   -ForegroundColor Green
     Write-Host '=============================================' -ForegroundColor Green
 } else {
     Write-Host '=============================================' -ForegroundColor Red

@@ -118,4 +118,4 @@ vagrant up vm-odoo --debug 2>&1 | tee vagrant_debug.log
 
 ---
 
-*TFG ASIR 2025/2026 — IES Cañaveral*
+*TFC ASIR 2025/2026 — IES Cañaveral*

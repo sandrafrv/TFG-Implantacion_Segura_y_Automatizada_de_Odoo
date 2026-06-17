@@ -5,7 +5,7 @@
 #              Menú interactivo para gestionar todos los aspectos
 #              del ciclo de vida del ERP desde un único punto.
 # USO: sudo ./erp.sh
-# AUTOR: Sandra Fradejas Avedillo — TFG ASIR 2025/2026
+# AUTOR: Sandra Fradejas Avedillo — TFC ASIR 2025/2026
 # ====================================================================
 
 # --- CONFIGURACIÓN ---
@@ -64,7 +64,7 @@ cabecera() {
     clear
     echo -e "${BLUE}${BOLD}"
     echo "  ╔══════════════════════════════════════════════════════════╗"
-    echo "  ║         GESTOR ERP ODOO — TFG ASIR 2025/2026            ║"
+    echo "  ║         GESTOR ERP ODOO — TFC ASIR 2025/2026            ║"
     echo "  ║         TechSolutions S.L. — Servidor DMZ               ║"
     echo "  ╚══════════════════════════════════════════════════════════╝"
     echo -e "${NC}"

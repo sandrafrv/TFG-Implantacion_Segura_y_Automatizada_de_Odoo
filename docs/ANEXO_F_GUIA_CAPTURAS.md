@@ -1,6 +1,6 @@
 # Anexo F — Guía de Reproducción de Capturas del Sistema
 
-**TFG ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
+**TFC ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
 *Sandra Fradejas Avedillo — IES Cañaveral*
 
 > [!IMPORTANT]
@@ -101,7 +101,7 @@ $env:ODOO_MASTER_PASSWORD = "tu_password_maestro_odoo"
 
 ```powershell
 # Navegar al directorio del repositorio
-cd "C:\Users\sandra\Desktop\Ante proyecto\TFG-ASIRB"
+cd "C:\Users\sandra\Desktop\Ante proyecto\TFC-ASIRB"
 
 # Levantar primero db-server (SIEMPRE primero)
 vagrant up db-server
@@ -136,7 +136,7 @@ los scripts de provisioning se ejecutaron sin errores en ambas VMs.
 4. **Capturar:** hacer scroll hasta ver las últimas 30–40 líneas de salida donde
    aparezca el resumen de ambas VMs (`db-server` y `odoo-server`) sin líneas de error.
 5. Asegurarse de que la ventana de PowerShell muestra el directorio del proyecto
-   (`TFG-ASIRB`) en el prompt.
+   (`TFC-ASIRB`) en el prompt.
 
 > **Nombre del fichero sugerido:** `F11_vagrant_up_finalizado.png`
 
@@ -164,7 +164,7 @@ ssh -i .vagrant\machines\odoo-server\vmware_desktop\private_key vagrant@192.168.
 >
 > ```bash
 > sudo su
-> # Ahora el prompt cambia a root@odoo-server-tfg:/home/vagrant#
+> # Ahora el prompt cambia a root@odoo-server-tfc:/home/vagrant#
 > cd /opt/erp-odoo
 > ```
 
@@ -281,10 +281,10 @@ perl: warning: Falling back to the standard locale ("C").
 4. **Capturar:** el terminal mostrando el comando y la salida completa.
 
 > [!TIP]
-> **Usar la Opción B para la captura del TFG** — la tabla `\conninfo` muestra
+> **Usar la Opción B para la captura del TFC** — la tabla `\conninfo` muestra
 > `SSL Connection: true` y `SSL Protocol: TLSv1.3`, evidenciando que la comunicación
 > Odoo → PostgreSQL está **cifrada en tránsito**, lo cual es especialmente relevante
-> para un TFG de seguridad. Mucho más informativo que un simple `accepting connections`.
+> para un TFC de seguridad. Mucho más informativo que un simple `accepting connections`.
 
 > **Nombre del fichero sugerido:** `F13_conectividad_odoo_postgresql.png`
 
@@ -320,7 +320,7 @@ docker exec odoo-web curl -s http://localhost:8069/web/health
 ```
 
 > [!TIP]
-> **Usar la Opción A para la captura del TFG** — ejecutar el curl desde `nginx-proxy`
+> **Usar la Opción A para la captura del TFC** — ejecutar el curl desde `nginx-proxy`
 > hacia `odoo-web:8069` demuestra visualmente que los dos contenedores se comunican
 > por la red interna `odoo_net` usando el nombre de servicio Docker como hostname,
 > que es exactamente el mecanismo que usa el proxy inverso.
@@ -541,7 +541,7 @@ las reglas con sus acciones (bloqueo/paso), protocolos, origen y destino.
 ## F.7 — Configuración DNS Resolver
 
 **¿Qué muestra?** El registro A en el DNS Resolver de pfSense que resuelve
-`erp.odoo.tfg.com` a la IP `192.168.30.10`.
+`erp.odoo.tfc.com` a la IP `192.168.30.10`.
 
 ### Cómo obtener la captura
 
@@ -550,12 +550,12 @@ las reglas con sus acciones (bloqueo/paso), protocolos, origen y destino.
    la sección "Host Overrides" al final de la página).
 2. Debe aparecer una entrada con:
    - **Host:** `erp.odoo`
-   - **Domain:** `tfg.com`
+   - **Domain:** `tfc.com`
    - **IP Address:** `192.168.30.10`
    - **Description:** texto descriptivo del proyecto
 
 **Capturar:** la sección "Host Overrides" del DNS Resolver mostrando la entrada
-configurada para `erp.odoo.tfg.com`.
+configurada para `erp.odoo.tfc.com`.
 
 > **Nombre del fichero sugerido:** `F07_pfsense_dns_resolver.png`
 
@@ -580,7 +580,7 @@ finalizados con éxito.
 
 **Opción A — Usar un run ya existente:**
 
-1. Ir a `https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo/actions`
+1. Ir a `https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo/actions`
 2. Localizar el último run exitoso que muestre los dos workflows:
    - `CI Validator` (con check verde ✅)
    - `CD Deploy` (con check verde ✅)
@@ -777,7 +777,7 @@ de las VMs y el desregistro de los runners de GitHub Actions.
 
 ```powershell
 # En el host Windows:
-cd "C:\Users\sandra\Desktop\Ante proyecto\TFG-ASIRB"
+cd "C:\Users\sandra\Desktop\Ante proyecto\TFC-ASIRB"
 
 # Destruir ambas VMs de forma forzada
 vagrant destroy -f
@@ -920,7 +920,7 @@ BLOQUE 4 — Panel pfSense (desde VLAN 40)
   [ ] F.04 — Dashboard principal de pfSense
   [ ] F.05 — Reglas firewall interfaz DMZ (OPT1)
   [ ] F.06 — Reglas firewall interfaz ADMIN (OPT2)
-  [ ] F.07 — DNS Resolver — Host Override erp.odoo.tfg.com → 192.168.30.10
+  [ ] F.07 — DNS Resolver — Host Override erp.odoo.tfc.com → 192.168.30.10
 
 BLOQUE 5 — GitHub Actions
   [ ] F.08 — Vista general pipeline CI/CD (ambos workflows en verde)
@@ -971,10 +971,10 @@ Sesión de ~3 horas:
 - **Tiempo:** incluir la fecha/hora en el terminal (`echo $(date)` antes de cada comando)
   para demostrar que las capturas se hicieron en la misma sesión.
 - **Barra de URL:** siempre visible en capturas del navegador.
-- **Nombre de VM:** si el prompt de la terminal SSH muestra `vagrant@odoo-server-tfg:~$`,
+- **Nombre de VM:** si el prompt de la terminal SSH muestra `vagrant@odoo-server-tfc:~$`,
   dejarlo visible — identifica claramente en qué máquina se ejecuta el comando.
 
 ---
 
-*TFG ASIR 2025/2026 — IES Cañaveral*
+*TFC ASIR 2025/2026 — IES Cañaveral*
 *Guía de reproducción para el Anexo F — Capturas del sistema en funcionamiento*

@@ -1,6 +1,6 @@
-# 📋 Cuaderno de Trabajo — Paso a Paso del TFG
+# 📋 Cuaderno de Trabajo — Paso a Paso del TFC
 
-**TFG ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
+**TFC ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
 *Sandra Fradejas Avedillo — IES Cañaveral*
 
 > [!NOTE]
@@ -34,7 +34,7 @@
 ```
 📂 Escritorio vacío
 ├── Una idea: "Montar un ERP seguro para una PYME"
-├── Requisito del TFG: Administración de Sistemas Informáticos en Red
+├── Requisito del TFC: Administración de Sistemas Informáticos en Red
 └── Herramientas disponibles: un PC con Windows y VMware Workstation
 ```
 
@@ -94,8 +94,8 @@ vagrant plugin install vagrant-vmware-desktop
 
 ```bash
 # Estado inicial del repositorio
-mkdir TFG-Implantacion_Segura_y_Automatizada_de_Odoo
-cd TFG-Implantacion_Segura_y_Automatizada_de_Odoo
+mkdir TFC-Implantacion_Segura_y_Automatizada_de_Odoo
+cd TFC-Implantacion_Segura_y_Automatizada_de_Odoo
 git init
 ```
 
@@ -134,7 +134,7 @@ Crear el corazón de la infraestructura: un firewall con 4 interfaces que segmen
 
 | Parámetro | Valor |
 |:----------|:------|
-| Nombre | `TFG-pfSense` |
+| Nombre | `TFC-pfSense` |
 | Tipo | FreeBSD 14 64-bit |
 | RAM | 1024 MB |
 | CPU | 1 core |
@@ -192,7 +192,7 @@ Password: pfsense → CAMBIAR en el primer login
 ```
 ☐ → ✅  Interfaces configuradas (4 interfaces con IPs y descripciones)
 ☐ → ✅  DHCP habilitado en LAN y OPT2
-☐ → ✅  DNS Resolver: erp.odoo.tfg.com → 192.168.30.20
+☐ → ✅  DNS Resolver: erp.odoo.tfc.com → 192.168.30.20
 ☐ → ✅  Aliases creados (6 aliases para simplificar reglas)
 ☐ → ✅  NAT Port Forward:
          ├── WAN:80  → 192.168.30.20:80
@@ -217,7 +217,7 @@ Password: pfsense → CAMBIAR en el primer login
 ✅ pfSense operativo con 4 interfaces
 ✅ Segmentación de red: VLAN 10 / 30 / 40
 ✅ Panel de administración accesible SOLO desde VLAN 40
-✅ DNS interno resolviendo erp.odoo.tfg.com
+✅ DNS interno resolviendo erp.odoo.tfc.com
 ```
 
 ---
@@ -238,7 +238,7 @@ Sacar PostgreSQL fuera del servidor Docker para aislamiento real en VLAN 40.
 
 | Campo | Valor |
 |:------|:------|
-| Nombre | `TFG-DB-Server` |
+| Nombre | `TFC-DB-Server` |
 | Box Vagrant | `bento/debian-12` |
 | RAM | 2048 MB |
 | CPU | 1 core |
@@ -311,7 +311,7 @@ Servidor de aplicación con Odoo y Nginx en contenedores Docker, conectado a Pos
 
 | Campo | Valor |
 |:------|:------|
-| Nombre | `TFG-Odoo-Server` |
+| Nombre | `TFC-Odoo-Server` |
 | Box Vagrant | `bento/debian-12` |
 | RAM | 4096 MB |
 | CPU | 2 cores |
@@ -342,7 +342,7 @@ docker --version && docker compose version
 ### 🔧 Paso 4.3 — Clonar el repositorio
 
 ```bash
-git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git \
+git clone https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo.git \
   /opt/erp-odoo
 cd /opt/erp-odoo
 ```
@@ -372,7 +372,7 @@ mkdir -p /opt/erp-odoo/certs
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout /opt/erp-odoo/certs/server.key \
   -out    /opt/erp-odoo/certs/server.crt \
-  -subj "/C=ES/ST=Madrid/L=Madrid/O=TFG/OU=ASIR/CN=odoo.tfg"
+  -subj "/C=ES/ST=Madrid/L=Madrid/O=TFC/OU=ASIR/CN=odoo.tfc"
 ```
 
 ### 🔧 Paso 4.6 — Levantar el stack Docker
@@ -418,16 +418,16 @@ bash scripts/odoo/odoo_crear_usuarios.sh
 
 | Usuario | Rol | Módulos visibles |
 |:--------|:----|:-----------------|
-| `becario@erp.odoo.tfg.com` | Becario | Solo CRM (lectura) |
-| `ventas@erp.odoo.tfg.com` | Ventas | CRM + Ventas + Facturas |
-| `rrhh@erp.odoo.tfg.com` | RRHH | RRHH + Empleados |
-| `almacen@erp.odoo.tfg.com` | Almacén | Inventario + Compras |
-| `tecnico@erp.odoo.tfg.com` | Técnico | Inventario + Soporte |
-| `jefe.ventas@erp.odoo.tfg.com` | Jefe Ventas | Ventas completo + aprobaciones |
-| `jefe.rrhh@erp.odoo.tfg.com` | Jefe RRHH | RRHH completo + aprobaciones |
-| `jefe.almacen@erp.odoo.tfg.com` | Jefe Almacén | Almacén completo + aprobaciones |
-| `api.user@erp.odoo.tfg.com` | API | Solo XML-RPC |
-| `dba@erp.odoo.tfg.com` | DBA | Sin UI (solo BD) |
+| `becario@erp.odoo.tfc.com` | Becario | Solo CRM (lectura) |
+| `ventas@erp.odoo.tfc.com` | Ventas | CRM + Ventas + Facturas |
+| `rrhh@erp.odoo.tfc.com` | RRHH | RRHH + Empleados |
+| `almacen@erp.odoo.tfc.com` | Almacén | Inventario + Compras |
+| `tecnico@erp.odoo.tfc.com` | Técnico | Inventario + Soporte |
+| `jefe.ventas@erp.odoo.tfc.com` | Jefe Ventas | Ventas completo + aprobaciones |
+| `jefe.rrhh@erp.odoo.tfc.com` | Jefe RRHH | RRHH completo + aprobaciones |
+| `jefe.almacen@erp.odoo.tfc.com` | Jefe Almacén | Almacén completo + aprobaciones |
+| `api.user@erp.odoo.tfc.com` | API | Solo XML-RPC |
+| `dba@erp.odoo.tfc.com` | DBA | Sin UI (solo BD) |
 
 ### 🔧 Paso 4.8 — Auditoría SQL
 
@@ -486,7 +486,7 @@ Automatizar la validación de código (CI) y el despliegue en producción (CD).
 mkdir /opt/actions-runner && cd /opt/actions-runner
 curl -O -L https://github.com/actions/runner/releases/download/v2.317.0/actions-runner-linux-x64-2.317.0.tar.gz
 tar xzf actions-runner-linux-x64-2.317.0.tar.gz
-./config.sh --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+./config.sh --url https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo \
   --token <TOKEN> --name odoo-runner --labels 'self-hosted,linux,odoo'
 sudo ./svc.sh install runner && sudo ./svc.sh start
 ```
@@ -542,7 +542,7 @@ Vagrant.configure("2") do |config|
   # VM 1: db-server (PostgreSQL 16)
   config.vm.define "db-server" do |db|
     db.vm.box      = "bento/debian-12"
-    db.vm.hostname = "db-server-tfg"
+    db.vm.hostname = "db-server-tfc"
     db.vm.network "private_network", ip: "192.168.40.10"
     # Provisioning: vagrant/provision_postgres.sh
   end
@@ -550,7 +550,7 @@ Vagrant.configure("2") do |config|
   # VM 2: odoo-server (Debian + Docker + Odoo + Nginx)
   config.vm.define "odoo-server" do |deb|
     deb.vm.box      = "bento/debian-12"
-    deb.vm.hostname = "odoo-server-tfg"
+    deb.vm.hostname = "odoo-server-tfc"
     deb.vm.network "private_network", ip: "192.168.30.10"
     # Provisioning: vagrant/provision_debian.sh
   end
@@ -721,11 +721,11 @@ sudo ufw enable
 
 ```bash
 # Desde el PC de administración (VLAN 40)
-ssh-keygen -t ed25519 -C "admin-tfg" -f ~/.ssh/tfg_admin
-ssh-copy-id -i ~/.ssh/tfg_admin.pub servidor@192.168.30.10
+ssh-keygen -t ed25519 -C "admin-tfc" -f ~/.ssh/tfc_admin
+ssh-copy-id -i ~/.ssh/tfc_admin.pub servidor@192.168.30.10
 
 # Verificar que funciona CON clave
-ssh -i ~/.ssh/tfg_admin servidor@192.168.30.10   # ✅
+ssh -i ~/.ssh/tfc_admin servidor@192.168.30.10   # ✅
 
 # SOLO DESPUÉS de verificar — deshabilitar contraseñas
 sudo nano /etc/ssh/sshd_config
@@ -757,7 +757,7 @@ sudo reboot
 ### 🔧 Paso 8.4 — Verificar tras reboot
 
 ```bash
-ssh -i ~/.ssh/tfg_admin servidor@192.168.30.10
+ssh -i ~/.ssh/tfc_admin servidor@192.168.30.10
 
 systemctl get-default               # → multi-user.target ✅
 sudo ufw status                     # → Status: active ✅
@@ -830,7 +830,7 @@ docker compose -f /opt/erp-odoo/docker/docker-compose.yml ps
 FASE 1 — Red (pfSense)
   ✅ 4 interfaces activas: WAN + VLAN 10 + VLAN 30 + VLAN 40
   ✅ DHCP: VLAN 10 (192.168.10.100–200) + VLAN 40 (192.168.40.10–50)
-  ✅ DNS Resolver: erp.odoo.tfg.com → 192.168.30.20
+  ✅ DNS Resolver: erp.odoo.tfc.com → 192.168.30.20
   ✅ NAT Port Forward: WAN 80/443 → nginx-proxy
   ✅ 32 reglas de firewall: anti-pivoting + permisos mínimos
   ✅ Panel pfSense: solo VLAN 40
@@ -881,7 +881,7 @@ FASE 8 — Automatización (Vagrant)
 ### 📦 Estructura Final del Repositorio
 
 ```
-TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
+TFC-Implantacion_Segura_y_Automatizada_de_Odoo/
 ├── Vagrantfile                    # IaC: Define las 2 VMs Debian
 ├── .env.example                   # Plantilla de variables (sin secretos)
 ├── .gitignore                     # Excluye .env, *.box, ISOs, datos Docker
@@ -931,7 +931,7 @@ TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
 │       ├── GUIA_COMPLETA.md             ← Guía técnica unificada
 │       └── GUIA_TRABAJO_PASO_A_PASO.md  ← ESTE DOCUMENTO
 │
-└── screenshots/                   # Capturas para la memoria del TFG
+└── screenshots/                   # Capturas para la memoria del TFC
 ```
 
 ### 🔍 Evolución del proyecto — Línea temporal
@@ -980,5 +980,5 @@ Mayo 2026
 
 ---
 
-*TFG ASIR 2025/2026 — IES Cañaveral*
+*TFC ASIR 2025/2026 — IES Cañaveral*
 *Sandra Fradejas Avedillo*

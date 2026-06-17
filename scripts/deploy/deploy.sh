@@ -224,7 +224,7 @@ echo "[4/4] Esperando a Odoo (máx. $((MAX_INTENTOS * 10))s)..."
 for i in $(seq 1 $MAX_INTENTOS); do
     if curl -sf -k https://localhost/web/health -o /dev/null 2>/dev/null; then
         echo ""
-        echo "[OK] Stack operativo en https://erp.odoo.tfg.com"
+        echo "[OK] Stack operativo en https://erp.odoo.tfc.com"
         docker compose "${COMPOSE_OPTS[@]}" ps
 
         # --- Creación automática de usuarios (si aún no se han creado) ---

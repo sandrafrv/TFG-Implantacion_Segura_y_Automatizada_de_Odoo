@@ -87,4 +87,4 @@ Este script cubre el módulo de **Gestión de Bases de Datos** del ciclo ASIR, a
 
 ---
 
-*TFG ASIR 2025/2026 — IES Cañaveral*
+*TFC ASIR 2025/2026 — IES Cañaveral*

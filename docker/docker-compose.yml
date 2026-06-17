@@ -1,5 +1,5 @@
 # ====================================================================
-# STACK DOCKER: ERP Odoo TFG ASIR
+# STACK DOCKER: ERP Odoo TFC ASIR
 # DESCRIPCIÓN: Este archivo define los 2 servicios (contenedores) que
 #              forman el sistema ERP:
 #                1. odoo-web    → Odoo 17 CE

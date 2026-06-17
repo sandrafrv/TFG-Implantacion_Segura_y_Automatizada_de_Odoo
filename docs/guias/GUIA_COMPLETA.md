@@ -1,6 +1,6 @@
 # Guía Técnica Completa — Instalación y Configuración
 
-**TFG ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
+**TFC ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
 *Sandra Fradejas Avedillo — IES Cañaveral*
 
 > [!IMPORTANT]
@@ -101,7 +101,7 @@ Internet (WAN)
 | Compatibility | Workstation 17.x |
 | ISO | `netgate-installer-v1.1.1-RELEASE-amd64.iso` |
 | Guest OS | Other → **FreeBSD 14 64-bit** |
-| VM Name | `TFG-pfSense` |
+| VM Name | `TFC-pfSense` |
 | Processors | 1 CPU, 1 Core |
 | RAM | **1024 MB** |
 | Disco | **8 GB**, Single file |
@@ -162,7 +162,7 @@ Usuario:  admin
 Password: pfsense  (cambiar en el primer login)
 ```
 
-Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madrid`.
+Asistente inicial: hostname `pfsense`, dominio `tfc.com`, timezone `Europe/Madrid`.
 
 ---
 
@@ -244,7 +244,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 | Campo | Valor |
 |:------|:------|
 | Host | `erp.odoo` |
-| Domain | `tfg.com` |
+| Domain | `tfc.com` |
 | IP Address | `192.168.30.20` |
 | Description | `nginx-proxy Odoo ERP — DMZ` |
 
@@ -323,7 +323,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 
 > **¿Por qué forzar DNS?** Clientes Linux con `systemd-resolved` pueden ignorar el DNS del DHCP
 > y consultar a 8.8.8.8. Estas reglas interceptan cualquier consulta DNS y la redirigen a pfSense,
-> garantizando que `erp.odoo.tfg.com` resuelva siempre a `192.168.30.20`.
+> garantizando que `erp.odoo.tfc.com` resuelva siempre a `192.168.30.20`.
 
 ### NAT Outbound — *Firewall → NAT → Outbound*
 
@@ -476,8 +476,8 @@ bash scripts/deploy/generate_pfsense_config.sh
 
 ```bash
 # Desde cliente VLAN 10
-nslookup erp.odoo.tfg.com          # → 192.168.30.20
-curl -k -I https://erp.odoo.tfg.com  # → HTTP/2 200
+nslookup erp.odoo.tfc.com          # → 192.168.30.20
+curl -k -I https://erp.odoo.tfc.com  # → HTTP/2 200
 
 # Desde admin VLAN 40
 curl -k https://192.168.40.1       # → Panel pfSense ✅
@@ -492,7 +492,7 @@ nc -zv 192.168.40.10 5432          # Desde VLAN 10 → Timeout ✅
 ```
 ✅ Interfaces: WAN (DHCP) + LAN (10.1/24) + OPT1 (30.1/24) + OPT2 (40.1/24)
 ✅ DHCP: LAN 100–200, OPT2 10–50
-✅ DNS Resolver + Host Override: erp.odoo.tfg.com → 192.168.30.20
+✅ DNS Resolver + Host Override: erp.odoo.tfc.com → 192.168.30.20
 ✅ 6 Aliases creados
 ✅ NAT: WAN 80/443 → 192.168.30.20, DNS forzado en LAN y OPT2
 ✅ Reglas: WAN(5) + LAN(9) + OPT1(8) + OPT2(10) = 32 reglas
@@ -509,7 +509,7 @@ nc -zv 192.168.40.10 5432          # Desde VLAN 10 → Timeout ✅
 
 | Campo | Valor |
 |:------|:------|
-| Nombre | `TFG-DB-Server` |
+| Nombre | `TFC-DB-Server` |
 | Box Vagrant | `bento/debian-12` |
 | RAM | **2048 MB** |
 | CPU | **1 core** |
@@ -589,7 +589,7 @@ nc -zv 192.168.40.10 5432                    # → Timeout ✅ (bloqueado)
 
 | Campo | Valor |
 |:------|:------|
-| Nombre | `TFG-Odoo-Server` |
+| Nombre | `TFC-Odoo-Server` |
 | Box Vagrant | `bento/debian-12` |
 | RAM | **4096 MB** |
 | CPU | **2 cores** |
@@ -647,7 +647,7 @@ docker --version && docker compose version
 ## 3.4 Clonar Repositorio y Configurar
 
 ```bash
-git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git \
+git clone https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo.git \
   /opt/erp-odoo
 cd /opt/erp-odoo
 cp .env.example .env
@@ -673,7 +673,7 @@ mkdir -p /opt/erp-odoo/certs
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout /opt/erp-odoo/certs/server.key \
   -out    /opt/erp-odoo/certs/server.crt \
-  -subj "/C=ES/ST=Madrid/L=Madrid/O=TFG/OU=ASIR/CN=odoo.tfg"
+  -subj "/C=ES/ST=Madrid/L=Madrid/O=TFC/OU=ASIR/CN=odoo.tfc"
 ```
 
 ## 3.6 Verificar Conectividad con PostgreSQL
@@ -737,16 +737,16 @@ bash /opt/erp-odoo/scripts/odoo/odoo_crear_usuarios.sh
 
 | Usuario | Rol | Módulos |
 |:--------|:----|:--------|
-| `becario@erp.odoo.tfg.com` | Becario | Solo CRM (lectura) |
-| `ventas@erp.odoo.tfg.com` | Ventas | CRM + Ventas + Facturas |
-| `rrhh@erp.odoo.tfg.com` | RRHH | RRHH + Empleados |
-| `almacen@erp.odoo.tfg.com` | Almacén | Inventario + Compras |
-| `tecnico@erp.odoo.tfg.com` | Técnico | Inventario + Soporte |
-| `jefe.ventas@erp.odoo.tfg.com` | Jefe Ventas | Ventas completo + aprobaciones |
-| `jefe.rrhh@erp.odoo.tfg.com` | Jefe RRHH | RRHH completo + aprobaciones |
-| `jefe.almacen@erp.odoo.tfg.com` | Jefe Almacén | Almacén completo + aprobaciones |
-| `api.user@erp.odoo.tfg.com` | API | Solo XML-RPC |
-| `dba@erp.odoo.tfg.com` | DBA | Sin UI (solo BD) |
+| `becario@erp.odoo.tfc.com` | Becario | Solo CRM (lectura) |
+| `ventas@erp.odoo.tfc.com` | Ventas | CRM + Ventas + Facturas |
+| `rrhh@erp.odoo.tfc.com` | RRHH | RRHH + Empleados |
+| `almacen@erp.odoo.tfc.com` | Almacén | Inventario + Compras |
+| `tecnico@erp.odoo.tfc.com` | Técnico | Inventario + Soporte |
+| `jefe.ventas@erp.odoo.tfc.com` | Jefe Ventas | Ventas completo + aprobaciones |
+| `jefe.rrhh@erp.odoo.tfc.com` | Jefe RRHH | RRHH completo + aprobaciones |
+| `jefe.almacen@erp.odoo.tfc.com` | Jefe Almacén | Almacén completo + aprobaciones |
+| `api.user@erp.odoo.tfc.com` | API | Solo XML-RPC |
+| `dba@erp.odoo.tfc.com` | DBA | Sin UI (solo BD) |
 
 > [!WARNING]
 > Las contraseñas se generan aleatoriamente y se muestran **una sola vez**. Guardarlas inmediatamente.
@@ -813,7 +813,7 @@ En GitHub: **Settings → Actions → Runners → New self-hosted runner** → L
 mkdir /opt/actions-runner && cd /opt/actions-runner
 curl -O -L https://github.com/actions/runner/releases/download/v2.317.0/actions-runner-linux-x64-2.317.0.tar.gz
 tar xzf ./actions-runner-linux-x64-2.317.0.tar.gz
-./config.sh --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+./config.sh --url https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo \
   --token <TOKEN> --name odoo-runner --labels 'self-hosted,linux,odoo'
 sudo ./svc.sh install runner
 sudo ./svc.sh start
@@ -901,9 +901,9 @@ sudo ufw status verbose
 **Primero: copiar clave pública desde VLAN 40:**
 
 ```bash
-ssh-keygen -t ed25519 -C "admin-tfg" -f ~/.ssh/tfg_admin
-ssh-copy-id -i ~/.ssh/tfg_admin.pub servidor@192.168.30.10
-ssh -i ~/.ssh/tfg_admin servidor@192.168.30.10   # Verificar ✅
+ssh-keygen -t ed25519 -C "admin-tfc" -f ~/.ssh/tfc_admin
+ssh-copy-id -i ~/.ssh/tfc_admin.pub servidor@192.168.30.10
+ssh -i ~/.ssh/tfc_admin servidor@192.168.30.10   # Verificar ✅
 ```
 
 **Solo después de verificar que la clave funciona:**
@@ -926,7 +926,7 @@ MaxAuthTries 3
 ```bash
 sudo systemctl restart sshd
 # ⚠️ Verificar desde OTRA ventana antes de cerrar la actual:
-ssh -i ~/.ssh/tfg_admin servidor@192.168.30.10   # ✅
+ssh -i ~/.ssh/tfc_admin servidor@192.168.30.10   # ✅
 ```
 
 > [!CAUTION]
@@ -945,7 +945,7 @@ sudo apt autoremove --purge -y && sudo apt clean
 
 ```bash
 sudo reboot
-ssh -i ~/.ssh/tfg_admin servidor@192.168.30.10
+ssh -i ~/.ssh/tfc_admin servidor@192.168.30.10
 
 systemctl get-default               # → multi-user.target ✅
 sudo ufw status                     # → Status: active ✅
@@ -966,7 +966,7 @@ curl -k -I https://localhost/web/health  # → HTTP/2 200 ✅
 PARTE 1 — Red (pfSense)
   ✅ 4 interfaces activas: WAN + VLAN 10 + VLAN 30 + VLAN 40
   ✅ DHCP: VLAN 10 (.100–.200) + VLAN 40 (.10–.50)
-  ✅ DNS: erp.odoo.tfg.com → 192.168.30.20
+  ✅ DNS: erp.odoo.tfc.com → 192.168.30.20
   ✅ NAT: WAN 80/443 → nginx, DNS forzado en LAN y OPT2
   ✅ 32 reglas firewall (anti-pivoting + permisos mínimos)
   ✅ Panel pfSense: solo VLAN 40, Anti-Lockout desactivado
@@ -1003,7 +1003,7 @@ PARTE 5 — Hardening
 2. Arrancar vm-postgres      → PostgreSQL arranca automáticamente
 3. Arrancar vm-odoo          → Docker arranca automáticamente
 4. Esperar ~3 min            → Odoo inicializa
-5. Verificar desde VLAN 10   → https://erp.odoo.tfg.com
+5. Verificar desde VLAN 10   → https://erp.odoo.tfc.com
 6. Verificar desde VLAN 40   → https://192.168.30.10:9090 (Cockpit)
 ```
 
@@ -1071,35 +1071,35 @@ ssh -o StrictHostKeyChecking=no vagrant@192.168.40.1
 2. Empaquetar:
 
 ```powershell
-cd "C:\Users\sandra\Desktop\Ante proyecto\TFG-ASIRB"
-vagrant package --base "TFG-pfSense-base" --output "config/pfsense-tfg.box" \
+cd "C:\Users\sandra\Desktop\Ante proyecto\TFC-ASIRB"
+vagrant package --base "TFC-pfSense-base" --output "config/pfsense-tfc.box" \
   --vagrantfile "vagrant/Vagrantfile.pfsense-box"
 ```
 
 3. Verificar:
 
 ```powershell
-vagrant box add --name "tfg/pfsense" config/pfsense-tfg.box --force
-vagrant box list   # → tfg/pfsense (vmware_desktop, 0)
+vagrant box add --name "tfc/pfsense" config/pfsense-tfc.box --force
+vagrant box list   # → tfc/pfsense (vmware_desktop, 0)
 ```
 
 ## A.5 Subir a GitHub Releases
 
 1. **Releases → Draft a new release** → Tag: `v1.0-pfsense-box`
-2. Arrastrar `config/pfsense-tfg.box` como binario adjunto
+2. Arrastrar `config/pfsense-tfc.box` como binario adjunto
 3. **Publish release**
 
 URL resultante:
 ```
-https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfg.box
+https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo/releases/download/v1.0-pfsense-box/pfsense-tfc.box
 ```
 
 ## A.6 Actualizar Vagrantfile
 
 ```ruby
 # Tu box privada con SSH:
-pf.vm.box = "tfg/pfsense"
-pf.vm.box_url = "https://github.com/.../releases/download/v1.0-pfsense-box/pfsense-tfg.box"
+pf.vm.box = "tfc/pfsense"
+pf.vm.box_url = "https://github.com/.../releases/download/v1.0-pfsense-box/pfsense-tfc.box"
 pf.vm.communicator = "ssh"
 pf.ssh.username = "vagrant"
 pf.ssh.password = "vagrant"
@@ -1225,5 +1225,5 @@ Ver `extras/ldap/README.md` para instrucciones completas.
 
 ---
 
-*TFG ASIR 2025/2026 — IES Cañaveral*
+*TFC ASIR 2025/2026 — IES Cañaveral*
 *Sandra Fradejas Avedillo*

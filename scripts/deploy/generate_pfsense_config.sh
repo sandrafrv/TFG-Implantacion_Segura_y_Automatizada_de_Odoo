@@ -2,7 +2,7 @@
 # ============================================================
 # SCRIPT: generate_pfsense_config.sh
 # DESCRIPCIÓN: Genera un config.xml completo para pfSense
-#   con todas las reglas del proyecto TFG.
+#   con todas las reglas del proyecto TFC.
 #   Arquitectura: bridge Docker + port mapping (sin MACVLAN).
 #   Nginx y Odoo usan la IP del host (192.168.30.10).
 # USO: ./scripts/deploy/generate_pfsense_config.sh
@@ -11,7 +11,7 @@
 set -eu
 
 # ── Variables de red ──────────────────────────────────────────
-HOSTNAME="pfsense-tfg"
+HOSTNAME="pfsense-tfc"
 DOMAIN="local"
 TIMEZONE="Europe/Madrid"
 
@@ -43,9 +43,9 @@ ADMIN_DHCP_END="192.168.40.50"
 SERVER_IP="192.168.30.10"   # odoo-server: nginx expone :80/:443, Odoo interno :8069
 PGSQL_IP="192.168.40.10"    # db-server: PostgreSQL 16 nativo
 
-# DNS Override: resuelve erp.odoo.tfg.com → host odoo-server
+# DNS Override: resuelve erp.odoo.tfc.com → host odoo-server
 DNS_HOST="erp"
-DNS_DOMAIN="odoo.tfg"
+DNS_DOMAIN="odoo.tfc"
 DNS_TARGET="${SERVER_IP}"   # 192.168.30.10 — Nginx port mapping en el host
 
 OUTPUT_FILE="config/pfsense_config.xml"
@@ -176,7 +176,7 @@ cat << XMLEOF
 XMLEOF
 
 # ── DNS Resolver (Unbound) ────────────────────────────────────
-# Host Override: erp.odoo.tfg.com → 192.168.30.10 (host odoo-server)
+# Host Override: erp.odoo.tfc.com → 192.168.30.10 (host odoo-server)
 # Redirección DNS forzada: intercepta consultas externas en LAN y ADMIN
 cat << XMLEOF
  <unbound>
@@ -763,5 +763,5 @@ echo ""
 echo "=== Post-importacion ==="
 echo "6. Cambiar la contrasena admin en el primer login (password actual: pfsense2024)"
 echo "7. Verificar acceso desde VLAN 40: https://${ADMIN_IP}"
-echo "8. Verificar DNS: nslookup erp.odoo.tfg.com  →  ${DNS_TARGET}"
+echo "8. Verificar DNS: nslookup erp.odoo.tfc.com  →  ${DNS_TARGET}"
 echo "9. Verificar NAT: curl -k https://${SERVER_IP}  →  debe devolver Odoo"

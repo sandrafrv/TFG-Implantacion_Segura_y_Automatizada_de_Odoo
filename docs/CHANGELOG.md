@@ -76,18 +76,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
   Corregido: se añade `--env-file "$ENV_FILE"` en ambas llamadas, coherente con
   `deploy.sh` y `provision_debian.sh`. También añadida comprobación de existencia del `.env`.
 
-- **`docs/GUION_PRESENTACION_TFG.md` — referencias a MACVLAN en la sección de presentación** (🟡 BAJA):
+- **`docs/GUION_PRESENTACION_TFC.md` — referencias a MACVLAN en la sección de presentación** (🟡 BAJA):
   El guión mencionaba redes MACVLAN e IPs `.20`/`.21` como reto técnico.
   Actualizado para describir la arquitectura bridge Docker real, con Nginx haciendo
   port mapping en el host `192.168.30.10` y Odoo aislado en la red interna `odoo_net`.
-
-- **`CLAUDE.md` — arquitectura y árbol de ficheros desactualizados** (🟡 BAJA):
-  - Se eliminan referencias a `provision_pfsense.sh` y `Explicacion_provision_postgres.md`
-    que no existen en el repositorio.
-  - Se corrige la descripción de los contenedores Docker (MACVLAN → bridge + port mapping).
-  - Se actualiza el árbol de ficheros para reflejar el repo real.
-  - Se añade advertencia explícita de por qué MACVLAN está descartado.
-  - Fecha de arquitectura actualizada de Mayo a Junio 2026.
 
 - **`scripts/deploy/generate_pfsense_config.sh` — variables de red apuntando a IPs MACVLAN** (🔴 CRÍTICA):
   `NGINX_IP="192.168.30.20"` y `ODOO_IP="192.168.30.21"` eran las IPs de MACVLAN descartadas en v1.9.
@@ -117,8 +109,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 ### En progreso
 
 - Hardening final: Debian headless + SSH por clave pública
-- Capturas de pantalla para la memoria del TFG
-- Redacción de la memoria del TFG
+- Capturas de pantalla para la memoria del TFC
+- Redacción de la memoria del TFC
 
 ---
 
@@ -435,4 +427,3 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 - `.github/workflows/ci.yml` — CI: ShellCheck + YAML lint + Markdownlint
 - `docs/reglas_pfsense.md` — Documentación de reglas pfSense
 - `docs/github_issues.md` — Plantillas de GitHub Issues
-- `CLAUDE.md` — Skill de documentación para el asistente IA
