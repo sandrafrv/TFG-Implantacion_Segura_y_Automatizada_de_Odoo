@@ -1,10 +1,10 @@
-# Archivo Histórico del TFG — Material de Trabajo Interno
+# Archivo Histórico del TFC — Material de Trabajo Interno
 
 > [!NOTE]
 > Este documento consolida todos los archivos de trabajo interno del proyecto.
 > Son notas de desarrollo, planes completados y material de referencia que ya no
 > forman parte de la documentación técnica activa. Se conservan aquí por su valor
-> histórico y de referencia para la memoria del TFG.
+> histórico y de referencia para la memoria del TFC.
 >
 > **Documentación activa:** [`../INSTALACION_COMPLETA.md`](../INSTALACION_COMPLETA.md)
 > **Registro de cambios:** [`../CHANGELOG.md`](../CHANGELOG.md)
@@ -56,7 +56,7 @@
 - [x] **[2026-04-29]** `sql/audit_triggers.sql` creado: tabla `asir_audit_log`, función `func_audit_users()`, trigger `trg_audit_new_odoo_user`.
 - [x] **[2026-04-29]** Campo JSONB (`row_data`) añadido.
 - [x] **[2026-04-29]** Vista `v_audit_resumen` creada.
-- [x] **[2026-04-30]** Validación end-to-end: `audit_id=1, CREACION_USUARIO, user@tfg.prueba, 2026-04-30 12:13:57 UTC`.
+- [x] **[2026-04-30]** Validación end-to-end: `audit_id=1, CREACION_USUARIO, user@tfc.prueba, 2026-04-30 12:13:57 UTC`.
 
 ### Fase 6: UFW
 
@@ -64,7 +64,7 @@
 
 ### Fase 7: Pruebas Globales
 
-- [x] **[2026-04-30]** Acceso al ERP vía `https://erp.odoo.tfg.com` validado desde VLAN 10.
+- [x] **[2026-04-30]** Acceso al ERP vía `https://erp.odoo.tfc.com` validado desde VLAN 10.
 - [x] **[2026-04-30]** Prueba de auto-recuperación: odoo-web parado → vuelve a `healthy`.
 - [x] **[2026-04-30]** Backup manual ejecutado correctamente.
 
@@ -85,7 +85,7 @@
 
 ### Fase 10: Documentación y Defensa
 
-- [ ] Redactar la **Memoria del TFG**.
+- [ ] Redactar la **Memoria del TFC**.
 - [ ] Preparar capturas de pantalla para la memoria.
 - [ ] Preparar demostración en vivo para la defensa.
 
@@ -231,7 +231,7 @@ backups/            → Backups de PostgreSQL
 
 - [ ] Revisar reglas en pfSense → Firewall → Rules → LAN, OPT1 (DMZ), OPT2 (VLAN 40)
 - [ ] `nc -zv 192.168.30.10 5432` desde VLAN 10 → **debe fallar**
-- [ ] `curl -k -I https://erp.odoo.tfg.com` desde VLAN 10 → **debe devolver 200**
+- [ ] `curl -k -I https://erp.odoo.tfc.com` desde VLAN 10 → **debe devolver 200**
 - [ ] `ping 192.168.10.x` desde DMZ → **sin respuesta** (anti-pivoting)
 - [ ] Capturar reglas en pfSense → `screenshots/fase_A_vlan/`
 
@@ -326,7 +326,7 @@ Réplica en tiempo real de la BD. Si cae el maestro, el esclavo asume el rol ins
 | Decisión | Motivo |
 |:---------|:-------|
 | PostgreSQL en VM externa (VLAN 40) | Mayor aislamiento: si el stack Docker cae, la BD permanece intacta |
-| LDAP descartado del despliegue activo | Reduce superficie de ataque; complejidad no justificada para el TFG |
+| LDAP descartado del despliegue activo | Reduce superficie de ataque; complejidad no justificada para el TFC |
 | VMware Workstation en lugar de VirtualBox | Mejor compatibilidad con vagrant-vmware-desktop y MACVLAN en Windows |
 | Debian 12 (Bookworm) en lugar de 13 (Trixie) | Mayor estabilidad; box `bento/debian-12` madura y probada |
 | 2 runners (odoo-runner + db-runner) | CI/CD independiente por VM; db-runner para futuros tests de BD |
@@ -334,4 +334,4 @@ Réplica en tiempo real de la BD. Si cae el maestro, el esclavo asume el rol ins
 
 ---
 
-*Archivado: 2026-05-22 — TFG ASIR 2025/2026 — IES Cañaveral*
+*Archivado: 2026-05-22 — TFC ASIR 2025/2026 — IES Cañaveral*

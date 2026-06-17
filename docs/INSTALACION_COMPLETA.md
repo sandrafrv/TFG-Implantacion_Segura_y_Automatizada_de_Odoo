@@ -1,6 +1,6 @@
 # Guía Maestra de Instalación desde Cero
 
-**TFG ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
+**TFC ASIR 2025/2026 — Implantación Segura y Automatizada de Odoo ERP**
 *Sandra Fradejas Avedillo — IES Cañaveral*
 
 > [!IMPORTANT]
@@ -78,8 +78,8 @@ Internet (WAN)
 ## Opción A — Despliegue Automático con Vagrant (Recomendado)
 
 ```bash
-git clone https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo.git
-cd TFG-Implantacion_Segura_y_Automatizada_de_Odoo
+git clone https://github.com/sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo.git
+cd TFC-Implantacion_Segura_y_Automatizada_de_Odoo
 cp .env.example .env
 nano .env              # Rellenar variables obligatorias
 vagrant up             # Levanta las 3 VMs automáticamente
@@ -111,7 +111,7 @@ vagrant up             # Levanta las 3 VMs automáticamente
 | 4 | Acceso a la interfaz web desde LAN |
 | 5 | Configuración OPT1 (VLAN 30 — DMZ) y OPT2 (VLAN 40 — Admin/BD) |
 | 6 | DHCP: LAN (.100–.200) y VLAN 40 (.10–.50) |
-| 7 | DNS Resolver: Host Override `erp.odoo.tfg.com → 192.168.30.10` (host odoo-server) |
+| 7 | DNS Resolver: Host Override `erp.odoo.tfc.com → 192.168.30.10` (host odoo-server) |
 | 8 | NAT: WAN:80/443 → `192.168.30.10` (Nginx expone puertos del host) |
 | 9 | Reglas firewall: bloqueos anti-pivoting + permisos mínimos |
 | 10 | Desactivar Anti-Lockout tras confirmar acceso VLAN 40 |
@@ -121,7 +121,7 @@ Importar en **Diagnostics → Backup/Restore**.
 
 **Verificación rápida:**
 ```bash
-nslookup erp.odoo.tfg.com   # → 192.168.30.10 desde VLAN 10
+nslookup erp.odoo.tfc.com   # → 192.168.30.10 desde VLAN 10
 nc -zv 192.168.40.10 5432   # → Timeout (bloqueado) desde VLAN 10
 ```
 
@@ -176,7 +176,7 @@ psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'
 ```bash
 docker compose -f docker/docker-compose.yml ps
 # Resultado esperado: odoo-web (healthy), nginx-proxy (healthy)
-curl -k -I https://erp.odoo.tfg.com   # → HTTP/2 200
+curl -k -I https://erp.odoo.tfc.com   # → HTTP/2 200
 ```
 
 ---
@@ -214,7 +214,7 @@ sudo ufw status                # → active
 2. Arrancar vm-postgres VM   → PostgreSQL arranca automáticamente
 3. Arrancar vm-odoo VM       → Docker arranca automáticamente
 4. Esperar ~3 min            → Odoo inicializa (primer arranque)
-5. Verificar desde VLAN 10   → https://erp.odoo.tfg.com
+5. Verificar desde VLAN 10   → https://erp.odoo.tfc.com
 6. Verificar desde VLAN 40   → https://192.168.30.10:9090 (Cockpit)
 ```
 
@@ -226,7 +226,7 @@ sudo ufw status                # → active
 FASE 1 — Red
   ✅ pfSense: 4 interfaces activas (WAN + VLAN 10 + 30 + 40)
   ✅ DHCP VLAN 10 y VLAN 40
-  ✅ DNS: erp.odoo.tfg.com → 192.168.30.10
+  ✅ DNS: erp.odoo.tfc.com → 192.168.30.10
   ✅ NAT: WAN 80/443 → nginx-proxy en host (192.168.30.10)
   ✅ Reglas: anti-pivoting + permisos mínimos
   ✅ Panel pfSense: solo VLAN 40
@@ -274,4 +274,4 @@ FASE 4 — Seguridad
 
 ---
 
-*TFG ASIR 2025/2026 — IES Cañaveral*
+*TFC ASIR 2025/2026 — IES Cañaveral*

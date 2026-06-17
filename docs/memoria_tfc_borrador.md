@@ -1,7 +1,7 @@
-# Memoria del TFG: Implantación Segura y Automatizada de Odoo
+# Memoria del TFC: Implantación Segura y Automatizada de Odoo
 
 > [!WARNING]
-> **OBSOLETO:** Este es un borrador antiguo. No refleja la arquitectura actual de 3 VMs ni la eliminación de LDAP. Por favor, consulta `memoria_tfg_nuevo.md` para la versión actualizada.
+> **OBSOLETO:** Este es un borrador antiguo. No refleja la arquitectura actual de 3 VMs ni la eliminación de LDAP. Por favor, consulta `memoria_tfc_nuevo.md` para la versión actualizada.
 
 *(Este documento es la plantilla definitiva basada en los requisitos exactos de tu instituto. Debes usar esto como base para redactar tu memoria en Word/PDF).*
 

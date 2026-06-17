@@ -2,7 +2,7 @@
 
 > **Última actualización:** Junio 2026 — v2.0 (arquitectura con 2 VMs Vagrant, PostgreSQL en VLAN 40, sin LDAP, sin MACVLAN — bridge Docker + port mapping)
 
-Este documento detalla todas las reglas configuradas en pfSense para la arquitectura de red del proyecto TFG.
+Este documento detalla todas las reglas configuradas en pfSense para la arquitectura de red del proyecto TFC.
 La infraestructura cuenta con **cuatro interfaces**: **WAN** (red pública), **LAN/VLAN 10** (clientes 192.168.10.0/24), **OPT1/DMZ/VLAN 30** (zona desmilitarizada 192.168.30.0/24) y **OPT2/VLAN 40** (administración y base de datos 192.168.40.0/24).
 
 > **Nota:** En pfSense, el orden de las reglas importa. Se evalúan de arriba a abajo y se aplica la primera que coincide.
@@ -138,7 +138,7 @@ Tráfico desde servidor DMZ (192.168.30.x)
 
 ### Nota técnica — Egress Filtering
 
-Durante el TFG se evaluó restringir la salida de la DMZ a rangos CIDR específicos (GitHub/Azure) mediante pfBlockerNG con ASN. Se descartó por requerir un token externo de IPinfo.io, introduciendo dependencia de terceros. Se mantiene una regla de salida permisiva por **TCP 443** hacia `Any`, bloqueando el resto de protocolos y puertos. Esta decisión está documentada para su defensa en la memoria del TFG.
+Durante el TFC se evaluó restringir la salida de la DMZ a rangos CIDR específicos (GitHub/Azure) mediante pfBlockerNG con ASN. Se descartó por requerir un token externo de IPinfo.io, introduciendo dependencia de terceros. Se mantiene una regla de salida permisiva por **TCP 443** hacia `Any`, bloqueando el resto de protocolos y puertos. Esta decisión está documentada para su defensa en la memoria del TFC.
 
 ---
 
@@ -213,7 +213,7 @@ El tráfico público entra por la WAN y se redirige al host `odoo-server` (`192.
 | LAN | TCP/UDP | `192.168.10.0/24` | * | 53 | `192.168.10.1` | Forzar DNS VLAN 10 → pfSense |
 | OPT2 | TCP/UDP | `192.168.40.0/24` | * | 53 | `192.168.40.1` | Forzar DNS VLAN 40 → pfSense |
 
-> **Por qué es necesario:** Los clientes Linux modernos con `systemd-resolved` pueden ignorar el DNS del DHCP y enviar consultas a 8.8.8.8. Esta regla intercepta cualquier consulta DNS desde cada VLAN y la redirige a pfSense, garantizando que `erp.odoo.tfg.com` resuelva siempre a `192.168.30.10`.
+> **Por qué es necesario:** Los clientes Linux modernos con `systemd-resolved` pueden ignorar el DNS del DHCP y enviar consultas a 8.8.8.8. Esta regla intercepta cualquier consulta DNS desde cada VLAN y la redirige a pfSense, garantizando que `erp.odoo.tfc.com` resuelva siempre a `192.168.30.10`.
 
 ### NAT Outbound
 
@@ -272,7 +272,7 @@ Con el modo automático pfSense aplica NAT a todas las subnets internas. Si usas
 | Campo | Valor |
 |---|---|
 | Host | `erp.odoo` |
-| Domain | `tfg.com` |
+| Domain | `tfc.com` |
 | IP Address | `192.168.30.10` |
 | Description | `nginx-proxy Odoo ERP — DMZ host odoo-server (port mapping 80/443)` |
 
@@ -290,7 +290,7 @@ Cliente VLAN 10 (systemd-resolved envía consulta a 8.8.8.8:53)
         ▼  Redirige a 192.168.10.1:53
         │
 [ pfSense DNS Resolver ]
-        │  Host Override → erp.odoo.tfg.com = 192.168.30.10
+        │  Host Override → erp.odoo.tfc.com = 192.168.30.10
         ▼
 Cliente recibe 192.168.30.10 → abre HTTPS → nginx-proxy (port mapping :443) → Odoo
 ```
@@ -347,7 +347,7 @@ El `server_name` de Nginx debe coincidir con el Host Override DNS.
 grep server_name /opt/erp-odoo/config_nginx/*.conf
 
 # Corregir si es necesario
-sudo sed -i 's/erp.techsolutions.local/erp.odoo.tfg.com/g' /opt/erp-odoo/config_nginx/*.conf
+sudo sed -i 's/erp.techsolutions.local/erp.odoo.tfc.com/g' /opt/erp-odoo/config_nginx/*.conf
 
 # Recargar sin cortar servicio
 docker exec nginx-proxy nginx -s reload
@@ -360,8 +360,8 @@ docker exec nginx-proxy nginx -t
 
 ```bash
 # Desde cliente VLAN 10
-nslookup erp.odoo.tfg.com            # Debe devolver 192.168.30.10
-curl -k -I https://erp.odoo.tfg.com  # Debe devolver HTTP/2 200
+nslookup erp.odoo.tfc.com            # Debe devolver 192.168.30.10
+curl -k -I https://erp.odoo.tfc.com  # Debe devolver HTTP/2 200
 
 # Desde admin VLAN 40
 ssh usuario@192.168.30.10            # Debe conectar
@@ -407,7 +407,7 @@ nc -zv 192.168.40.10 5432            # → Timeout ✅ (BD no accesible)
 
 ✅ DNS Resolver
    ├─ Habilitado en LAN, OPT1, OPT2, Localhost
-   └─ Host Override: erp.odoo.tfg.com → 192.168.30.10 (host odoo-server, Nginx port mapping)
+   └─ Host Override: erp.odoo.tfc.com → 192.168.30.10 (host odoo-server, Nginx port mapping)
 
 ✅ System → Advanced → Admin Access
    └─ Disable anti-lockout rule (tras confirmar acceso desde VLAN 40)

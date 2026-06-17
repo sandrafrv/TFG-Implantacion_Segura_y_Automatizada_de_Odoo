@@ -1,5 +1,5 @@
 # ============================================================
-# Vagrantfile — TFG Implantación Segura y Automatizada de Odoo
+# Vagrantfile — TFC Implantación Segura y Automatizada de Odoo
 # Uso: vagrant up
 # Crea: VM Odoo+Nginx + VM PostgreSQL  (pfSense: VM manual)
 #
@@ -34,20 +34,20 @@
 Vagrant.configure("2") do |config|
 
   GH_PAT  = ENV["GH_PAT"] || ""
-  GH_REPO = "sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
+  GH_REPO = "sandrafrv/TFC-Implantacion_Segura_y_Automatizada_de_Odoo"
 
   # ── db-server definido PRIMERO ──────────────────────────────
   config.vm.define "db-server" do |db|
     db.vm.box              = "bento/debian-12"
     db.vm.box_check_update = false
-    db.vm.hostname         = "db-server-tfg"
+    db.vm.hostname         = "db-server-tfc"
 
     db.vm.network "private_network",
       ip:      "192.168.40.10",
       netmask: "255.255.255.0"
 
     db.vm.provider "vmware_desktop" do |v|
-      v.vmx["displayName"]              = "TFG-DB-Server"
+      v.vmx["displayName"]              = "TFC-DB-Server"
       v.memory = 2048
       v.cpus   = 1
       v.gui    = true
@@ -106,7 +106,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "odoo-server" do |deb|
     deb.vm.box              = "bento/debian-12"
     deb.vm.box_check_update = false
-    deb.vm.hostname         = "odoo-server-tfg"
+    deb.vm.hostname         = "odoo-server-tfc"
 
     # ── Carpeta sincronizada (rsync) ─────────────────────────────
     # Permite actualizar el codigo en la VM SIN necesitar internet:
@@ -131,7 +131,7 @@ Vagrant.configure("2") do |config|
       netmask: "255.255.255.0"
 
     deb.vm.provider "vmware_desktop" do |v|
-      v.vmx["displayName"]              = "TFG-Odoo-Server"
+      v.vmx["displayName"]              = "TFC-Odoo-Server"
       v.memory = 4096
       v.cpus   = 2
       v.gui    = true

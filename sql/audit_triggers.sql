@@ -1,6 +1,6 @@
 -- ====================================================================================
 -- SCRIPT DE AUDITORÍA AVANZADA PARA ODOO 17 (PostgreSQL 16)
--- TFG ASIR - Control de Usuarios y Seguridad en Base de Datos
+-- TFC ASIR - Control de Usuarios y Seguridad en Base de Datos
 --
 -- FUENTE TÉCNICA: Wiki Oficial PostgreSQL - Generic Audit Trigger (PL/pgSQL)
 --   https://wiki.postgresql.org/wiki/Audit_trigger
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS asir_audit_log (
 
 -- Comentario descriptivo para administradores de la BD
 COMMENT ON TABLE asir_audit_log IS
-    'Tabla de auditoría de seguridad (TFG ASIR) — Registra creaciones y cambios en tablas críticas de Odoo. Incluye snapshot JSONB del registro para trazabilidad completa. Ref: https://wiki.postgresql.org/wiki/Audit_trigger';
+    'Tabla de auditoría de seguridad (TFC ASIR) — Registra creaciones y cambios en tablas críticas de Odoo. Incluye snapshot JSONB del registro para trazabilidad completa. Ref: https://wiki.postgresql.org/wiki/Audit_trigger';
 
 -- Índice para acelerar búsquedas por fecha (útil en la defensa y en producción)
 CREATE INDEX IF NOT EXISTS idx_audit_log_time ON asir_audit_log (action_time DESC);
@@ -114,11 +114,11 @@ CREATE TRIGGER trg_audit_new_odoo_user
 
 -- Comentario del trigger para documentación
 COMMENT ON TRIGGER trg_audit_new_odoo_user ON res_users IS
-    'TFG ASIR: Audita la creación de nuevos usuarios en Odoo. Registra snapshot JSONB completo en asir_audit_log.';
+    'TFC ASIR: Audita la creación de nuevos usuarios en Odoo. Registra snapshot JSONB completo en asir_audit_log.';
 
 
 -- ====================================================================================
--- 4. VISTA DE CONSULTA RÁPIDA (Para usar en la defensa del TFG)
+-- 4. VISTA DE CONSULTA RÁPIDA (Para usar en la defensa del TFC)
 -- ====================================================================================
 -- Esta vista simplifica la consulta al log de auditoría, mostrando los campos
 -- más relevantes en un formato legible. Útil para demostrar el sistema en vivo.
@@ -143,11 +143,11 @@ ORDER BY
     action_time DESC;
 
 COMMENT ON VIEW v_audit_resumen IS
-    'TFG ASIR: Vista simplificada del log de auditoría. Muestra los últimos eventos con campos extraídos del JSONB.';
+    'TFC ASIR: Vista simplificada del log de auditoría. Muestra los últimos eventos con campos extraídos del JSONB.';
 
 
 -- ====================================================================================
--- USO Y COMPROBACIÓN EN LA DEFENSA DEL TFG:
+-- USO Y COMPROBACIÓN EN LA DEFENSA DEL TFC:
 -- ====================================================================================
 -- Paso 1: Ejecutar este script completo en la BD de Odoo:
 --   docker exec -i odoo-db psql -U odoo -d odoo_erp < /opt/erp-odoo/sql/audit_triggers.sql

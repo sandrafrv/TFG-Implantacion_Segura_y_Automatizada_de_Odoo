@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Provisioning VM PostgreSQL — TFG Odoo
+# Provisioning VM PostgreSQL — TFC Odoo
 # ARQUITECTURA:
 #   eth0 → NAT VMware (Internet)
 #   eth1 → VMnet3 (192.168.40.0/24 — VLAN Admin/BD)
@@ -16,7 +16,7 @@ RUNNER_DIR="/home/${RUNNER_USER}/actions-runner"
 RUNNER_VERSION="2.317.0"
 
 GH_REPO_OWNER="sandrafrv"
-GH_REPO_NAME="TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
+GH_REPO_NAME="TFC-Implantacion_Segura_y_Automatizada_de_Odoo"
 REPO_URL="https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}"
 
 NAT_IFACE="eth0"

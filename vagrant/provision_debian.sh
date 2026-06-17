@@ -12,7 +12,7 @@ set -euo pipefail
 
 PROJECT_DIR="/opt/erp-odoo"
 GH_REPO_OWNER="sandrafrv"
-GH_REPO_NAME="TFG-Implantacion_Segura_y_Automatizada_de_Odoo"
+GH_REPO_NAME="TFC-Implantacion_Segura_y_Automatizada_de_Odoo"
 REPO="https://${GH_PAT}@github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}.git"
 REPO_URL="https://github.com/${GH_REPO_OWNER}/${GH_REPO_NAME}"
 
@@ -265,7 +265,7 @@ if [ ! -f "${PROJECT_DIR}/certs/server.crt" ]; then
   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -keyout "${PROJECT_DIR}/certs/server.key" \
     -out    "${PROJECT_DIR}/certs/server.crt" \
-    -subj "/C=ES/ST=Madrid/L=Madrid/O=TFG/OU=ASIR/CN=odoo.tfg" 2>/dev/null
+    -subj "/C=ES/ST=Madrid/L=Madrid/O=TFC/OU=ASIR/CN=odoo.tfc" 2>/dev/null
   echo "  [SSL] Certificado autofirmado generado."
 else
   echo "  [SSL] Certificado ya existe, reutilizando."
@@ -335,7 +335,7 @@ fi
 cat > /etc/nginx/sites-available/odoo << 'NGINX_EOF'
 server {
     listen 443 ssl;
-    server_name odoo.tfg;
+    server_name odoo.tfc;
     ssl_certificate     /opt/erp-odoo/certs/server.crt;
     ssl_certificate_key /opt/erp-odoo/certs/server.key;
     location / {
@@ -350,7 +350,7 @@ server {
 }
 server {
     listen 80;
-    server_name odoo.tfg;
+    server_name odoo.tfc;
     return 301 https://$server_name$request_uri;
 }
 NGINX_EOF

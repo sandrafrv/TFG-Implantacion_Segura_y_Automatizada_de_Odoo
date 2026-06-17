@@ -1,4 +1,4 @@
-# Control de Acceso por Roles — TFG ASIR 2025/2026
+# Control de Acceso por Roles — TFC ASIR 2025/2026
 
 **TechSolutions S.L.** | Modelo de seguridad en 3 capas — Autenticación nativa Odoo
 
@@ -83,15 +83,15 @@ Archivo: `config_nginx/odoo_proxy.conf`
 
 ```bash
 # Desde VLAN 10 — debe devolver 403 Forbidden
-curl -k https://erp.odoo.tfg.com/web/database/manager
+curl -k https://erp.odoo.tfc.com/web/database/manager
 # Resultado esperado: 403 Forbidden
 
 # Desde VLAN 40 — debe cargar el panel
-curl -k https://erp.odoo.tfg.com/web/database/manager
+curl -k https://erp.odoo.tfc.com/web/database/manager
 # Resultado esperado: 200 OK (panel de administración de BD)
 
 # Tests: siempre bloqueado
-curl -k https://erp.odoo.tfg.com/web/tests
+curl -k https://erp.odoo.tfc.com/web/tests
 # Resultado esperado: 403 Forbidden
 ```
 
@@ -206,7 +206,7 @@ bash scripts/odoo/odoo_crear_usuarios.sh
 ```
 Empleado (VLAN 10, 192.168.10.x)
     │
-    │  1. Abre https://erp.odoo.tfg.com
+    │  1. Abre https://erp.odoo.tfc.com
     │     DNS → 192.168.30.10 (pfSense DNS Resolver)
     │
     ▼
@@ -239,9 +239,9 @@ Usuario ve su panel personalizado ✅
 
 | Prueba | Comando/Acción | Resultado esperado |
 |--------|---------------|-------------------|
-| Nginx bloquea panel BD desde VLAN 10 | `curl -k https://erp.odoo.tfg.com/web/database/manager` | `403 Forbidden` |
+| Nginx bloquea panel BD desde VLAN 10 | `curl -k https://erp.odoo.tfc.com/web/database/manager` | `403 Forbidden` |
 | Nginx permite panel BD desde VLAN 40 | Mismo curl desde PC en VLAN 40 | `200 OK` |
-| Nginx bloquea `/web/tests` | `curl -k https://erp.odoo.tfg.com/web/tests` | `403 Forbidden` |
+| Nginx bloquea `/web/tests` | `curl -k https://erp.odoo.tfc.com/web/tests` | `403 Forbidden` |
 | Becario no ve botón Eliminar | Login con `becario@...` | Sin botón Eliminar en CRM |
 | Becario no ve módulo Ventas | Login con `becario@...` | Solo menú CRM visible |
 | Ventas ve sus módulos | Login con `ventas@...` | CRM + Ventas + Facturas |
@@ -250,4 +250,4 @@ Usuario ve su panel personalizado ✅
 
 ---
 
-*TFG ASIR 2025/2026 — IES Cañaveral*
+*TFC ASIR 2025/2026 — IES Cañaveral*

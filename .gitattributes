@@ -1,4 +1,4 @@
-# .gitattributes — TFG ASIR
+# .gitattributes — TFC ASIR
 # Fuerza line endings LF en todos los scripts para evitar SC1017 en ShellCheck.
 # Ref: https://www.shellcheck.net/wiki/SC1017
 
