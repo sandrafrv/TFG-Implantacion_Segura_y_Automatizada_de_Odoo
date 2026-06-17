@@ -5,6 +5,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ---
 
+## [v3.0.0] - 2026-06-17
+### Added
+- Etiqueta final de entrega del proyecto (Final Release).
+- Proyecto 100% pulido y validado para su entrega como Trabajo de Fin de Grado.
+
+### Changed
+- Resolución de inconsistencias menores en el árbol de estructura del README.md.
+- Unificación total del dominio a erp.odoo.com.
+- Exclusión definitiva de metadata local (.vagrant/) del repositorio de control de versiones.
+- Renombrado de archivo de seguridad a formato estándar (SECURITY.md).
+
 ## [v2.2] - 2026-06-17
 ### Changed
 - Refactorización masiva de documentación para limpieza final del TFG.
