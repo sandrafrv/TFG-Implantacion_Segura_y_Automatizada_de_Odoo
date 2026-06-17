@@ -89,10 +89,9 @@ TFG-Implantacion_Segura_y_Automatizada_de_Odoo/
 ├── .env.example                   # Plantilla de variables de entorno
 ├── .gitignore
 ├── .gitattributes
-├── CLAUDE.md                      # Contexto del proyecto para asistentes IA
 ├── LICENSE
 ├── README.md
-├── SECURITY
+├── SECURITY.md                    # Política de seguridad
 │
 ├── .github/
 │   └── workflows/
@@ -296,13 +295,13 @@ La configuración se encuentra en `config_nginx/odoo_proxy.conf` y cubre:
 
 ```
 https://192.168.30.10        → Odoo desde la red (IP directa)
-https://erp.odoo.tfg.com     → Odoo desde LAN/Admin (requiere DNS en pfSense)
+https://erp.odoo.com     → Odoo desde LAN/Admin (requiere DNS en pfSense)
 ```
 
-Para que el dominio `erp.odoo.tfg.com` resuelva correctamente, el DNS Resolver (Unbound) de pfSense debe tener configurada la entrada:
+Para que el dominio `erp.odoo.com` resuelva correctamente, el DNS Resolver (Unbound) de pfSense debe tener configurada la entrada:
 
 ```
-erp.odoo.tfg.com → 192.168.30.10
+erp.odoo.com → 192.168.30.10
 ```
 
 ---
@@ -349,7 +348,7 @@ Si las VMs se han levantado sin Vagrant o los tokens han caducado:
 # 2. En odoo-server (192.168.30.10):
 cd /opt/actions-runner
 ./config.sh \
-  --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+  --url https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo \
   --token <TOKEN_NUEVO> \
   --name odoo-runner \
   --labels self-hosted,linux,odoo \
@@ -360,7 +359,7 @@ sudo ./svc.sh start
 # 3. En db-server (192.168.40.10):
 cd /opt/actions-runner
 ./config.sh \
-  --url https://github.com/sandrafrv/TFG-Implantacion_Segura_y_Automatizada_de_Odoo \
+  --url https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odoo \
   --token <TOKEN_NUEVO> \
   --name db-runner \
   --labels self-hosted,linux,db \
