@@ -432,29 +432,51 @@ fi
 ROUTE_EOF
 chmod +x /etc/network/if-up.d/vlan30-bd-route
 
-# ── PASO 12b: Servicio systemd para garantizar ruta por defecto via eth0 ──
-# Problema diagnosticado: al arrancar la VM, la ruta por defecto apunta a
-# eth1 (pfSense) en lugar de eth0 (VMware NAT). El runner no puede alcanzar
-# api.github.com y aparece offline. Este servicio lo corrige en cada arranque.
+# ── PASO 12b: Servicio systemd para garantizar ruta internet via eth0 ────
+# Problema diagnosticado: al arrancar o al renovar DHCP, la ruta default
+# puede apuntar solo a pfSense (eth1). Si pfSense no tiene WAN, el runner
+# y git pull no alcanzan internet.
+# Solucion: añadir eth0 (VMware NAT) como default con metrica 50, dejando
+# la ruta de pfSense como fallback con metrica mas alta. NO se borra ninguna
+# ruta existente; solo se añade la de eth0 si no existe ya.
 cat > /etc/systemd/system/fix-default-route.service << 'SYSTEMD_ROUTE_EOF'
 [Unit]
-Description=Fijar ruta por defecto via eth0 (VMware NAT para internet)
+Description=Garantizar ruta internet via eth0 (VMware NAT, metrica 50)
 After=network.target network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/bash -c 'ip route del default 2>/dev/null || true; ip route add default via 192.168.133.2 dev eth0 2>/dev/null || true'
+# Añade eth0 como default con metrica 50 (prioridad alta).
+# Si ya existe, la reemplaza con la misma metrica.
+# NO borra la ruta de pfSense — coexisten ambas.
+ExecStart=/bin/bash -c '\
+  ip route replace default via 192.168.133.2 dev eth0 metric 50 2>/dev/null || \
+  ip route add    default via 192.168.133.2 dev eth0 metric 50 2>/dev/null || true'
 
 [Install]
 WantedBy=multi-user.target
 SYSTEMD_ROUTE_EOF
 
+# Tambien instalar hook dhclient para re-añadir la ruta tras renovacion DHCP
+# (dhclient elimina rutas al renovar en algunos sistemas)
+mkdir -p /etc/dhcp/dhclient-exit-hooks.d
+cat > /etc/dhcp/dhclient-exit-hooks.d/restore-eth0-route << 'HOOK_EOF'
+#!/bin/bash
+# Restaurar ruta internet via eth0 tras renovacion DHCP
+if [ "$reason" = "BOUND" ] || [ "$reason" = "RENEW" ] || [ "$reason" = "REBIND" ]; then
+    ip route replace default via 192.168.133.2 dev eth0 metric 50 2>/dev/null || \
+    ip route add    default via 192.168.133.2 dev eth0 metric 50 2>/dev/null || true
+fi
+HOOK_EOF
+chmod +x /etc/dhcp/dhclient-exit-hooks.d/restore-eth0-route
+
 systemctl daemon-reload
 systemctl enable fix-default-route.service
-systemctl start  fix-default-route.service
-echo "  [NET] Servicio fix-default-route instalado (ruta por defecto via eth0 garantizada)."
+systemctl restart fix-default-route.service
+echo "  [NET] fix-default-route.service instalado (eth0 metric 50, coexiste con pfSense)."
+echo "  [NET] dhclient hook instalado (restaura ruta eth0 tras renovacion DHCP)."
 
 # ── PASO 13: Cockpit ─────────────────────────────────────────
 apt-get install -y -qq "${APT_OPTS[@]}" cockpit || echo "  [AVISO] Cockpit no instalado."
