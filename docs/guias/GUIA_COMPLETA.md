@@ -16,7 +16,7 @@
 | Parte | Contenido |
 |:-----:|:----------|
 | [1](#parte-1--red-y-firewall-pfsense) | Red y Firewall (pfSense) — VM, interfaces, DHCP, DNS, aliases, NAT, ACLs |
-| [2](#parte-2--vm-postgresql-vlan-40) | VM PostgreSQL — BD aislada en VLAN 40 |
+| [2](#parte-2--db-serverql-vlan-40) | VM PostgreSQL — BD aislada en VLAN 40 |
 | [3](#parte-3--servidor-debian--docker--odoo) | Servidor Debian + Docker + Odoo + Nginx |
 | [4](#parte-4--cicd-con-github-actions) | CI/CD con GitHub Actions |
 | [5](#parte-5--hardening) | Hardening — UFW, SSH, headless |
@@ -58,11 +58,11 @@ Internet (WAN)
                 192.168.30.10
                 │
     ┌───────────┴──────────────────────┐
-    │ nginx-proxy  → :80 :443         │  Docker en vm-odoo
+    │ nginx-proxy  → :80 :443         │  Docker en odoo-server
     │ odoo-web     → :8069            │
     └──────────────────────────────────┘
                          │ TCP :5432
-                 [ vm-postgres — 192.168.40.10 ]
+                 [ db-server — 192.168.40.10 ]
                    PostgreSQL 16 — VM nativa
 ```
 
@@ -73,10 +73,10 @@ Internet (WAN)
 | pfSense gateway LAN | 10 | 192.168.10.1 | Solo VLAN 40 (panel) |
 | pfSense gateway DMZ | 30 | 192.168.30.1 | — |
 | pfSense gateway Admin/BD | 40 | 192.168.40.1 | Solo VLAN 40 |
-| **vm-odoo** — host Debian | DMZ | 192.168.30.10 | SSH/Cockpit solo VLAN 40 |
+| **odoo-server** — host Debian | DMZ | 192.168.30.10 | SSH/Cockpit solo VLAN 40 |
 | **nginx-proxy** | DMZ | 192.168.30.10 | VLAN 10 + 40 + WAN (:443) |
 | **odoo-web** | DMZ | 192.168.30.10 | Solo vía Nginx |
-| **vm-postgres** — PostgreSQL 16 | BD | 192.168.40.10 | Solo :5432 desde VLAN 30 y VLAN 40 |
+| **db-server** — PostgreSQL 16 | BD | 192.168.40.10 | Solo :5432 desde VLAN 30 y VLAN 40 |
 
 ---
 
@@ -323,7 +323,7 @@ Asistente inicial: hostname `pfsense`, dominio `tfg.com`, timezone `Europe/Madri
 
 > **¿Por qué forzar DNS?** Clientes Linux con `systemd-resolved` pueden ignorar el DNS del DHCP
 > y consultar a 8.8.8.8. Estas reglas interceptan cualquier consulta DNS y la redirigen a pfSense,
-> garantizando que `erp.odoo.tfg.com` resuelva siempre a `192.168.30.10`.
+> garantizando que `erp.odoo.com` resuelva siempre a `192.168.30.10`.
 
 ### NAT Outbound — *Firewall → NAT → Outbound*
 
@@ -476,13 +476,13 @@ bash scripts/deploy/generate_pfsense_config.sh
 
 ```bash
 # Desde cliente VLAN 10
-nslookup erp.odoo.tfg.com          # → 192.168.30.10
-curl -k -I https://erp.odoo.tfg.com  # → HTTP/2 200
+nslookup erp.odoo.com          # → 192.168.30.10
+curl -k -I https://erp.odoo.com  # → HTTP/2 200
 
 # Desde admin VLAN 40
 curl -k https://192.168.40.1       # → Panel pfSense ✅
 ssh usuario@192.168.30.10          # → SSH al servidor ✅
-psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'  # → PostgreSQL ✅
+psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l'  # → PostgreSQL ✅
 
 # Estas deben FALLAR (confirma segmentación):
 curl -k https://192.168.10.1       # Desde VLAN 10 → Sin respuesta ✅
@@ -492,7 +492,7 @@ nc -zv 192.168.40.10 5432          # Desde VLAN 10 → Timeout ✅
 ```
 ✅ Interfaces: WAN (DHCP) + LAN (10.1/24) + OPT1 (30.1/24) + OPT2 (40.1/24)
 ✅ DHCP: LAN 100–200, OPT2 10–50
-✅ DNS Resolver + Host Override: erp.odoo.tfg.com → 192.168.30.10
+✅ DNS Resolver + Host Override: erp.odoo.com → 192.168.30.10
 ✅ 6 Aliases creados
 ✅ NAT: WAN 80/443 → 192.168.30.10, DNS forzado en LAN y OPT2
 ✅ Reglas: WAN(5) + LAN(9) + OPT1(8) + OPT2(10) = 32 reglas
@@ -510,7 +510,7 @@ nc -zv 192.168.40.10 5432          # Desde VLAN 10 → Timeout ✅
 | Campo | Valor |
 |:------|:------|
 | Nombre | `TFG-DB-Server` |
-| Box Vagrant | `bento/debian-12` |
+| Box Vagrant | `bento/debian-13` |
 | RAM | **2048 MB** |
 | CPU | **1 core** |
 | IP estática | `192.168.40.10` (VLAN 40) |
@@ -569,7 +569,7 @@ systemctl enable cockpit.socket && systemctl start cockpit.socket
 ## 2.6 Verificar
 
 ```bash
-# Desde vm-odoo (192.168.30.10) → debe funcionar
+# Desde odoo-server (192.168.30.10) → debe funcionar
 nc -zv 192.168.40.10 5432                    # → Connection succeeded ✅
 psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l'  # → Lista BDs ✅
 
@@ -583,14 +583,14 @@ nc -zv 192.168.40.10 5432                    # → Timeout ✅ (bloqueado)
 
 > [!IMPORTANT]
 > El stack activo contiene **únicamente 2 contenedores**: `odoo-web` y `nginx-proxy`.
-> PostgreSQL reside en la **VM externa `vm-postgres`** (`192.168.40.10`, VLAN 40).
+> PostgreSQL reside en la **VM externa `db-server`** (`192.168.40.10`, VLAN 40).
 
 ## 3.1 Crear la VM
 
 | Campo | Valor |
 |:------|:------|
 | Nombre | `TFG-Odoo-Server` |
-| Box Vagrant | `bento/debian-12` |
+| Box Vagrant | `bento/debian-13` |
 | RAM | **4096 MB** |
 | CPU | **2 cores** |
 | IP estática | `192.168.30.10` (VLAN 30 — DMZ) |
@@ -737,16 +737,16 @@ bash /opt/erp-odoo/scripts/odoo/odoo_crear_usuarios.sh
 
 | Usuario | Rol | Módulos |
 |:--------|:----|:--------|
-| `becario@erp.odoo.tfg.com` | Becario | Solo CRM (lectura) |
-| `ventas@erp.odoo.tfg.com` | Ventas | CRM + Ventas + Facturas |
-| `rrhh@erp.odoo.tfg.com` | RRHH | RRHH + Empleados |
-| `almacen@erp.odoo.tfg.com` | Almacén | Inventario + Compras |
-| `tecnico@erp.odoo.tfg.com` | Técnico | Inventario + Soporte |
-| `jefe.ventas@erp.odoo.tfg.com` | Jefe Ventas | Ventas completo + aprobaciones |
-| `jefe.rrhh@erp.odoo.tfg.com` | Jefe RRHH | RRHH completo + aprobaciones |
-| `jefe.almacen@erp.odoo.tfg.com` | Jefe Almacén | Almacén completo + aprobaciones |
-| `api.user@erp.odoo.tfg.com` | API | Solo XML-RPC |
-| `dba@erp.odoo.tfg.com` | DBA | Sin UI (solo BD) |
+| `becario@erp.odoo.com` | Becario | Solo CRM (lectura) |
+| `ventas@erp.odoo.com` | Ventas | CRM + Ventas + Facturas |
+| `rrhh@erp.odoo.com` | RRHH | RRHH + Empleados |
+| `almacen@erp.odoo.com` | Almacén | Inventario + Compras |
+| `tecnico@erp.odoo.com` | Técnico | Inventario + Soporte |
+| `jefe.ventas@erp.odoo.com` | Jefe Ventas | Ventas completo + aprobaciones |
+| `jefe.rrhh@erp.odoo.com` | Jefe RRHH | RRHH completo + aprobaciones |
+| `jefe.almacen@erp.odoo.com` | Jefe Almacén | Almacén completo + aprobaciones |
+| `api.user@erp.odoo.com` | API | Solo XML-RPC |
+| `dba@erp.odoo.com` | DBA | Sin UI (solo BD) |
 
 > [!WARNING]
 > Las contraseñas se generan aleatoriamente y se muestran **una sola vez**. Guardarlas inmediatamente.
@@ -780,7 +780,7 @@ bash /opt/erp-odoo/scripts/deploy/install_cron.sh
 
 | Error | Causa | Solución |
 |:------|:------|:---------|
-| `could not connect to server` (Odoo) | `DB_HOST` mal o VM PG apagada | Verificar `.env` → `DB_HOST=192.168.40.10`; levantar `vm-postgres` |
+| `could not connect to server` (Odoo) | `DB_HOST` mal o VM PG apagada | Verificar `.env` → `DB_HOST=192.168.40.10`; levantar `db-server` |
 | `password authentication failed` | Contraseñas incorrectas | `docker compose down` → corregir `.env` → `docker compose up -d` |
 | Nginx en bucle de reinicios | Certificados incorrectos | Verificar `grep ssl_certificate config_nginx/*.conf` y regenerar SSL |
 | `dubious ownership` en git | `/opt/erp-odoo` creado por root | `git config --global --add safe.directory /opt/erp-odoo` |
@@ -807,7 +807,7 @@ git push → GitHub CI (ShellCheck + YAML + Docker) → ✅ pasa → CD (deploy.
 
 En GitHub: **Settings → Actions → Runners → New self-hosted runner** → Linux / x64 → copiar **token** (válido 1 hora)
 
-### Instalar en vm-odoo
+### Instalar en odoo-server
 
 ```bash
 mkdir /opt/actions-runner && cd /opt/actions-runner
@@ -966,19 +966,19 @@ curl -k -I https://localhost/web/health  # → HTTP/2 200 ✅
 PARTE 1 — Red (pfSense)
   ✅ 4 interfaces activas: WAN + VLAN 10 + VLAN 30 + VLAN 40
   ✅ DHCP: VLAN 10 (.100–.200) + VLAN 40 (.10–.50)
-  ✅ DNS: erp.odoo.tfg.com → 192.168.30.10
+  ✅ DNS: erp.odoo.com → 192.168.30.10
   ✅ NAT: WAN 80/443 → nginx, DNS forzado en LAN y OPT2
   ✅ 32 reglas firewall (anti-pivoting + permisos mínimos)
   ✅ Panel pfSense: solo VLAN 40, Anti-Lockout desactivado
 
 PARTE 2 — PostgreSQL
-  ✅ vm-postgres: 192.168.40.10, PostgreSQL 16 nativo
+  ✅ db-server: 192.168.40.10, PostgreSQL 16 nativo
   ✅ Base de datos odoo_erp, usuario odoo
   ✅ pg_hba.conf: solo desde 192.168.30.0/24
   ✅ Cockpit en :9090
 
 PARTE 3 — Servidor Odoo
-  ✅ vm-odoo: 192.168.30.10, Docker + Cockpit
+  ✅ odoo-server: 192.168.30.10, Docker + Cockpit
   ✅ 2 contenedores healthy: odoo-web + nginx-proxy
   ✅ Empresa: TechSolutions S.L. + 10 usuarios con roles
   ✅ Auditoría SQL + Cron (backup cada 4h)
@@ -1000,10 +1000,10 @@ PARTE 5 — Hardening
 
 ```
 1. Arrancar pfSense VM       → esperar ~1 min
-2. Arrancar vm-postgres      → PostgreSQL arranca automáticamente
-3. Arrancar vm-odoo          → Docker arranca automáticamente
+2. Arrancar db-server      → PostgreSQL arranca automáticamente
+3. Arrancar odoo-server          → Docker arranca automáticamente
 4. Esperar ~3 min            → Odoo inicializa
-5. Verificar desde VLAN 10   → https://erp.odoo.tfg.com
+5. Verificar desde VLAN 10   → https://erp.odoo.com
 6. Verificar desde VLAN 40   → https://192.168.30.10:9090 (Cockpit)
 ```
 
@@ -1133,7 +1133,7 @@ pf.ssh.password = "vagrant"
 
 > **Nota:** MACVLAN fue finalmente descartado. VMware no soporta promiscuous mode.
 
-## B.4 Cockpit no instalado en vm-postgres
+## B.4 Cockpit no instalado en db-server
 
 ```diff
 - apt install -y curl ca-certificates gnupg

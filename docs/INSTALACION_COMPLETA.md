@@ -153,7 +153,7 @@ EOF
 **Verificación rápida:**
 ```bash
 # Desde odoo-server:
-psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'
+psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l'
 ```
 
 ---
