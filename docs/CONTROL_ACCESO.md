@@ -18,7 +18,7 @@ Internet / WAN
  ├── VLAN 10 (192.168.10.0/24) ── Usuarios del ERP
  ├── VLAN 40 (192.168.40.0/24) ── Admin + DBA + PostgreSQL
  └── VLAN 30 (192.168.30.0/24) ── DMZ
-    └── .10 → Debian 12 Host (Docker engine, SSH :22, Cockpit :9090)
+    └── .10 → Debian 13 Host (Docker engine, SSH :22, Cockpit :9090)
           ├── odoo-web (contenedor Docker, puerto :8069 interno)
           └── nginx-proxy (contenedor Docker, puertos :80/:443 mapeados)
 
@@ -246,7 +246,7 @@ Usuario ve su panel personalizado ✅
 | Becario no ve módulo Ventas | Login con `becario@...` | Solo menú CRM visible |
 | Ventas ve sus módulos | Login con `ventas@...` | CRM + Ventas + Facturas |
 | VLAN 10 no accede a PostgreSQL | `nc -zv 192.168.40.10 5432` desde VLAN 10 | Timeout |
-| Odoo conecta con BD externa | `psql -h 192.168.40.10 -U odoo -d odooerp` desde VM2 | Conexión OK |
+| Odoo conecta con BD externa | `psql -h 192.168.40.10 -U odoo -d odoo_erp` desde VM2 | Conexión OK |
 
 ---
 

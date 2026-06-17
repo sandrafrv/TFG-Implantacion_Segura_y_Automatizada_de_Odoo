@@ -65,8 +65,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
  en el mismo nivel, sin condicional redundante.
 
 - **`scripts/deploy/erp.sh` — IPs de MACVLAN obsoletas en la cabecera** (🟠 MEDIA):
- La función `cabecera()` mostraba `https://192.168.30.20` (nginx MACVLAN) y
- `https://192.168.30.21` (odoo MACVLAN). MACVLAN fue descartado en v1.9.
+ La función `cabecera()` mostraba `https://192.168.30.10` (nginx MACVLAN) y
+ `https://192.168.30.10` (odoo MACVLAN). MACVLAN fue descartado en v1.9.
  Corregido: muestra `https://192.168.30.10` (odoo-server, port mapping) y
  `192.168.40.10:5432` (db-server, PostgreSQL nativo VLAN 40).
 
@@ -82,14 +82,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
  port mapping en el host `192.168.30.10` y Odoo aislado en la red interna `odoo_net`.
 
 - **`scripts/deploy/generate_pfsense_config.sh` — variables de red apuntando a IPs MACVLAN** (🔴 CRÍTICA):
- `NGINX_IP="192.168.30.20"` y `ODOO_IP="192.168.30.21"` eran las IPs de MACVLAN descartadas en v1.9.
+ `NGINX_IP="192.168.30.10"` y `ODOO_IP="192.168.30.10"` eran las IPs de MACVLAN descartadas en v1.9.
  El script generaba reglas NAT y firewall apuntando a IPs que ya no existen en la red.
  Con bridge + port mapping, el único punto de entrada es el host `192.168.30.10`.
  Corregido: `NGINX_IP="$SERVER_IP"` y `ODOO_IP="$SERVER_IP"` (ambas al host 192.168.30.10).
  `DNS_TARGET` también actualizado a `$SERVER_IP` en lugar de la IP MACVLAN.
 
 - **`docs/HISTORIAL_IMPLEMENTACION.md` — tabla de estado con MACVLAN activa** (🟡 BAJA):
- La tabla de estado del proyecto marcaba MACVLAN como "✅ Activa" y el DNS apuntando a `192.168.30.20`.
+ La tabla de estado del proyecto marcaba MACVLAN como "✅ Activa" y el DNS apuntando a `192.168.30.10`.
  Actualizado: MACVLAN → "❌ Descartada", DNS → `192.168.30.10`, Vagrant → "2 VMs Debian".
 
 
@@ -121,7 +121,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 - **BUG-12 `vagrant/provision_debian.sh` y `provision_postgres.sh` — repos APT hardcodeados a `bookworm`** (🔴 CRÍTICA):
  Los scripts de provision tenían las fuentes APT fijadas literalmente a `bookworm`.
  Ahora detectan el codename real con `VERSION_CODENAME` de `/etc/os-release` en tiempo de ejecución,
- funcionando con Debian 12 (Bookworm) y Debian 13 (Trixie).
+ funcionando con Debian 13 (Trixie) y Debian 13 (Trixie).
  Para Docker CE y pgdg se mantiene `bookworm` como base estable (sin soporte oficial para Trixie aún).
 
 - **BUG-13 `provision_debian.sh` — ruta a BD bloqueaba el provision si pfSense estaba apagado** (🔴 CRÍTICA):
@@ -151,7 +151,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 - **BUG-08 `scripts/deploy/generate_pfsense_config.sh` — DNS Host Override apuntaba al host Debian en vez de nginx-proxy** (🔴 CRÍTICA):
  La variable `DNS_TARGET` usaba `$SERVER_IP` (`192.168.30.10`, servidor Debian), pero el DNS debe resolver
- a `$NGINX_IP` (`192.168.30.20`, `nginx-proxy` MACVLAN), que es el único punto de entrada HTTPS.
+ a `$NGINX_IP` (`192.168.30.10`, `nginx-proxy` MACVLAN), que es el único punto de entrada HTTPS.
  Corrección: `DNS_TARGET="$NGINX_IP"`.
 
 - **BUG-09 `generate_pfsense_config.sh` — Orden incorrecto de reglas en OPT1/DMZ** (🔴 CRÍTICA):
@@ -166,13 +166,13 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
  (Pos.5 de OPT2) pero no se generaba en el `config.xml`. Añadida.
 
 - **BUG-11 `generate_pfsense_config.sh` — Aliases incompletos** (🟡 BAJA):
- Faltaban los aliases `Odoo_Web` (para `192.168.30.21`) y `PostgreSQL_VM` (para `192.168.40.10`).
+ Faltaban los aliases `Odoo_Web` (para `192.168.30.10`) y `PostgreSQL_VM` (para `192.168.40.10`).
  Añadidos para facilitar la lectura de reglas en la interfaz web de pfSense.
 
 ### Modificado
 
 - **`docs/reglas_pfsense.md`**: añadida advertencia explícita en la sección DNS Resolver y en el checklist
- final indicando que el Host Override debe apuntar a `192.168.30.20` (nginx-proxy), no a `192.168.30.10`.
+ final indicando que el Host Override debe apuntar a `192.168.30.10` (nginx-proxy), no a `192.168.30.10`.
  Añadida cabecera con versión y fecha de última actualización.
 
 ---
@@ -237,7 +237,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es/1.1.0/).
 
 ### Modificado
 
-- **Sistema operativo del servidor:** Cambiado de **Debian 12 (Bookworm)** a **Debian 13 (Trixie)**.
+- **Sistema operativo del servidor:** Cambiado de **Debian 13 (Trixie)** a **Debian 13 (Trixie)**.
  La instalación de Docker cambia de `docker.io` (paquete Debian) al repositorio oficial de Docker CE (`docker-ce`, `containerd.io`, `docker-compose-plugin`).
  La codename del repositorio de Docker pasa de `bookworm` a `trixie`.
  Configuración de red compatible: `systemd-networkd` (por defecto en Trixie) o `NetworkManager` (`nmcli`/`nmtui`).

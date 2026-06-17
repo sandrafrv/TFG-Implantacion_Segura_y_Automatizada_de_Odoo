@@ -105,7 +105,7 @@ Controla el tráfico desde el servidor Debian y los contenedores (192.168.30.0/2
 |:---:|:---:|:---:|:---|:---|:---:|:---|
 | 1 | Block | IPv4 * | DMZ | `192.168.10.0/24` | * | **DMZ NO puede atacar VLAN 10** ← ¡PRIMERO! |
 | 2 | Block | IPv4 * | DMZ | `192.168.10.1` | * | **DMZ NO puede acceder a pfSense LAN** |
-| 3 | Pass | IPv4 TCP | `192.168.30.21` | `192.168.40.10` | 5432 | **Odoo → PostgreSQL externo** ← explícita |
+| 3 | Pass | IPv4 TCP | `192.168.30.10` | `192.168.40.10` | 5432 | **Odoo → PostgreSQL externo** ← explícita |
 | 4 | Block | IPv4 * | DMZ | `192.168.40.0/24` | * | **DMZ NO puede acceder a VLAN Admin** (excepto regla 3) |
 | 5 | Pass | IPv4 TCP | DMZ | * | 80 | Actualizaciones HTTP |
 | 6 | Pass | IPv4 TCP | DMZ | * | 443 | Actualizaciones HTTPS |
@@ -365,7 +365,7 @@ curl -k -I https://erp.odoo.com # Debe devolver HTTP/2 200
 
 # Desde admin VLAN 40
 ssh usuario@192.168.30.10      # Debe conectar
-psql -h 192.168.40.10 -U odoo -d odooerp -c '\l' # PostgreSQL accesible
+psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l' # PostgreSQL accesible
 # Navegador → https://192.168.40.1   → Panel pfSense accesible
 # Navegador → https://192.168.30.10:9090 → Cockpit accesible
 

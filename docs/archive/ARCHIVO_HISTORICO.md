@@ -32,7 +32,7 @@
 ### Fase 0: Investigación Técnica y Justificación de Diseño
 
 - [x] **[2026-04-29]** Investigación tecnológica completada: evaluación de Odoo vs Dolibarr vs ERPNext.
-- [x] **[2026-04-29]** Decisión de OS documentada: Debian 12 elegido.
+- [x] **[2026-04-29]** Decisión de OS documentada: Debian 13 elegido.
 - [x] **[2026-04-29]** Arquitectura de red definida: WAN / LAN (192.168.10.0/24) / DMZ (192.168.30.0/24).
 
 ### Fase 1: Arquitectura y Red Base (pfSense)
@@ -41,11 +41,11 @@
 - [x] Instalar pfSense y asignar interfaces.
 - [x] Configurar DHCP en pfSense para VLANs 10 y 40.
 - [x] **[2026-04-29]** Reglas WAN, LAN, DMZ (OPT1) y Admin (OPT2) configuradas y documentadas.
-- [x] **[2026-04-29]** NAT Port Forwarding 80/443 → nginx-proxy (192.168.30.20).
+- [x] **[2026-04-29]** NAT Port Forwarding 80/443 → nginx-proxy (192.168.30.10).
 
 ### Fase 2-4: Despliegue Docker y DevOps
 
-- [x] VM Debian 12 con IP estática 192.168.30.10, Docker, Cockpit.
+- [x] VM Debian 13 con IP estática 192.168.30.10, Docker, Cockpit.
 - [x] Stack Docker levantado: odoo-web + nginx-proxy (PostgreSQL en VM externa VLAN 40).
 - [x] Red MACVLAN: nginx-proxy (.20), odoo-web (.21).
 - [x] Scripts de mantenimiento: backup_postgres.sh, restore.sh, monitor.sh, update.sh.
@@ -170,7 +170,7 @@ Cambiar destino en reglas HTTP/HTTPS del OPT1 de `Any` → al alias.
 
 ### FASE 3: Restringir clientes VLAN 10
 
-Solo permitir puertos 80/443 hacia nginx-proxy (192.168.30.20). Bloquear SSH/Cockpit.
+Solo permitir puertos 80/443 hacia nginx-proxy (192.168.30.10). Bloquear SSH/Cockpit.
 
 ### FASE 4: Securizar pfSense con LDAP (Opcional)
 
@@ -237,9 +237,9 @@ backups/      → Backups de PostgreSQL
 
 ### [Docker] Redes MACVLAN
 
-- [ ] `nginx-proxy` → IP `192.168.30.20` en red MACVLAN
-- [ ] `odoo-web` → IP `192.168.30.21` en red MACVLAN
-- [ ] Verificar: `docker run --rm --network macvlan_vlan30 alpine wget -qO- https://192.168.30.20`
+- [ ] `nginx-proxy` → IP `192.168.30.10` en red MACVLAN
+- [ ] `odoo-web` → IP `192.168.30.10` en red MACVLAN
+- [ ] Verificar: `docker run --rm --network macvlan_vlan30 alpine wget -qO- https://192.168.30.10`
 
 ### [SecOps] Hardening SSH y Debian Headless
 
@@ -271,7 +271,7 @@ backups/      → Backups de PostgreSQL
 
 - [ ] **Asignación de Interfaces:** *Interfaces > Assignments* — WAN, LAN, OPT1 (DMZ), OPT2 (Admin).
 - [ ] **Reglas DMZ:** *Firewall > Rules > OPT1* — anti-pivoting + regla Odoo→PG + deny-all.
-- [ ] **NAT / Port Forwarding:** *Firewall > NAT* — puertos 80/443 → `192.168.30.20`.
+- [ ] **NAT / Port Forwarding:** *Firewall > NAT* — puertos 80/443 → `192.168.30.10`.
 
 ### Servidor y Automatización
 
@@ -328,7 +328,7 @@ Réplica en tiempo real de la BD. Si cae el maestro, el esclavo asume el rol ins
 | PostgreSQL en VM externa (VLAN 40) | Mayor aislamiento: si el stack Docker cae, la BD permanece intacta |
 | LDAP descartado del despliegue activo | Reduce superficie de ataque; complejidad no justificada para el |
 | VMware Workstation en lugar de VirtualBox | Mejor compatibilidad con vagrant-vmware-desktop y MACVLAN en Windows |
-| Debian 12 (Bookworm) en lugar de 13 (Trixie) | Mayor estabilidad; box `bento/debian-12` madura y probada |
+| Debian 13 (Trixie) en lugar de 13 (Trixie) | Mayor estabilidad; box `bento/debian-12` madura y probada |
 | 2 runners (odoo-runner + db-runner) | CI/CD independiente por VM; db-runner para futuros tests de BD |
 | MACVLAN para nginx y odoo-web | pfSense aplica reglas por host individual, no por IP del servidor |
 

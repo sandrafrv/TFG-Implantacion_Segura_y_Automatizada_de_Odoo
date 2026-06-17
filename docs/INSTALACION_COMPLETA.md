@@ -45,7 +45,7 @@ Internet (WAN)
  192.168.10 192.168.30 192.168.40
  Clientes  DMZ Server Admin + BD
    │      │      │
- PCs      Debian 12  PCs Admin
+ PCs      Debian 13  PCs Admin
         192.168.30.10 SSH/Cockpit/pfSense
         │
   ┌──────────────────────────────────┐
@@ -68,7 +68,7 @@ Internet (WAN)
 | pfSense gateway LAN | 10 | 192.168.10.1 | Solo VLAN 40 (panel) |
 | pfSense gateway DMZ | 30 | 192.168.30.1 | — |
 | pfSense gateway Admin/BD | 40 | 192.168.40.1 | Solo VLAN 40 |
-| **odoo-server** — Debian 12 host | DMZ (VLAN 30) | 192.168.30.10 | SSH/Cockpit solo VLAN 40 — HTTPS todos |
+| **odoo-server** — Debian 13 host | DMZ (VLAN 30) | 192.168.30.10 | SSH/Cockpit solo VLAN 40 — HTTPS todos |
 | └─ **nginx-proxy** (Docker, port mapping) | DMZ (VLAN 30) | — (usa IP del host) | :80/:443 vía 192.168.30.10 |
 | └─ **odoo-web** (Docker, red interna) | DMZ (VLAN 30) | — (red `odoo_net`) | Solo vía nginx-proxy |
 | **db-server** — PostgreSQL 16 | BD (VLAN 40) | 192.168.40.10 | Solo :5432 desde VLAN 30 (Odoo) y VLAN 40 (admins) |
@@ -82,13 +82,13 @@ git clone https://github.com/sandrafrv/Implantacion_Segura_y_Automatizada_de_Odo
 cd Implantacion_Segura_y_Automatizada_de_Odoo
 cp .env.example .env
 nano .env       # Rellenar variables obligatorias
-vagrant up       # Levanta las 3 VMs automáticamente
+vagrant up       # Levanta 2 VMs (db-server + odoo-server) + pfSense manual
 ```
 
 | VM Vagrant | Rol | IP | Provision script |
 |---|---|---|---|
 | `pfsense` | Firewall / Router / NAT | 192.168.10.1 / 30.1 / 40.1 | VM manual — importar config.xml desde panel |
-| `odoo-server` | Debian 12 + Docker (Nginx + Odoo) | 192.168.30.10 | `vagrant/provision_debian.sh` |
+| `odoo-server` | Debian 13 + Docker (Nginx + Odoo) | 192.168.30.10 | `vagrant/provision_debian.sh` |
 | `db-server` | PostgreSQL 16 nativo | 192.168.40.10 | `vagrant/provision_postgres.sh` |
 
 > **Nota:** pfSense (`pfsense`) usa `communicator: none` — Vagrant solo levanta la VM.
@@ -139,21 +139,21 @@ nc -zv 192.168.40.10 5432  # → Timeout (bloqueado) desde VLAN 10
 | 2 | Instalar PostgreSQL 16: `apt install postgresql-16` |
 | 3 | Crear usuario y base de datos Odoo |
 | 4 | Configurar `pg_hba.conf`: aceptar conexiones desde `192.168.30.0/24` |
-| 5 | Configurar `postgresql.conf`: `listen_addresses = '192.168.40.10'` |
-| 6 | Verificar conectividad desde vm-odoo: `nc -zv 192.168.40.10 5432` |
+| 5 | Configurar `postgresql.conf`: `listen_addresses = '*'` |
+| 6 | Verificar conectividad desde odoo-server: `nc -zv 192.168.40.10 5432` |
 
 ```bash
-# En vm-postgres:
+# En db-server:
 sudo -u postgres psql <<EOF
 CREATE USER odoo WITH PASSWORD 'cambia_esto';
-CREATE DATABASE odooerp OWNER odoo;
+CREATE DATABASE odoo_erp OWNER odoo;
 EOF
 ```
 
 **Verificación rápida:**
 ```bash
-# Desde vm-odoo:
-psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'
+# Desde odoo-server:
+psql -h 192.168.40.10 -U odoo -d odoo_erp -c '\l'
 ```
 
 ---
@@ -166,9 +166,9 @@ psql -h 192.168.40.10 -U odoo -d odooerp -c '\l'
 
 | Parte | Descripción |
 |:------|:------------|
-| Parte 1 | VM Debian 12: IP estática `192.168.30.10`, Docker, Cockpit, clonar repo, `.env` |
+| Parte 1 | VM Debian 13: IP estática `192.168.30.10`, Docker, Cockpit, clonar repo, `.env` |
 | Parte 2 | SSL autofirmado, `docker compose up -d`, 2 contenedores `healthy` (bridge + port mapping), cron |
-| Parte 3 | Post-instalación Odoo: empresa, módulos, usuarios con roles, auditoría SQL |
+| Parte 3 | Post-instalación Odoo: empresa manual (UI), auditoría SQL manual. Usuarios creados automáticamente vía `deploy.sh` |
 
 **Atajo:** `sudo bash vagrant/provision_debian.sh` ejecuta las partes 1 y 2 automáticamente.
 
@@ -189,7 +189,7 @@ curl -k -I https://erp.odoo.com  # → HTTP/2 200
 
 | Parte | Descripción |
 |:------|:------------|
-| CI/CD | Self-hosted runner, pipeline CI (ShellCheck/YAML/Docker) + CD (deploy automático) |
+| CI/CD | Self-hosted runners (en odoo-server y db-server), pipeline CI (ShellCheck/YAML/Docker) + CD (deploy automático) |
 | Hardening | UFW, SSH por clave pública, eliminar GNOME, headless |
 
 > [!CAUTION]
@@ -211,8 +211,8 @@ sudo ufw status        # → active
 
 ```
 1. Arrancar pfSense VM    → esperar ~1 min (interfaces activas)
-2. Arrancar vm-postgres VM  → PostgreSQL arranca automáticamente
-3. Arrancar vm-odoo VM    → Docker arranca automáticamente
+2. Arrancar db-server VM  → PostgreSQL arranca automáticamente
+3. Arrancar odoo-server VM    → Docker arranca automáticamente
 4. Esperar ~3 min      → Odoo inicializa (primer arranque)
 5. Verificar desde VLAN 10  → https://erp.odoo.com
 6. Verificar desde VLAN 40  → https://192.168.30.10:9090 (Cockpit)
@@ -233,11 +233,11 @@ FASE 1 — Red
  ✅ Anti-Lockout desactivado
 
 FASE 2 — PostgreSQL
- ✅ vm-postgres: IP estática 192.168.40.10
+ ✅ db-server: IP estática 192.168.40.10
  ✅ PostgreSQL 16 activo y escuchando en :5432
  ✅ Usuario y BD odoo creados
  ✅ pg_hba.conf: acepta conexiones desde 192.168.30.0/24
- ✅ Conectividad verificada desde vm-odoo
+ ✅ Conectividad verificada desde odoo-server
 
 FASE 3 — Servidor Odoo
  ✅ odoo-server: IP estática 192.168.30.10
@@ -246,7 +246,7 @@ FASE 3 — Servidor Odoo
  ✅ 2 contenedores healthy (odoo-web + nginx-proxy)
  ✅ Odoo: empresa + módulos + usuarios con roles
  ✅ Auditoría SQL aplicada (audit_triggers.sql)
- ✅ Cron: backup_postgres.sh + monitor.sh
+ ✅ Cron: backup_postgres.sh + monitor.sh + update.sh
 
 FASE 4 — Seguridad
  ✅ CI/CD: runner activo + pipeline funcional

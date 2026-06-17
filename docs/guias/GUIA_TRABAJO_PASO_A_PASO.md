@@ -17,7 +17,7 @@
 | [0](#fase-0--punto-de-partida) | Punto de partida — Idea y decisiones | ✅ Completada |
 | [1](#fase-1--preparación-del-entorno) | Preparación del entorno de trabajo | ✅ Completada |
 | [2](#fase-2--pfsense--firewall-y-red) | pfSense — Firewall y segmentación de red | ✅ Completada |
-| [3](#fase-3--vm-postgresql--base-de-datos-aislada) | VM PostgreSQL — Base de datos aislada | ✅ Completada |
+| [3](#fase-3--db-serverql--base-de-datos-aislada) | VM PostgreSQL — Base de datos aislada | ✅ Completada |
 | [4](#fase-4--vm-debian--docker--odoo--nginx) | VM Debian — Docker + Odoo + Nginx | ✅ Completada |
 | [5](#fase-5--cicd-con-github-actions) | CI/CD con GitHub Actions | ✅ Completada |
 | [6](#fase-6--automatización-con-vagrant-iac) | Automatización con Vagrant (IaC) | ✅ Completada |
@@ -192,11 +192,11 @@ Password: pfsense → CAMBIAR en el primer login
 ```
 ☐ → ✅ Interfaces configuradas (4 interfaces con IPs y descripciones)
 ☐ → ✅ DHCP habilitado en LAN y OPT2
-☐ → ✅ DNS Resolver: erp.odoo.com → 192.168.30.20
+☐ → ✅ DNS Resolver: erp.odoo.com → 192.168.30.10
 ☐ → ✅ Aliases creados (6 aliases para simplificar reglas)
 ☐ → ✅ NAT Port Forward:
-     ├── WAN:80 → 192.168.30.20:80
-     ├── WAN:443 → 192.168.30.20:443
+     ├── WAN:80 → 192.168.30.10:80
+     ├── WAN:443 → 192.168.30.10:443
      ├── LAN DNS:53 → 192.168.10.1 (forzar DNS interno)
      └── OPT2 DNS:53 → 192.168.40.1 (forzar DNS interno)
 ☐ → ✅ Reglas Firewall (32 reglas en total):
@@ -284,7 +284,7 @@ sudo systemctl restart postgresql
 ### 🔧 Paso 3.5 — Verificar conectividad
 
 ```bash
-# Desde vm-odoo (192.168.30.10) → debe funcionar
+# Desde odoo-server (192.168.30.10) → debe funcionar
 nc -zv 192.168.40.10 5432  # → Connection succeeded ✅
 
 # Desde VLAN 10 (clientes) → debe FALLAR
@@ -433,10 +433,10 @@ bash scripts/odoo/odoo_crear_usuarios.sh
 
 ```bash
 # Aplicar triggers de auditoría en PostgreSQL externo
-psql -h 192.168.40.10 -U odoo -d odooerp < /opt/erp-odoo/sql/audit_triggers.sql
+psql -h 192.168.40.10 -U odoo -d odoo_erp < /opt/erp-odoo/sql/audit_triggers.sql
 
 # Verificar
-psql -h 192.168.40.10 -U odoo -d odooerp -c "SELECT * FROM v_audit_resumen;"
+psql -h 192.168.40.10 -U odoo -d odoo_erp -c "SELECT * FROM v_audit_resumen;"
 ```
 
 Cada usuario creado en `res_users` genera automáticamente un registro de auditoría en `asir_audit_log` (JSONB).
@@ -482,7 +482,7 @@ Automatizar la validación de código (CI) y el despliegue en producción (CD).
 ### 🔧 Paso 5.2 — Instalar self-hosted runner
 
 ```bash
-# En vm-odoo (192.168.30.10)
+# En odoo-server (192.168.30.10)
 mkdir /opt/actions-runner && cd /opt/actions-runner
 curl -O -L https://github.com/actions/runner/releases/download/v2.317.0/actions-runner-linux-x64-2.317.0.tar.gz
 tar xzf actions-runner-linux-x64-2.317.0.tar.gz
@@ -498,7 +498,7 @@ Flujo CD:
 git push → CI (ShellCheck + YAML + Docker) → ✅ pasa → CD se dispara
                              │
                              ▼
-                       Runner en vm-odoo ejecuta:
+                       Runner en odoo-server ejecuta:
                        1. git pull (sincronizar repo)
                        2. docker pull (imágenes nuevas)
                        3. deploy.sh:
@@ -800,7 +800,7 @@ docker compose -f /opt/erp-odoo/docker/docker-compose.yml ps
        Empleados │   │  │
             │   ▼  │
             │ ┌──────────────────────────┐
-            │ │ vm-odoo (Debian 12)   │
+            │ │ odoo-server (Debian 13)   │
             │ │ 192.168.30.10      │
             │ │ ┌──────┐ ┌──────────┐  │
             │ │ │nginx │→│ odoo-web │  │
@@ -813,7 +813,7 @@ docker compose -f /opt/erp-odoo/docker/docker-compose.yml ps
             │          │ TCP :5432
             │          ▼
             │     ┌────────────────────┐
-            │     │ vm-postgres    │
+            │     │ db-server    │
             │     │ 192.168.40.10   │
             │     │ PostgreSQL 16   │
             │     │ Cockpit :9090   │
@@ -830,21 +830,21 @@ docker compose -f /opt/erp-odoo/docker/docker-compose.yml ps
 FASE 1 — Red (pfSense)
  ✅ 4 interfaces activas: WAN + VLAN 10 + VLAN 30 + VLAN 40
  ✅ DHCP: VLAN 10 (192.168.10.100–200) + VLAN 40 (192.168.40.10–50)
- ✅ DNS Resolver: erp.odoo.com → 192.168.30.20
+ ✅ DNS Resolver: erp.odoo.com → 192.168.30.10
  ✅ NAT Port Forward: WAN 80/443 → nginx-proxy
  ✅ 32 reglas de firewall: anti-pivoting + permisos mínimos
  ✅ Panel pfSense: solo VLAN 40
  ✅ Anti-Lockout desactivado
 
 FASE 2 — PostgreSQL (VM independiente)
- ✅ vm-postgres: IP estática 192.168.40.10
+ ✅ db-server: IP estática 192.168.40.10
  ✅ PostgreSQL 16 nativo (sin Docker)
  ✅ Base de datos: odoo_erp, usuario: odoo
  ✅ pg_hba.conf: solo acepta desde 192.168.30.0/24
  ✅ Cockpit activo en :9090
 
 FASE 3 — Servidor Odoo (VM Docker)
- ✅ vm-odoo: IP estática 192.168.30.10
+ ✅ odoo-server: IP estática 192.168.30.10
  ✅ Docker + Docker Compose operativos
  ✅ 2 contenedores healthy: odoo-web + nginx-proxy
  ✅ SSL autofirmado (renovable)
@@ -887,8 +887,8 @@ Implantacion_Segura_y_Automatizada_de_Odoo/
 ├── .gitignore           # Excluye .env, *.box, ISOs, datos Docker
 │
 ├── vagrant/            # Scripts de aprovisionamiento
-│  ├── provision_debian.sh    # vm-odoo: Docker + Nginx + Odoo + SSL + Runner
-│  ├── provision_postgres.sh   # vm-postgres: PostgreSQL 16 + Cockpit + Runner
+│  ├── provision_debian.sh    # odoo-server: Docker + Nginx + Odoo + SSL + Runner
+│  ├── provision_postgres.sh   # db-server: PostgreSQL 16 + Cockpit + Runner
 │  └── Vagrantfile.pfsense-box  # Config para empaquetar pfSense como .box
 │
 ├── docker/            # Stack Docker (2 servicios)
@@ -919,7 +919,7 @@ Implantacion_Segura_y_Automatizada_de_Odoo/
 │
 ├── .github/workflows/
 │  ├── ci.yml           # CI: ShellCheck + YAML lint + Docker validate
-│  └── deploy.yml         # CD: Despliegue automático en vm-odoo
+│  └── deploy.yml         # CD: Despliegue automático en odoo-server
 │
 ├── docs/             # 📚 Documentación técnica completa
 │  ├── INSTALACION_COMPLETA.md  # Punto de entrada único

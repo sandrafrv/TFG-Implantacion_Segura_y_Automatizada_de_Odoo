@@ -115,8 +115,8 @@ docker network create --driver macvlan --subnet=192.168.30.0/24 \
  --gateway=192.168.30.1 --opt parent=ens18 macvlan_vlan30
 ```
 
-- `nginx-proxy` → IP fija `192.168.30.20`
-- `odoo-web` → IP fija `192.168.30.21`
+- `nginx-proxy` → IP fija `192.168.30.10`
+- `odoo-web` → IP fija `192.168.30.10`
 
 **Limitación:** El host Debian no puede hacer ping a las IPs MACVLAN de sus propios contenedores. Verificar desde otro equipo o desde un contenedor temporal.
 
@@ -174,7 +174,7 @@ La integración LDAP añadía complejidad operativa significativa: contenedor ad
 | Componente | Estado | Notas |
 |------------|--------|-------|
 | pfSense (VM1) | ✅ Activo | 4 interfaces (WAN/VLAN10/DMZ/VLAN40), reglas verificadas |
-| Debian 12 (VM2) | ✅ Activo | Docker + Cockpit, IP `192.168.30.10` |
+| Debian 13 (VM2) | ✅ Activo | Docker + Cockpit, IP `192.168.30.10` |
 | Docker stack | ✅ **2 contenedores** healthy | `odoo-web` y `nginx-proxy` únicamente |
 | MACVLAN | ❌ **Descartada** | VMware host-only no permite promiscuous mode — bridge + port mapping |
 | **LDAP** | ❌ **No activo** | Retirado del despliegue → ver `extras/ldap/` |

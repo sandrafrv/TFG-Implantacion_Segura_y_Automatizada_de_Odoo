@@ -121,12 +121,12 @@ Internet (WAN)
  [ pfSense — vm-pfsense ]
  ├── VLAN 10 (192.168.10.0/24) ── Usuarios/Empleados del ERP
  ├── VLAN 30 / DMZ (192.168.30.0/24) ── Servidores
- │    └── vm-odoo (192.168.30.10) — Debian 13, Docker engine
+ │    └── odoo-server (192.168.30.10) — Debian 13, Docker engine
  │         ├── nginx-proxy (:80/:443)
  │         └── odoo-web   (:8069/:8072)
  │               │ TCP :5432
  └── VLAN 40 (192.168.40.0/24) ── Administración + BD
-     ├── vm-postgres (192.168.40.10) — PostgreSQL 16 nativo
+     ├── db-server (192.168.40.10) — PostgreSQL 16 nativo
      └── Admins/DBAs (192.168.40.20–50)
 ```
 
@@ -176,17 +176,17 @@ Interfaz CLI creada en Bash para abstraer los comandos complejos de Docker y ges
 #### Infraestructura como Código — Vagrant
 Tres `Vagrantfile`s que aprovisionan automáticamente:
 - `vm-pfsense`: reglas de firewall, interfaces de red
-- `vm-odoo`: Docker, SSL, Nginx, Odoo
-- `vm-postgres`: PostgreSQL 16, usuario `odoo`, `pg_hba.conf`
+- `odoo-server`: Docker, SSL, Nginx, Odoo
+- `db-server`: PostgreSQL 16, usuario `odoo`, `pg_hba.conf`
 
 Esto garantiza que cualquier miembro del equipo puede reproducir el entorno en un equipo de laboratorio con `vagrant up`.
 
 #### Backup Remoto Automatizado
-El script `scripts/mantenimiento/backup_postgres.sh` realiza un `pg_dump` remoto a `192.168.40.10`, comprime el volcado y aplica una política de retención de 7 días. Un cron ejecutado en `vm-odoo` lo lanza cada 4 horas.
+El script `scripts/mantenimiento/backup_postgres.sh` realiza un `pg_dump` remoto a `192.168.40.10`, comprime el volcado y aplica una política de retención de 7 días. Un cron ejecutado en `odoo-server` lo lanza cada 4 horas.
 
 ```bash
 # Resumen del flujo:
-pg_dump -h 192.168.40.10 -U odoo odooerp | gzip \
+pg_dump -h 192.168.40.10 -U odoo odoo_erp | gzip \
  > /opt/odoo/backups/postgres/odoo_$(date +%Y%m%d_%H%M).sql.gz
 # Retención: borrar backups > 7 días
 find /opt/odoo/backups/postgres/ -name '*.sql.gz' -mtime +7 -delete
@@ -246,8 +246,8 @@ El `docker-compose.yml` define healthchecks nativos para `nginx-proxy` y `odoo-w
 El proyecto se dividió en fases secuenciales:
 1. Investigación y diseño de red (cuatro VLANs, diagrama, tabla de IPs).
 2. Despliegue de pfSense y configuración de VLANs, DHCP, DNS y NAT.
-3. Instalación de vm-postgres: PostgreSQL 16 nativo, usuario odoo, pg_hba.conf.
-4. Instalación de vm-odoo: Debian 13, Docker, Nginx, SSL, Odoo.
+3. Instalación de db-server: PostgreSQL 16 nativo, usuario odoo, pg_hba.conf.
+4. Instalación de odoo-server: Debian 13, Docker, Nginx, SSL, Odoo.
 5. Desarrollo de scripts (Vagrant IaC, deploy, erp.sh, backup_postgres.sh).
 6. Modelo de control de acceso en 3 capas (Nginx + tipos usuario + grupos Odoo).
 7. Auditoría de base de datos (triggers PL/pgSQL).
@@ -264,7 +264,7 @@ Se ejecutaron los siguientes tipos de pruebas para garantizar la calidad del sis
 
 - **Pruebas Funcionales (ShellCheck):** Verificación de que todos los scripts Bash cumplen estándares POSIX sin errores de sintaxis. Integrado en GitHub Actions (`.github/workflows/ci.yml`).
 - **Pruebas de Integración:** Ejecución del flujo completo con `vagrant up` verificando que las 3 VMs se crean, se comunican y los servicios quedan `healthy`.
-- **Pruebas de Conectividad BD:** Verificación desde `vm-odoo` de que `nc -zv 192.168.40.10 5432` responde y que `psql -h 192.168.40.10 -U odoo -d odooerp` conecta.
+- **Pruebas de Conectividad BD:** Verificación desde `odoo-server` de que `nc -zv 192.168.40.10 5432` responde y que `psql -h 192.168.40.10 -U odoo -d odoo_erp` conecta.
 - **Pruebas de Aceptación — Control de Acceso en 3 Capas:**
 
  | Prueba | Comando | Resultado esperado |

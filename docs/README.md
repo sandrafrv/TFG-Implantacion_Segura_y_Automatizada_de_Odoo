@@ -135,20 +135,6 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 
 ---
 
-### [Docker] Red MACVLAN
-
-**Labels:** `docker`, `red`
-
-**Objetivo:** Asignar IPs físicas de la DMZ a los contenedores para que pfSense aplique reglas por host.
-
-- [ ] `nginx-proxy` → IP `192.168.30.20` en MACVLAN
-- [ ] `odoo-web` → IP `192.168.30.21` en MACVLAN
-- [ ] `odoo_erp` → sin IP MACVLAN (solo red interna)
-- [ ] `docker run --rm --network macvlan_vlan30 alpine wget -qO- https://192.168.30.20` → `<title>Odoo</title>`
-- [ ] Captura de `docker network inspect macvlan_vlan30` → `screenshots/fase_B_macvlan/`
-
-
-
 ### [SecOps] Hardening SSH + Headless
 
 **Labels:** `hardening`, `seguridad`, `debian`
@@ -188,7 +174,7 @@ Copiar el bloque de descripción al crear un Issue en GitHub.
 
 **Labels:** `pfSense`, `seguridad`, `vlan40`
 
-**Objetivo:** Panel pfSense solo accesible desde VLAN 40, autenticado con LDAP.
+**Objetivo:** Panel pfSense solo accesible desde VLAN 40.
 
 - [ ] OPT2 (VLAN 40): IP `192.168.40.1/24`, DHCP `40.10–50`
 - [ ] Regla OPT2: `VLAN40 → This Firewall :443 → PASS`
@@ -220,7 +206,7 @@ git status
 ```
 screenshots/
 ├── fase_A_vlan/    → Reglas pfSense, nc timeout, curl 200
-├── fase_B_macvlan/  → docker network inspect, IPs .20/.21
+
 ├── fase_D_headless/  → SSH activo, Cockpit, sin GUI
 └── fase_E_cicd/    → Pipeline GitHub Actions ejecutándose
 ```
