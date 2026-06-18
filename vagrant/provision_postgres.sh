@@ -39,6 +39,29 @@ APT_OPTS=(
   --allow-unauthenticated
 )
 
+# ── PASO 0: DNS y APT ────────────────────────────────────────
+# VMware NAT asigna 192.168.133.2 como DNS, pero no reenvía
+# consultas externas (ej: www.postgresql.org). Forzar 8.8.8.8.
+chattr -i /etc/resolv.conf 2>/dev/null || true
+cat > /etc/resolv.conf << 'DNSEOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+DNSEOF
+
+if ! grep -q 'supersede domain-name-servers' /etc/dhcp/dhclient.conf 2>/dev/null; then
+  echo 'supersede domain-name-servers 8.8.8.8, 1.1.1.1;' >> /etc/dhcp/dhclient.conf
+fi
+
+# Forzar IPv4 — VMware NAT no enruta IPv6
+echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
+
+# Descargas secuenciales — evita saturar NAT con paralelas
+cat > /etc/apt/apt.conf.d/99parallel << 'APTEOF'
+Acquire::Queue-Mode "access";
+Acquire::http::Pipeline-Depth "0";
+Acquire::Retries "3";
+APTEOF
+
 # ── Configurar IP estática en eth1 ──────────────────────────
 echo "  [NET] Configurando ${VLAN_IFACE} → ${VLAN_IP}..."
 mkdir -p /etc/network/interfaces.d
@@ -83,7 +106,10 @@ apt-get install -y "${APT_OPTS[@]}" curl ca-certificates gnupg || true
 
 # ── PostgreSQL 16 ─────────────────────────────────────────────
 curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-  | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+  | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg || {
+    echo "[ERROR] No se pudo descargar la clave PGDG. Verifica DNS." >&2
+    exit 1
+  }
 
 # pgdg siempre usa bookworm como base estable para Debian 12/13
 echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg trusted=yes] \

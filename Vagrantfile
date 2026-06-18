@@ -117,6 +117,7 @@ Vagrant.configure("2") do |config|
     deb.vm.synced_folder ".", "/opt/erp-odoo",
       type:           "rsync",
       rsync__exclude: [
+        ".env",
         ".git/",
         ".vagrant/",
         "odoo-data/",

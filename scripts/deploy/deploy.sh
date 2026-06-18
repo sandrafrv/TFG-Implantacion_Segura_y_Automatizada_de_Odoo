@@ -141,6 +141,7 @@ except Exception as e:
         echo "  [!] BD vacía — inicializando Odoo con módulos de negocio (15-25 min)..."
         echo "  [INIT] Módulos: $ODOO_MODULES"
         echo "  [INIT] Ejecutando odoo --stop-after-init (workers=0)..."
+        set -o pipefail
         if docker exec \
             -e HOST=192.168.40.10 \
             -e USER=odoo \
@@ -155,6 +156,7 @@ except Exception as e:
                 -i "$ODOO_MODULES" \
                 --stop-after-init \
                 2>&1 | tail -30; then
+        set +o pipefail
             echo "  [OK] BD inicializada."
 
             # Cambiar contraseña del admin (por defecto Odoo la pone en "admin")
@@ -167,13 +169,15 @@ except Exception as e:
                     -e HOST=192.168.40.10 \
                     -e USER=odoo \
                     -e PASSWORD="$DB_PASS" \
+                    -e PGPASSWORD="$DB_PASS" \
                     -e ODOO_ADMIN_PASSWORD="$ADMIN_PASS_NEW" \
                     odoo-web \
                     python3 -c "
 import os, sys
 try:
     import odoo
-    odoo.tools.config.parse_config(['-c', '/etc/odoo/odoo.conf', '-d', 'odoo_erp'])
+    db_pass = os.environ.get('PASSWORD', '')
+    odoo.tools.config.parse_config(['-c', '/etc/odoo/odoo.conf', '-d', 'odoo_erp', '--db_password', db_pass])
     new_pass = os.environ.get('ODOO_ADMIN_PASSWORD', '')
     if not new_pass:
         print('  [SKIP] ODOO_ADMIN_PASSWORD no definida.')

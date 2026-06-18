@@ -75,16 +75,47 @@ ip addr show "${VLAN_IFACE}"
 # ── PASO 2: Ruta a BD vía pfSense (no bloqueante) ───────────
 # pfSense es MANUAL: puede no estar encendido durante el provision.
 # Se intenta añadir la ruta si pfSense responde; si no, el provision continúa.
+#ip route del default via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
+#if ping -c 2 -W 3 "${VLAN_GW}" > /dev/null 2>&1; then
+#    echo "  [NET] pfSense alcanzable → añadiendo ruta 192.168.40.0/24."
+#    ip route add 192.168.40.0/24 via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
+#else
+#    echo "  [AVISO] pfSense apagado o no disponible en ${VLAN_GW}."
+#    echo "          La ruta a 192.168.40.0/24 se activará al encender pfSense"
+#    echo "          (script persistente en /etc/network/if-up.d/)."
+#fi
+#ip route
+
+
+# ── PASO 2: Ruta a BD vía pfSense (no bloqueante, con reintentos) ──
+# pfSense es MANUAL pero suele estar encendido durante el provision;
+# lo que falla es el TIMING: cuando esta VM levanta eth1, pfSense puede
+# tardar unos segundos más en tener la interfaz de la VLAN 30 lista
+# (convergencia ARP/routing). Reintentamos antes de rendirnos.
 ip route del default via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
-if ping -c 2 -W 3 "${VLAN_GW}" > /dev/null 2>&1; then
+
+echo "  [NET] Comprobando pfSense en ${VLAN_GW}..."
+PFSENSE_UP=false
+for i in $(seq 1 8); do
+    if ping -c 1 -W 2 "${VLAN_GW}" > /dev/null 2>&1; then
+        PFSENSE_UP=true
+        echo "  [NET] pfSense respondió (intento $i/8)."
+        break
+    fi
+    echo "  [NET] pfSense no responde aún (intento $i/8) — esperando 5s..."
+    sleep 5
+done
+
+if [ "$PFSENSE_UP" = "true" ]; then
     echo "  [NET] pfSense alcanzable → añadiendo ruta 192.168.40.0/24."
     ip route add 192.168.40.0/24 via "${VLAN_GW}" dev "${VLAN_IFACE}" 2>/dev/null || true
 else
-    echo "  [AVISO] pfSense apagado o no disponible en ${VLAN_GW}."
+    echo "  [AVISO] pfSense apagado o no disponible en ${VLAN_GW} tras 40s."
     echo "          La ruta a 192.168.40.0/24 se activará al encender pfSense"
     echo "          (script persistente en /etc/network/if-up.d/)."
 fi
 ip route
+
 
 # ── PASO 4: Esperar Internet por eth0 ────────────────────────
 echo "  [NET] Esperando conectividad Internet..."
