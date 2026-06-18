@@ -439,8 +439,8 @@
                         style="color:#fbbf24;border-color:rgba(251,191,36,0.3);background:rgba(251,191,36,0.08);">🐘
                         PostgreSQL</span>
                 </div>
-                <p class="reveal" style="color:#5a8ab8;font-size:0.85rem;">Sandra Fradejas Avedillo &amp; Javier Córdoba
-                    Del Valle · 2025</p>
+                <p class="reveal" style="color:#5a8ab8;font-size:0.85rem;">Sandra Fradejas Avedillo &amp; Javier
+                    Córdoba Del Valle &amp; Mario García-Osorio · 2025-26</p>
             </div>
         </div>
 
@@ -539,7 +539,8 @@
                     qué Infrastructure as Code?</h2>
                 <p class="reveal" style="color:#a8c8e8;font-size:0.9rem;margin-bottom:1.4rem;">El problema clásico:
                     <em>"En mi máquina funciona."</em> IaC elimina la configuración manual, hace la infraestructura
-                    reproducible, versionable y auditable.</p>
+                    reproducible, versionable y auditable.
+                </p>
                 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
                     <div class="reveal"
                         style="padding:14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.14);border-radius:10px;text-align:center;">
@@ -770,7 +771,8 @@
                         <p style="font-size:0.75rem;color:#a8c8e8;margin:0;"><span
                                 style="color:#38bdf8;font-weight:700;">⚙️ Variables de entorno:</span> <code
                                 style="color:#fbbf24;">.env</code> centraliza <code>POSTGRES_PASSWORD</code>,
-                            <code>ODOO_MASTER_PASSWORD</code>, <code>GH_PAT</code> — nunca en el repo.</p>
+                            <code>ODOO_MASTER_PASSWORD</code>, <code>GH_PAT</code> — nunca en el repo.
+                        </p>
                     </div>
                     <div
                         style="padding:10px 14px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.12);border-radius:8px;">
@@ -1134,7 +1136,8 @@
                             <p style="font-weight:700;font-size:0.84rem;color:#38bdf8;margin:0 0 2px;">② Odoo corriendo
                             </p>
                             <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Abrir
-                                <code>https://192.168.30.10</code> → login → dashboard de Odoo 17 funcional</p>
+                                <code>https://192.168.30.10</code> → login → dashboard de Odoo 17 funcional
+                            </p>
                         </div>
                     </div>
                     <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
@@ -1144,7 +1147,8 @@
                             <p style="font-weight:700;font-size:0.84rem;color:#818cf8;margin:0 0 2px;">③ Pipeline GitHub
                                 Actions</p>
                             <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Mostrar último run de
-                                <code>deploy.yml</code> — pasos ejecutados dentro de la VM</p>
+                                <code>deploy.yml</code> — pasos ejecutados dentro de la VM
+                            </p>
                         </div>
                     </div>
                     <div class="reveal" style="display:flex;align-items:flex-start;gap:12px;">
@@ -1154,14 +1158,16 @@
                             <p style="font-weight:700;font-size:0.84rem;color:#fbbf24;margin:0 0 2px;">④ Backup en
                                 acción</p>
                             <p style="font-size:0.74rem;color:#a8c8e8;margin:0;">Ejecutar
-                                <code>backup_postgres.sh</code> → mostrar .sql.gz generado con retención 7 días</p>
+                                <code>vagrant up</code> → (Debido a que este tarda 25 minutos en ejecutarse, mostraremos
+                                un vídeo del proceso.)
+                            </p>
                         </div>
                     </div>
                 </div>
                 <div class="reveal"
                     style="margin-top:0.8rem;padding:8px 14px;background:rgba(248,113,113,0.07);border-left:3px solid #f87171;border-radius:6px;font-size:0.75rem;color:#a8c8e8;">
-                    <span style="color:#f87171;font-weight:700;">Plan B:</span> Vídeo de backup de 1 min con el pipeline
-                    ejecutándose, por si falla la red en la demo.
+                    <span style="color:#f87171;font-weight:700;">Plan B:</span> Vídeo mostrando la ejecución del vagrant
+                    up ya que tarda 24 minutos.
                 </div>
             </div>
         </div>
